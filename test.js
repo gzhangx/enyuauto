@@ -1,13 +1,12 @@
 const login = require('./lib/util');
-const secs = require('./enyu_secs.json');
 const gs = require('@gzhangx/googleapi');
 
 const fs = require('fs');
 async function test() {
 
 
-    const gsc = await gs.google.gsAccount.getClient(secs.gsAuth);
-    const ops = await gsc.getSheetOps(secs.gsAuth.main_sheet_id);
+    const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
+    const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
     const d = await ops.readDataByColumnName('main');
     return console.log(d);
     const pr = await login.getProcessor();
