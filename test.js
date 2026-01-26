@@ -3,10 +3,21 @@ const https = require('https');
 const secs = require('./secs.json');
 const gs = require('@gzhangx/googleapi');
 
+const fs = require('fs');
 async function test() {
     const pr = await login.getProcessor();
+    
+    const args = process.argv.slice(2);
+    if (args.includes('del')) {
+        const taskId = fs.readFileSync('./temp/taskId.txt', 'utf8').trim();
+        await pr.deleteTask(taskId);
+        console.log(`Deleted task ${taskId}`);
+        return;
+    }
+    
     const taskRes = await pr.createTask('testtask');
     const taskId = taskRes.id;
+    fs.writeFileSync('./temp/taskId.txt', taskId.toString());
     //await testResponse(pr.cookies.map(c => c).join('; '), 'from https request');
     await pr.doPostAttachment(taskId, 'This is a test attachment upload.');
     //return;
@@ -46,5 +57,7 @@ async function test() {
     }
 
 }
+
+
 
 test();
