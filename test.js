@@ -1,10 +1,15 @@
 const login = require('./lib/util');
-const https = require('https');
 const secs = require('./secs.json');
 const gs = require('@gzhangx/googleapi');
 
 const fs = require('fs');
 async function test() {
+
+
+    const gsc = await gs.google.gsAccount.getClient(secs.gsAuth);
+    const ops = await gsc.getSheetOps('1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk');
+    const d = await ops.readDataByColumnName('main');
+    return console.log(d);
     const pr = await login.getProcessor();
     
     const args = process.argv.slice(2);
@@ -60,4 +65,6 @@ async function test() {
 
 
 
-test();
+test().catch(err => {
+    console.error('Test failed:', err);
+});
