@@ -1,1 +1,1 @@
-node dist\test test
+node dist\test %*
