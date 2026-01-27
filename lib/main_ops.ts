@@ -1,7 +1,10 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
-import { ProjectAndGroup, Processor, IUserInfo } from './util';
+import { ProjectAndGroup, Processor, IUserInfo, TaskParams } from './util';
+
+type ActionType = '校对' | '美编' | '发布';
+type DueDateKeys = `${ActionType} Due Date`;
 
 interface Operation {
     '文件': string;
@@ -15,6 +18,10 @@ interface Operation {
     'send': string;
 }
 
+type OperationWithDueDates = Operation & {
+    [K in DueDateKeys]: string;
+};
+
 interface OperationInfo {
     author: string;
     article: string;
@@ -25,12 +32,12 @@ interface OperationInfo {
     '发布': string;
 }
 
-interface Templates {
-    [key: string]: string;
-}
+type Templates = {
+    [K in ActionType]: string;
+};
 
 interface OperationAndTemplates {
-    validOperations: Operation[];
+    validOperations: OperationWithDueDates[];
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
 }
@@ -44,16 +51,16 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
 async function getOperationAndTemplates(): Promise<OperationAndTemplates> {    
     const ops = await getSheetOps();
     const operationList = await ops.readDataByColumnName('main');
-    const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as Operation[];
+    const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as OperationWithDueDates[];
 
     const templateRows = await ops.readData('templates');
-    const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
+    const templates = templateRows.values.reduce((acc: any, row: string[]) => {
         const [templateName, ...templateContent] = row;
         if (templateName) {
             acc[templateName] = templateContent.join('\n');
         }
         return acc;
-    }, {});
+    }, {}) as Templates;
     return { validOperations, templates, ops };
 }
 
@@ -65,12 +72,12 @@ function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
     };
 }
 
-function getActions(): ('校对' | '美编' | '发布')[] {
+function getActions(): ActionType[] {
     return ['校对', '美编', '发布'];
 }
 
 async function processOperation(
-    validOperations: Operation[], 
+    validOperations: OperationWithDueDates[], 
     templates: Templates, 
     debug_Prefix: string = ''
 ): Promise<number[]> {
@@ -104,6 +111,7 @@ async function processOperation(
             taskIds.push(taskId);
             const link = infos.link;
             const editor = infos[action];
+            
             for (const replaceItem of [...getActions(), 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
@@ -111,16 +119,24 @@ async function processOperation(
             if (link) {
                 template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
-            let assigned_to_id = '';
+            
+            const postParams: TaskParams = {
+                description: template1,
+            };
+            const dueDateKey = `${action} Due Date` as DueDateKeys;
+            const due_date = operation[dueDateKey];
 
+            if (due_date) {
+                postParams.due_date = due_date;
+            }
             if (editor) {
                 const userInfo = userNameToInfoMap[editor];
                 if (userInfo) {
-                    assigned_to_id = userInfo.user_id;
+                    postParams.assigned_to_id = userInfo.user_id;
                 }
             }
             //due_date
-            await pr.doPostAttachment(taskId, assigned_to_id, template1);
+            await pr.doPostAttachment(taskId, postParams);
         }
     }
     return taskIds;
