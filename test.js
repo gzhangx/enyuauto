@@ -78,7 +78,8 @@ async function main() {
         return;
     }
     const { validOperations, templates } = await getOperationAndTemplates();
-    await processOperation(validOperations, templates, 'test_');
+    const prefix = process.argv.includes('test') ? 'test_' : '';
+    await processOperation(validOperations, templates, prefix);
 }
 
 main().catch(err => {
