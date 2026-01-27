@@ -17,7 +17,7 @@ try {
   console.log('  ⏳ Compressing files...');
   
   // Use PowerShell to create zip
-  const command = `powershell Compress-Archive -Path dist,node_modules,package.json,enyu_secs.json -DestinationPath ${zipName} -Force`;
+  const command = `powershell Compress-Archive -Path dist,node_modules,package.json,enyu_secs.json,index.mjs -DestinationPath ${zipName} -Force`;
   execSync(command, { stdio: 'inherit' });
   
   const stats = fs.statSync(zipName);
@@ -39,7 +39,7 @@ try {
   console.log('   - Click "Save"\n');
   console.log('4. In "Configuration" → "General configuration":');
   console.log('   - Click "Edit"');
-  console.log('   - Handler: dist/index.handler');
+  console.log('   - Handler: index.handler');
   console.log('   - Timeout: 5 minutes (300 seconds)');
   console.log('   - Memory: 512 MB');
   console.log('   - Click "Save"\n');
