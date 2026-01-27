@@ -28,11 +28,17 @@ interface Templates {
 interface OperationAndTemplates {
     validOperations: Operation[];
     templates: Templates;
+    ops: gs.gsAccount.IGetSheetOpsReturn;
 }
 
-async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
+async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
     const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
+    return ops;
+}
+
+async function getOperationAndTemplates(): Promise<OperationAndTemplates> {    
+    const ops = await getSheetOps();
     const operationList = await ops.readDataByColumnName('main');
     const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as Operation[];
 
@@ -44,7 +50,7 @@ async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
         }
         return acc;
     }, {});
-    return { validOperations, templates };
+    return { validOperations, templates, ops };
 }
 
 function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
@@ -102,16 +108,13 @@ async function processOperation(
 
 async function debug_main(opStr?: string): Promise<void> {
     if (opStr === 'del') {
-        const taskIdPath = './temp/taskId.txt';
-        if (!fs.existsSync(taskIdPath)) {
-            console.log('No saved task IDs found in temp/taskId.txt');
-            return;
-        }
+        const ops = await getSheetOps();
+        const temp = await ops.readData('temp');
         
-        const pr = await login.getProcessor();
-        const taskIds = fs.readFileSync(taskIdPath, 'utf8').trim().split('\n');
+        console.log('Deleting tasks:', temp);
+        const pr = await login.getProcessor();        
         
-        for (const taskId of taskIds) {
+        for (const taskId of temp.values[0][0].split(',')) {
             if (taskId) {
                 await pr.deleteTask(taskId);
                 console.log(`Deleted task ${taskId}`);
@@ -119,23 +122,22 @@ async function debug_main(opStr?: string): Promise<void> {
         }
         return;
     }
-    const ids = await main(opStr);
+    const { ids, ops } = await main(opStr);
     console.log('Created task IDs:', ids);
     
-    // Ensure temp directory exists
-    if (!fs.existsSync('./temp')) {
-        fs.mkdirSync('./temp', { recursive: true });
-    }
+    await ops.updateValues('temp!A1', [[ids.join(',')]]);
     
-    // Save all task IDs to temp/taskId.txt
-    fs.writeFileSync('./temp/taskId.txt', ids.join('\n'));
     console.log(`Saved ${ids.length} task IDs to temp/taskId.txt`);
 }
 
 async function main(opStr?: string) {
-    const { validOperations, templates } = await getOperationAndTemplates();
+    const { validOperations, templates, ops } = await getOperationAndTemplates();
     const prefix = opStr || '';
-    return await processOperation(validOperations, templates, prefix);
+    const ids = await processOperation(validOperations, templates, prefix);
+    return {
+        ids, 
+        ops,
+    }
 }
 
 export {
