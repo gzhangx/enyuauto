@@ -11,9 +11,11 @@ async function test() {
         opstr = 'del';
     }
 
-    mainOps.debug_main(opstr).catch((err: Error) => {
-        console.error('Test failed:', err);
+    const log: mainOps.DebugLog = { operations: [] };
+    mainOps.debug_main(log,opstr).catch((err: Error) => {
+        console.error('Test failed:', err);        
     });
+    console.log('Log:', log.operations);
 }
 
 test();
