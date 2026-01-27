@@ -23,7 +23,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       opStr = 'del';
     }
     
-    const res = params['doit']?await mainOps.main(opStr):'No operation performed';
+    const res = params['doit']?await mainOps.debug_main(opStr):'No operation performed';
     
     const response: LambdaResponse = {
       statusCode: 200,
