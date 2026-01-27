@@ -4,7 +4,7 @@ const { execSync } = require('child_process');
 
 console.log('📦 Creating Lambda deployment package...\n');
 
-const zipName = 'lambda-deployment.zip';
+const zipName = 'temp\\lambda-deployment.zip';
 
 // Remove old zip if exists
 if (fs.existsSync(zipName)) {
