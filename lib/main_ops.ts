@@ -166,7 +166,11 @@ async function processOperation(
             if (editor) {
                 const userInfo = userNameToInfoMap[editor];
                 if (userInfo) {
-                    postParams.assigned_to_id = userInfo.user_id;
+                    //DEBUG don't assign it sends email
+                    //postParams.assigned_to_id = userInfo.user_id;
+                    if (debug_Prefix) {
+                        //postParams.assigned_to_id = '1320079';
+                    }
                 }
             }
             log.operations.push(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
