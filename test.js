@@ -27,7 +27,9 @@ function getProjectGroupMapping() {
         '发布': { "project_id": "3696243", "task_group_id": "6824401" },
     }
 }
-
+function getActions() {
+    return ['校对', '美编', '发布'];
+}
 async function processOperation(validOperations, templates, debug_Prefix = '') {
     const pr = await login.getProcessor();
     console.log('Valid operations:', validOperations, templates);
@@ -42,14 +44,14 @@ async function processOperation(validOperations, templates, debug_Prefix = '') {
         }
 
         const projectGroupMapping = getProjectGroupMapping();
-        for (const actions of ['校对', '美编', '发布']) {
-            let template1 = templates['校对'];
-            const projectGrpoup = projectGroupMapping[actions];
+        for (const action of getActions()) {
+            let template1 = templates[action];
+            const projectGrpoup = projectGroupMapping[action];
 
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
             const taskId = taskRes.id;
-            console.log(`Created task ${taskId} for file ${fileName}`);
-            fs.writeFileSync('./temp/taskId.txt', taskId.toString());
+            console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
+            fs.writeFileSync(`./temp/taskId_${action}.txt`, taskId.toString());
             const link = infos.link;
             for (const replaceItem of ['editor', 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
@@ -68,9 +70,11 @@ async function processOperation(validOperations, templates, debug_Prefix = '') {
 async function main() {
     if (process.argv.includes('del')) {
         const pr = await login.getProcessor();
-        const taskId = fs.readFileSync('./temp/taskId.txt', 'utf8').trim();
-        await pr.deleteTask(taskId);
-        console.log(`Deleted task ${taskId}`);
+        for (const action of getActions()) {
+            const taskId = fs.readFileSync(`./temp/taskId_${action}.txt`, 'utf8').trim();
+            await pr.deleteTask(taskId);
+            console.log(`Deleted task ${taskId} for action ${action}`);
+        }
         return;
     }
     const { validOperations, templates } = await getOperationAndTemplates();
