@@ -1,4 +1,9 @@
+import * as mainOps from './lib/main_ops';
+
 interface LambdaEvent {
+  queryStringParameters?: {
+    [key: string]: string;
+  };
   [key: string]: any;
 }
 
@@ -8,10 +13,33 @@ interface LambdaResponse {
 }
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
-  // TODO implement
-  const response: LambdaResponse = {
-    statusCode: 200,
-    body: JSON.stringify('Hello from Lambda!'),
-  };
-  return response;
+  try {
+    const url = event.queryStringParameters?.url || '';
+    
+    let opStr: string | undefined;
+    if (url.includes('test')) {
+      opStr = 'debug_remove_test_';
+    } else if (url.includes('del')) {
+      opStr = 'del';
+    }
+    
+    await mainOps.debug_main(opStr);
+    
+    const response: LambdaResponse = {
+      statusCode: 200,
+      body: JSON.stringify({ 
+        message: 'Success',
+        operation: opStr || 'main'
+      }),
+    };
+    return response;
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ 
+        message: 'Error',
+        error: error instanceof Error ? error.message : String(error)
+      }),
+    };
+  }
 };
