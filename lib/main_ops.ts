@@ -121,6 +121,15 @@ async function debug_main(opStr?: string): Promise<void> {
     }
     const ids = await main(opStr);
     console.log('Created task IDs:', ids);
+    
+    // Ensure temp directory exists
+    if (!fs.existsSync('./temp')) {
+        fs.mkdirSync('./temp', { recursive: true });
+    }
+    
+    // Save all task IDs to temp/taskId.txt
+    fs.writeFileSync('./temp/taskId.txt', ids.join('\n'));
+    console.log(`Saved ${ids.length} task IDs to temp/taskId.txt`);
 }
 
 async function main(opStr?: string) {
