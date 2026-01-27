@@ -125,7 +125,7 @@ async function debug_main(opStr?: string): Promise<void> {
     const { ids, ops } = await main(opStr);
     console.log('Created task IDs:', ids);
     
-    await ops.updateValues('temp!A1', [[ids.join(',')]]);
+    await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
     
     console.log(`Saved ${ids.length} task IDs to temp/taskId.txt`);
 }
