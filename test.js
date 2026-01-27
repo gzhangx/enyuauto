@@ -2,68 +2,81 @@ const login = require('./lib/util');
 const gs = require('@gzhangx/googleapi');
 
 const fs = require('fs');
-async function test() {
-
-
+async function getOperationAndTemplates() {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
     const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
-    const d = await ops.readDataByColumnName('main');
-    return console.log(d);
+    const operationList = await ops.readDataByColumnName('main');
+    const validOperations = operationList.data.filter(d => d['send'] === 'Y');
+
+    const templateRows = await ops.readData('templates');
+    const templates = templateRows.values.reduce((acc, row) => {
+        const [templateName, ...templateContent] = row;
+        if (templateName) {
+            acc[templateName] = templateContent.join('\n');
+        }
+        return acc;
+    }, {});
+    return { validOperations, templates };
+}
+
+
+function getProjectGroupMapping() {
+    return {
+        '校对': { "project_id": "3696514", "task_group_id": "6825082" },
+        '美编': { "project_id": "3696516", "task_group_id": "6825087" },
+        '发布': { "project_id": "3696243", "task_group_id": "6824401" },
+    }
+}
+
+async function processOperation(validOperations, templates, debug_Prefix = '') {
     const pr = await login.getProcessor();
+    console.log('Valid operations:', validOperations, templates);
+    for (const operation of validOperations) {
+        const fileName = operation['文件'];
+        const infos = {
+            author: operation['作者'],
+            article: operation['文章名'],
+            link: operation['文章链接'],
+            email: operation['作者电邮'],
+            editor: operation['校对'],
+        }
+
+        const projectGroupMapping = getProjectGroupMapping();
+        for (const actions of ['校对', '美编', '发布']) {
+            let template1 = templates['校对'];
+            const projectGrpoup = projectGroupMapping[actions];
+
+            const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
+            const taskId = taskRes.id;
+            console.log(`Created task ${taskId} for file ${fileName}`);
+            fs.writeFileSync('./temp/taskId.txt', taskId.toString());
+            const link = infos.link;
+            for (const replaceItem of ['editor', 'author', 'email', 'article']) {
+                if (replaceItem === 'article' && link) continue;
+                template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem]);
+            }
+            if (link) {
+                template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
+            }
+            await pr.doPostAttachment(taskId, template1);
+        }
+    }
+}
     
-    const args = process.argv.slice(2);
-    if (args.includes('del')) {
+
+
+async function main() {
+    if (process.argv.includes('del')) {
+        const pr = await login.getProcessor();
         const taskId = fs.readFileSync('./temp/taskId.txt', 'utf8').trim();
         await pr.deleteTask(taskId);
         console.log(`Deleted task ${taskId}`);
         return;
     }
-    
-    const taskRes = await pr.createTask('testtask');
-    const taskId = taskRes.id;
-    fs.writeFileSync('./temp/taskId.txt', taskId.toString());
-    //await testResponse(pr.cookies.map(c => c).join('; '), 'from https request');
-    await pr.doPostAttachment(taskId, 'This is a test attachment upload.');
-    //return;
-    //const res = await login.login({});
-    //console.log(res.data.toString());
-    //console.log(res.statusMessage);
-    //console.log(res.headers)
-    //console.log('Test done', pr.cookies);
-
-
-
-
-    
-    async function testResponse(cookie, desc) {
-        const data = `------geckoformboundarya5436b018dcf600688cc0244d5319984\r\nContent-Disposition: form-data; name="data"\r\n
-{"description":"${desc}","conditions":{"filter":{},"order":{},"substring":"","f_use_and":"0"},"time_on_page":37378}${'\r\n'
-            }------geckoformboundarya5436b018dcf600688cc0244d5319984--\r\n`
-        const res = await gs.util.doHttpRequest({
-            method: 'POST',
-            url: `https://freedcamp.com/iapi/tasks/69187618`,
-            data,
-            headers: {
-                //Cookie: cookies.join('; '),
-                //cookie: 'AWSALB=436tpJ0fCGT270ai4gZxektI8bF8rK7IaIdK55KpxgPpAiD+zJnh430vYafOBuvNK1qMmS0nWZEDcJDAFXj04dVLBAkqx1ux+KpY9qsj9UIh1zdNwSw87pg0TS/P; AWSALBCORS=436tpJ0fCGT270ai4gZxektI8bF8rK7IaIdK55KpxgPpAiD+zJnh430vYafOBuvNK1qMmS0nWZEDcJDAFXj04dVLBAkqx1ux+KpY9qsj9UIh1zdNwSw87pg0TS/P; fc_lang=en; fcrel_new_frontpage_c=0; fcrel_new_frontpage=1; _ga_DXYN2SN4L9=GS2.1.s1769443065$o2$g1$t1769443352$j60$l0$h0; _ga=GA1.1.369532003.1769404261; fc_vz=4330521f4738c8cd37e7798602213730_8701927; remember_identifier=04eaf8aa68ee9c9525e5bfce788eaaf25b528ea7; remember_code=accbab597e16bff5e03e1f223f406060a06e9df1; identity=user_1320079; ci_session=6S6UuGGqnJDjglB%2C2xSLiKAFoySMxQY7U6tOdOigm-OzYRUR',
-                //cookie: 'remember_identifier=04eaf8aa68ee9c9525e5bfce788eaaf25b528ea7; remember_code=accbab597e16bff5e03e1f223f406060a06e9df1; identity=user_1320079; ci_session=6S6UuGGqnJDjglB%2C2xSLiKAFoySMxQY7U6tOdOigm-OzYRUR',
-                //cookie: ' ci_session=6S6UuGGqnJDjglB%2C2xSLiKAFoySMxQY7U6tOdOigm-OzYRUR',
-                //cookie: 'ci_session=K6V18H%2Cq5981kxCGXoh48Em5sQjGZVkCTqQgJtGCFvwf%2CUYb',
-                //cookie-gd: 'ci_session=K6V18H%2Cq5981kxCGXoh48Em5sQjGZVkCTqQgJtGCFvwf%2CUYb',
-                //cookie-bd: 'ci_session=oLXKkKXPlb3lmAaJhfNE5F6kFf5lxLipClW3I8EwlN6vKs7e',
-                //cookie-bd: 'ci_session=k9KDXcRKzj7S0ulwSSu39NSV4l76L2rIo8oiKE1ReC6p-T0R'
-                cookie,
-                'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
-            },
-      
-        });
-        console.log(`Attachment upload response status(dec=${desc}):`, res.statusCode, res.data);
-    }
-
+    const { validOperations, templates } = await getOperationAndTemplates();
+    await processOperation(validOperations, templates, 'test_');
 }
 
-
-
-test().catch(err => {
+main().catch(err => {
     console.error('Test failed:', err);
 });
