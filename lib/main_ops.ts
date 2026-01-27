@@ -1,7 +1,7 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
-import { ProjectAndGroup, Processor } from './util';
+import { ProjectAndGroup, Processor, IUserInfo } from './util';
 
 interface Operation {
     '文件': string;
@@ -10,6 +10,8 @@ interface Operation {
     '文章链接': string;
     '作者电邮': string;
     '校对': string;
+    '美编': string;
+    '发布': string;
     'send': string;
 }
 
@@ -18,7 +20,9 @@ interface OperationInfo {
     article: string;
     link: string;
     email: string;
-    editor: string;
+    '校对': string;
+    '美编': string;
+    '发布': string;
 }
 
 interface Templates {
@@ -61,7 +65,7 @@ function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
     };
 }
 
-function getActions(): string[] {
+function getActions(): ('校对' | '美编' | '发布')[] {
     return ['校对', '美编', '发布'];
 }
 
@@ -73,6 +77,11 @@ async function processOperation(
     const pr = await login.getProcessor();
     
     const taskIds = [];
+    const userData = await pr.getSessionCurrentData();
+    const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
+        acc[user.full_name] = user;
+        return acc;
+    }, {} as { [key: string]: IUserInfo });
     for (const operation of validOperations) {
         const fileName = operation['文件'];
         const infos: OperationInfo = {
@@ -80,11 +89,12 @@ async function processOperation(
             article: operation['文章名'],
             link: operation['文章链接'],
             email: operation['作者电邮'],
-            editor: operation['校对'],
-        };
+            //校对: operation['校对'],
+        } as OperationInfo;
 
         const projectGroupMapping = getProjectGroupMapping();
         for (const action of getActions()) {
+            infos[action] = operation[action];
             let template1 = templates[action];
             const projectGrpoup = projectGroupMapping[action];
 
@@ -93,14 +103,23 @@ async function processOperation(
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             taskIds.push(taskId);
             const link = infos.link;
-            for (const replaceItem of ['editor', 'author', 'email', 'article']) {
+            const editor = infos[action];
+            for (const replaceItem of [...getActions(), 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
             if (link) {
                 template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
-            await pr.doPostAttachment(taskId, template1);
+            let assigned_to_id = '';
+
+            if (editor) {
+                const userInfo = userNameToInfoMap[editor];
+                if (userInfo) {
+                    assigned_to_id = userInfo.user_id;
+                }
+            }
+            await pr.doPostAttachment(taskId, assigned_to_id, template1);
         }
     }
     return taskIds;

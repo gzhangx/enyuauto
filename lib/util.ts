@@ -24,9 +24,22 @@ interface CreateTaskResponse {
 
 interface Processor {
     cookies: string[];
-    doPostAttachment: (taskId: number, description: string) => Promise<any>;
+    doPostAttachment: (taskId: number, assigned_to_id: string, description: string) => Promise<any>;
     createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
+    getSessionCurrentData(): Promise<ICurrentSessionData>;
+}
+
+export interface IUserInfo {
+    user_id: string;
+    full_name: string;
+    email: string;
+}
+
+interface ICurrentSessionData {
+    data: {
+        users: IUserInfo[];
+    }
 }
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {
@@ -82,9 +95,10 @@ ${json}${
         return res;
     }
 
-    async function doPostAttachment(taskId: number, description: string): Promise<any> {
+    async function doPostAttachment(taskId: number, assigned_to_id: string, description: string): Promise<any> {
         await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             description, 
+            assigned_to_id,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
             "time_on_page": 37378 
         });
@@ -118,9 +132,25 @@ ${json}${
         return res;
     }
 
+    async function doGetAction(path: string): Promise<any> {
+        const res = await gs.util.doHttpRequest({
+            method: 'GET',
+            url: `https://freedcamp.com${path}`,
+            headers: {
+                Cookie: cookies.join('; '),
+            },
+        });
+        return res;
+    };
+
     async function deleteTask(taskId: string | number): Promise<any> {
         const res = await doDelAction(`/iapi/tasks/${taskId}`);
         return res;
+    }
+
+    async function getSessionCurrentData(): Promise<ICurrentSessionData> {
+        const res = await doGetAction('/iapi/sessions/current');
+        return res.data as ICurrentSessionData;
     }
 
     return {
@@ -128,6 +158,7 @@ ${json}${
         doPostAttachment,
         createTask,
         deleteTask,
+        getSessionCurrentData,
     };
 }
 
