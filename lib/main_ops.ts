@@ -63,9 +63,10 @@ async function processOperation(
     validOperations: Operation[], 
     templates: Templates, 
     debug_Prefix: string = ''
-): Promise<void> {
+): Promise<number[]> {
     const pr = await login.getProcessor();
     
+    const taskIds = [];
     for (const operation of validOperations) {
         const fileName = operation['文件'];
         const infos: OperationInfo = {
@@ -84,7 +85,8 @@ async function processOperation(
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
             const taskId = taskRes.id;
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
-            fs.writeFileSync(`./temp/taskId_${action}.txt`, taskId.toString());
+            //fs.writeFileSync(`./temp/taskId_${action}.txt`, taskId.toString());
+            taskIds.push(taskId);
             const link = infos.link;
             for (const replaceItem of ['editor', 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
@@ -96,9 +98,10 @@ async function processOperation(
             await pr.doPostAttachment(taskId, template1);
         }
     }
+    return taskIds;
 }
 
-async function main(opStr?: string): Promise<void> {
+async function debug_main(opStr?: string): Promise<void> {
     if (opStr === 'del') {
         const pr = await login.getProcessor();
         for (const action of getActions()) {
@@ -108,11 +111,16 @@ async function main(opStr?: string): Promise<void> {
         }
         return;
     }
+    const ids = await main(opStr);    
+}
+
+async function main(opStr?: string) {
     const { validOperations, templates } = await getOperationAndTemplates();
     const prefix = opStr || '';
-    await processOperation(validOperations, templates, prefix);
+    return await processOperation(validOperations, templates, prefix);
 }
 
 export {
+    debug_main,
     main,
 };
