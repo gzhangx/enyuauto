@@ -55,12 +55,16 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     return ops;
 }
 
-async function getOperationAndTemplates(): Promise<OperationAndTemplates> {    
+async function getOperationAndTemplates(log: DebugLog): Promise<OperationAndTemplates> {    
     const ops = await getSheetOps();
+    log.operations.push('getOperationAndTemplates: got sheet ops');
     const operationList = await ops.readDataByColumnName('main');
+    log.operations.push('getOperationAndTemplates: got operation list from main');
     const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as OperationWithDueDates[];
 
+    log.operations.push('getOperationAndTemplates: got operation list ' + validOperations.length);
     const templateRows = await ops.readData('templates');
+    log.operations.push('getOperationAndTemplates: got template rows');
     const templates = templateRows.values.reduce((acc: any, row: string[]) => {
         const [templateName, ...templateContent] = row;
         if (templateName) {
@@ -70,6 +74,7 @@ async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
     }, {}) as Templates;
 
     const listOfNames = await ops.readDataByColumnName('list of names');
+    log.operations.push('getOperationAndTemplates: got list of names');
     const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
         const full_name = item['Name on FreedCamp'];
         const email = item['Email'];
@@ -96,11 +101,12 @@ function getActions(): ActionType[] {
 
 async function processOperation(
     opsAndTemplates: OperationAndTemplates,        
+    log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<number[]> {
     const { validOperations, templates, editorInfoMap } = opsAndTemplates;
     const pr = await login.getProcessor();
-    
+    log.operations.push('processOperation: got processor with login');
     const taskIds = [];
     const userData = await pr.getSessionCurrentData();
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
@@ -136,6 +142,7 @@ async function processOperation(
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
             const taskId = taskRes.id;
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
+            log.operations.push(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
             taskIds.push(taskId);
             const link = action === '校对' ? infos.link : undefined;            
             
@@ -162,6 +169,7 @@ async function processOperation(
                     postParams.assigned_to_id = userInfo.user_id;
                 }
             }
+            log.operations.push(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date
             await pr.doPostAttachment(taskId, postParams);
         }
@@ -169,34 +177,40 @@ async function processOperation(
     return taskIds;
 }
 
-async function debug_main(opStr?: string): Promise<void> {
+export interface DebugLog {
+    operations: string[];
+}
+async function debug_main(log:DebugLog, opStr?: string): Promise<void> {
     if (opStr === 'del') {
         const ops = await getSheetOps();
+        log.operations.push('del: got ops');
         const temp = await ops.readData('temp');
+        log.operations.push('del: got temp data');
         
-        console.log('Deleting tasks:', temp);
+        //log.operations.push('Deleting tasks:', temp);        
         const pr = await login.getProcessor();        
         
         for (const taskId of temp.values[0][0].split(',')) {
             if (taskId) {
+                log.operations.push(`del: deleting task ${taskId}`);
                 await pr.deleteTask(taskId);
-                console.log(`Deleted task ${taskId}`);
+                log.operations.push(`del: deleted task ${taskId}`);
             }
         }
         return;
     }
-    const { ids, ops } = await main(opStr);
-    console.log('Created task IDs:', ids);
+    const { ids, ops } = await main(log,opStr);
+    log.operations.push('Created task IDs:'+ JSON.stringify(ids));
     
     await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
     
-    console.log(`Saved ${ids.length} task IDs to temp/taskId.txt`);
+    log.operations.push(`Saved ${ids.length} task IDs to temp/taskId.txt`);
 }
 
-async function main(opStr?: string) {
-    const opsAndTemplates = await getOperationAndTemplates();
+async function main(log: DebugLog, opStr?: string) {
+    const opsAndTemplates = await getOperationAndTemplates(log);
     const prefix = opStr || '';
-    const ids = await processOperation(opsAndTemplates, prefix);
+    const ids = await processOperation(opsAndTemplates, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,

@@ -13,6 +13,7 @@ interface LambdaResponse {
 }
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
+  const log: mainOps.DebugLog = { operations: [] };
   try {
     const params = event.queryStringParameters || {};
     
@@ -22,8 +23,8 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     } else if (params['del']) {
       opStr = 'del';
     }
-    
-    const res = params['doit']?await mainOps.debug_main(opStr):'No operation performed';
+        
+    const res = params['doit']?await mainOps.debug_main(log, opStr):'No operation performed';
     
     const response: LambdaResponse = {
       statusCode: 200,
@@ -31,7 +32,8 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
             message: 'Success',
             operation: opStr || 'main',
             res,
-            params: event.queryStringParameters || {},
+          params: event.queryStringParameters || {},
+          log: log.operations,
         }),
     };
     return response;
@@ -40,7 +42,8 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       statusCode: 500,
       body: JSON.stringify({ 
         message: 'Error',
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        log: log.operations,
       }),
     };
   }
