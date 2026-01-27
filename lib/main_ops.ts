@@ -34,7 +34,7 @@ async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
     const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
     const operationList = await ops.readDataByColumnName('main');
-    const validOperations = operationList.data.filter((d: Operation) => d['send'] === 'Y');
+    const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as Operation[];
 
     const templateRows = await ops.readData('templates');
     const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {

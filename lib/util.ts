@@ -45,10 +45,11 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
         f_ajax_login: 1,
     };
 
+    const formData = gs.util.getFormData(auth);
     const res = await gs.util.doHttpRequest({
         method: 'POST',
         url: 'https://freedcamp.com/login',
-        data: gs.util.getFormData(auth),
+        data: formData || '',
         headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
         },
