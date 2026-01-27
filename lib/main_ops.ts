@@ -47,6 +47,7 @@ interface IEditorInfo {
     full_name: string;
     email: string;
     task: string;
+    print_name: string; //the full chinese name for printing
 }
 async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
@@ -70,11 +71,12 @@ async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
 
     const listOfNames = await ops.readDataByColumnName('list of names');
     const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
-        const full_name = item['Name on Feed'];
+        const full_name = item['Name on FreedCamp'];
         const email = item['Email'];
         const task = item['Task'];
         const title = item['Title'];
-        acc[full_name] = { title, full_name, email, task };
+        const print_name = item['Full Name'];
+        acc[full_name] = { title, full_name, email, task, print_name };
         return acc;
     }, {} as { [key: string]: IEditorInfo }) || {};
     return { validOperations, templates, ops, editorInfoMap };
@@ -121,10 +123,11 @@ async function processOperation(
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
+                const prettyName = editorLookup.print_name || editorLookup.full_name; 
                 if (editorLookup.title === 'Brother') {
-                    infos['editor'] = `${editorLookup.title} ${editorLookup.full_name}`;
+                    infos['editor'] = `${editorLookup.title} ${prettyName}`;
                 } else {
-                    infos['editor'] = `${editorLookup.full_name}${editorLookup.title}`;
+                    infos['editor'] = `${prettyName}${editorLookup.title}`;
                 }
             }
             let template1 = templates[action];
@@ -134,7 +137,7 @@ async function processOperation(
             const taskId = taskRes.id;
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             taskIds.push(taskId);
-            const link = infos.link;            
+            const link = action === '校对' ? infos.link : undefined;            
             
             for (const replaceItem of ['editor', 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
