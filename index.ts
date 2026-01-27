@@ -1,7 +1,7 @@
 import * as mainOps from './lib/main_ops';
 
 interface LambdaEvent {
-  queryStringParameters?: {
+  queryStringParameters: {
     [key: string]: string;
   };
   [key: string]: any;
@@ -14,16 +14,16 @@ interface LambdaResponse {
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   try {
-    const url = event.queryStringParameters?.url || '';
+    const params = event.queryStringParameters || {};
     
     let opStr: string | undefined;
-    if (url.includes('test')) {
+    if (params['test']) {
       opStr = 'debug_remove_test_';
-    } else if (url.includes('del')) {
+    } else if (params['del']) {
       opStr = 'del';
     }
     
-    const res = url.includes('doit')?await mainOps.main(opStr):'No operation performed';
+    const res = params['doit']?await mainOps.main(opStr):'No operation performed';
     
     const response: LambdaResponse = {
       statusCode: 200,
