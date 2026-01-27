@@ -23,14 +23,15 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       opStr = 'del';
     }
     
-    await mainOps.debug_main(opStr);
+    const res = await mainOps.main(opStr);
     
     const response: LambdaResponse = {
       statusCode: 200,
-      body: JSON.stringify({ 
-        message: 'Success',
-        operation: opStr || 'main'
-      }),
+        body: JSON.stringify({
+            message: 'Success',
+            operation: opStr || 'main',
+            res,
+        }),
     };
     return response;
   } catch (error) {
