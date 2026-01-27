@@ -85,7 +85,6 @@ async function processOperation(
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
             const taskId = taskRes.id;
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
-            //fs.writeFileSync(`./temp/taskId_${action}.txt`, taskId.toString());
             taskIds.push(taskId);
             const link = infos.link;
             for (const replaceItem of ['editor', 'author', 'email', 'article']) {
@@ -103,15 +102,25 @@ async function processOperation(
 
 async function debug_main(opStr?: string): Promise<void> {
     if (opStr === 'del') {
+        const taskIdPath = './temp/taskId.txt';
+        if (!fs.existsSync(taskIdPath)) {
+            console.log('No saved task IDs found in temp/taskId.txt');
+            return;
+        }
+        
         const pr = await login.getProcessor();
-        for (const action of getActions()) {
-            const taskId = fs.readFileSync(`./temp/taskId_${action}.txt`, 'utf8').trim();
-            await pr.deleteTask(taskId);
-            console.log(`Deleted task ${taskId} for action ${action}`);
+        const taskIds = fs.readFileSync(taskIdPath, 'utf8').trim().split('\n');
+        
+        for (const taskId of taskIds) {
+            if (taskId) {
+                await pr.deleteTask(taskId);
+                console.log(`Deleted task ${taskId}`);
+            }
         }
         return;
     }
-    const ids = await main(opStr);    
+    const ids = await main(opStr);
+    console.log('Created task IDs:', ids);
 }
 
 async function main(opStr?: string) {
