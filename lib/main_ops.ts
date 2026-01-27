@@ -1,0 +1,118 @@
+import * as login from './util';
+import * as gs from '@gzhangx/googleapi';
+import * as fs from 'fs';
+import { ProjectAndGroup, Processor } from './util';
+
+interface Operation {
+    '文件': string;
+    '作者': string;
+    '文章名': string;
+    '文章链接': string;
+    '作者电邮': string;
+    '校对': string;
+    'send': string;
+}
+
+interface OperationInfo {
+    author: string;
+    article: string;
+    link: string;
+    email: string;
+    editor: string;
+}
+
+interface Templates {
+    [key: string]: string;
+}
+
+interface OperationAndTemplates {
+    validOperations: Operation[];
+    templates: Templates;
+}
+
+async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
+    const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
+    const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
+    const operationList = await ops.readDataByColumnName('main');
+    const validOperations = operationList.data.filter((d: Operation) => d['send'] === 'Y');
+
+    const templateRows = await ops.readData('templates');
+    const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
+        const [templateName, ...templateContent] = row;
+        if (templateName) {
+            acc[templateName] = templateContent.join('\n');
+        }
+        return acc;
+    }, {});
+    return { validOperations, templates };
+}
+
+function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
+    return {
+        '校对': { "project_id": "3696514", "task_group_id": "6825082" },
+        '美编': { "project_id": "3696516", "task_group_id": "6825087" },
+        '发布': { "project_id": "3696243", "task_group_id": "6824401" },
+    };
+}
+
+function getActions(): string[] {
+    return ['校对', '美编', '发布'];
+}
+
+async function processOperation(
+    validOperations: Operation[], 
+    templates: Templates, 
+    debug_Prefix: string = ''
+): Promise<void> {
+    const pr = await login.getProcessor();
+    
+    for (const operation of validOperations) {
+        const fileName = operation['文件'];
+        const infos: OperationInfo = {
+            author: operation['作者'],
+            article: operation['文章名'],
+            link: operation['文章链接'],
+            email: operation['作者电邮'],
+            editor: operation['校对'],
+        };
+
+        const projectGroupMapping = getProjectGroupMapping();
+        for (const action of getActions()) {
+            let template1 = templates[action];
+            const projectGrpoup = projectGroupMapping[action];
+
+            const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
+            const taskId = taskRes.id;
+            console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
+            fs.writeFileSync(`./temp/taskId_${action}.txt`, taskId.toString());
+            const link = infos.link;
+            for (const replaceItem of ['editor', 'author', 'email', 'article']) {
+                if (replaceItem === 'article' && link) continue;
+                template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
+            }
+            if (link) {
+                template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
+            }
+            await pr.doPostAttachment(taskId, template1);
+        }
+    }
+}
+
+async function main(opStr?: string): Promise<void> {
+    if (opStr === 'del') {
+        const pr = await login.getProcessor();
+        for (const action of getActions()) {
+            const taskId = fs.readFileSync(`./temp/taskId_${action}.txt`, 'utf8').trim();
+            await pr.deleteTask(taskId);
+            console.log(`Deleted task ${taskId} for action ${action}`);
+        }
+        return;
+    }
+    const { validOperations, templates } = await getOperationAndTemplates();
+    const prefix = opStr || '';
+    await processOperation(validOperations, templates, prefix);
+}
+
+export {
+    main,
+};
