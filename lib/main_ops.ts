@@ -27,9 +27,7 @@ interface OperationInfo {
     article: string;
     link: string;
     email: string;
-    '校对': string;
-    '美编': string;
-    '发布': string;
+    editor: string;
 }
 
 type Templates = {
@@ -40,8 +38,16 @@ interface OperationAndTemplates {
     validOperations: OperationWithDueDates[];
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
+    editorInfoMap: { [key: string]: IEditorInfo };
 }
 
+
+interface IEditorInfo {
+    title: string;
+    full_name: string;
+    email: string;
+    task: string;
+}
 async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
     const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
@@ -61,7 +67,17 @@ async function getOperationAndTemplates(): Promise<OperationAndTemplates> {
         }
         return acc;
     }, {}) as Templates;
-    return { validOperations, templates, ops };
+
+    const listOfNames = await ops.readDataByColumnName('list of names');
+    const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
+        const full_name = item['Name on Feed'];
+        const email = item['Email'];
+        const task = item['Task'];
+        const title = item['Title'];
+        acc[full_name] = { title, full_name, email, task };
+        return acc;
+    }, {} as { [key: string]: IEditorInfo }) || {};
+    return { validOperations, templates, ops, editorInfoMap };
 }
 
 function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
@@ -77,10 +93,10 @@ function getActions(): ActionType[] {
 }
 
 async function processOperation(
-    validOperations: OperationWithDueDates[], 
-    templates: Templates, 
+    opsAndTemplates: OperationAndTemplates,        
     debug_Prefix: string = ''
 ): Promise<number[]> {
+    const { validOperations, templates, editorInfoMap } = opsAndTemplates;
     const pr = await login.getProcessor();
     
     const taskIds = [];
@@ -97,11 +113,20 @@ async function processOperation(
             link: operation['文章链接'],
             email: operation['作者电邮'],
             //校对: operation['校对'],
+            editor: '',
         } as OperationInfo;
 
         const projectGroupMapping = getProjectGroupMapping();
         for (const action of getActions()) {
-            infos[action] = operation[action];
+            const editor = operation[action];
+            const editorLookup = editorInfoMap[editor];
+            if (editorLookup) {
+                if (editorLookup.title === 'Brother') {
+                    infos['editor'] = `${editorLookup.title} ${editorLookup.full_name}`;
+                } else {
+                    infos['editor'] = `${editorLookup.full_name}${editorLookup.title}`;
+                }
+            }
             let template1 = templates[action];
             const projectGrpoup = projectGroupMapping[action];
 
@@ -109,10 +134,9 @@ async function processOperation(
             const taskId = taskRes.id;
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             taskIds.push(taskId);
-            const link = infos.link;
-            const editor = infos[action];
+            const link = infos.link;            
             
-            for (const replaceItem of [...getActions(), 'author', 'email', 'article']) {
+            for (const replaceItem of ['editor', 'author', 'email', 'article']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
@@ -167,12 +191,12 @@ async function debug_main(opStr?: string): Promise<void> {
 }
 
 async function main(opStr?: string) {
-    const { validOperations, templates, ops } = await getOperationAndTemplates();
+    const opsAndTemplates = await getOperationAndTemplates();
     const prefix = opStr || '';
-    const ids = await processOperation(validOperations, templates, prefix);
+    const ids = await processOperation(opsAndTemplates, prefix);
     return {
         ids, 
-        ops,
+        ...opsAndTemplates,
     }
 }
 
