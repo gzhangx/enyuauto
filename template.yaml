@@ -1,0 +1,35 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Enyu Auto Lambda Function
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 512
+
+Resources:
+  EnyuAutoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./
+      Handler: dist/index.handler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /process
+            Method: get
+      Environment:
+        Variables:
+          NODE_ENV: production
+
+Outputs:
+  EnyuAutoApi:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/process/"
+  EnyuAutoFunction:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt EnyuAutoFunction.Arn

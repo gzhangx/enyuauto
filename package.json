@@ -13,12 +13,19 @@
   "license": "ISC",
   "author": "",
   "type": "commonjs",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "start": "node dist/test.js",
+    "test": "npm run build && node dist/test.js",
+    "package": "npm run build && node scripts/create-zip.js"
   },
   "dependencies": {
     "@gzhangx/googleapi": "^0.0.80",
     "axios": "^1.13.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
   }
 }
