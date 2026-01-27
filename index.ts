@@ -23,7 +23,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       opStr = 'del';
     }
     
-    const res = await mainOps.main(opStr);
+    const res = url.includes('doit')?await mainOps.main(opStr):'No operation performed';
     
     const response: LambdaResponse = {
       statusCode: 200,
@@ -31,6 +31,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
             message: 'Success',
             operation: opStr || 'main',
             res,
+            params: event.queryStringParameters || {},
         }),
     };
     return response;
