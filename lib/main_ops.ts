@@ -12,6 +12,7 @@ interface Operation {
     '文章名': string;
     '文章链接': string;
     '作者电邮': string;
+    '文章类别': string;
     '校对': string;
     '美编': string;
     '发布': string;
@@ -27,6 +28,7 @@ interface OperationInfo {
     article: string;
     link: string;
     email: string;
+    category: string;
     editor: string;
 }
 
@@ -35,7 +37,7 @@ type Templates = {
 };
 
 interface OperationAndTemplates {
-    validOperations: OperationWithDueDates[];
+    validOperation: OperationWithDueDates;
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
     editorInfoMap: { [key: string]: IEditorInfo };
@@ -55,14 +57,18 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     return ops;
 }
 
-async function getOperationAndTemplates(log: DebugLog): Promise<OperationAndTemplates> {    
+async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
     const ops = await getSheetOps();
     log.operations.push('getOperationAndTemplates: got sheet ops');
     const operationList = await ops.readDataByColumnName('main');
     log.operations.push('getOperationAndTemplates: got operation list from main');
-    const validOperations = (operationList.data || []).filter((d: any) => d['send'] === 'Y') as unknown as OperationWithDueDates[];
+    const validOperation = (operationList.data || [])[lineNumber - 1] as unknown as OperationWithDueDates;
 
-    log.operations.push('getOperationAndTemplates: got operation list ' + validOperations.length);
+    if (!validOperation) {
+        log.operations.push('getOperationAndTemplates: no such line number ' + lineNumber);
+        return undefined;
+    }
+    log.operations.push('getOperationAndTemplates: got operation ' + validOperation['文件']);
     const templateRows = await ops.readData('templates');
     log.operations.push('getOperationAndTemplates: got template rows');
     const templates = templateRows.values.reduce((acc: any, row: string[]) => {
@@ -84,7 +90,7 @@ async function getOperationAndTemplates(log: DebugLog): Promise<OperationAndTemp
         acc[full_name] = { title, full_name, email, task, print_name };
         return acc;
     }, {} as { [key: string]: IEditorInfo }) || {};
-    return { validOperations, templates, ops, editorInfoMap };
+    return { validOperation, templates, ops, editorInfoMap };
 }
 
 function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
@@ -104,7 +110,7 @@ async function processOperation(
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<number[]> {
-    const { validOperations, templates, editorInfoMap } = opsAndTemplates;
+    const { validOperation, templates, editorInfoMap } = opsAndTemplates;
     const pr = await login.getProcessor();
     log.operations.push('processOperation: got processor with login');
     const taskIds = [];
@@ -113,13 +119,15 @@ async function processOperation(
         acc[user.full_name] = user;
         return acc;
     }, {} as { [key: string]: IUserInfo });
-    for (const operation of validOperations) {
+    const operation = validOperation;
+    {
         const fileName = operation['文件'];
         const infos: OperationInfo = {
             author: operation['作者'],
             article: operation['文章名'],
             link: operation['文章链接'],
             email: operation['作者电邮'],
+            category: operation['文章类别'],
             //校对: operation['校对'],
             editor: '',
         } as OperationInfo;
@@ -184,7 +192,7 @@ async function processOperation(
 export interface DebugLog {
     operations: string[];
 }
-async function debug_main(log:DebugLog, opStr?: string): Promise<void> {
+async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
         const ops = await getSheetOps();
         log.operations.push('del: got ops');
@@ -201,18 +209,26 @@ async function debug_main(log:DebugLog, opStr?: string): Promise<void> {
                 log.operations.push(`del: deleted task ${taskId}`);
             }
         }
-        return;
+        return true;
     }
-    const { ids, ops } = await main(log,opStr);
+    const mainResult = await main(lineNumber, log, opStr);
+    if (!mainResult) {        
+        return false;
+    }
+    const { ids, ops } = mainResult;
     log.operations.push('Created task IDs:'+ JSON.stringify(ids));
     
     await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
     
     log.operations.push(`Saved ${ids.length} task IDs to temp/taskId.txt`);
+    return true;
 }
 
-async function main(log: DebugLog, opStr?: string) {
-    const opsAndTemplates = await getOperationAndTemplates(log);
+async function main(lineNumber: number, log: DebugLog, opStr?: string) {
+    const opsAndTemplates = await getOperationAndTemplates(lineNumber, log);
+    if (!opsAndTemplates) {        
+        return undefined;
+    }
     const prefix = opStr || '';
     const ids = await processOperation(opsAndTemplates, log, prefix);
     return {

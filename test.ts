@@ -11,8 +11,16 @@ async function test() {
         opstr = 'del';
     }
 
+    const linNumberStr = args.find(arg => arg.match(/^\d+$/));
+    if (!linNumberStr) {
+        console.error('Please provide a line number as an argument.');
+        return;
+    }
+    const lineNumber = parseInt(linNumberStr);
+
+
     const log: mainOps.DebugLog = { operations: [] };
-    mainOps.debug_main(log,opstr).catch((err: Error) => {
+    mainOps.debug_main(lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
     console.log('Log:', log.operations);

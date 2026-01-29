@@ -23,8 +23,14 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     } else if (params['del']) {
       opStr = 'del';
     }
+
+    const lineNumberStr = params['line'];
+    if (!lineNumberStr || !lineNumberStr.match(/^\d+$/)) {
+      throw new Error('Please provide a valid line number as the "line" query parameter.');
+    } 
+    const lineNumber = parseInt(lineNumberStr);
         
-    const res = params['doit']?await mainOps.debug_main(log, opStr):'No operation performed';
+    const res = params['doit']?await mainOps.debug_main(lineNumber, log, opStr):'No operation performed';
     
     const response: LambdaResponse = {
       statusCode: 200,
