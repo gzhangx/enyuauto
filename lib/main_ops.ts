@@ -65,21 +65,21 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     return ops;
 }
 
-async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
+async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates } | undefined> {
     const ops = await getSheetOps();
-    log.operations.push('getOperationAndTemplates: got sheet ops');
+    log.operations.push('getOpsAndLine: got sheet ops');
     const operationList = await ops.readDataByColumnName('main');
-    log.operations.push('getOperationAndTemplates: got operation list from main');
+    log.operations.push('getOpsAndLine: got operation list from main');
     const validOperation = (operationList.data || [])[lineNumber - 2] as unknown as OperationWithDueDates;
 
     if (!validOperation) {
-        log.operations.push('getOperationAndTemplates: no such line number ' + lineNumber);
+        log.operations.push('getOpsAndLine: no such line number ' + lineNumber);
         return undefined;
     }
     
-    log.operations.push('getOperationAndTemplates: got operation ' + validOperation['文件']);
+    log.operations.push('getOpsAndLine: got operation ' + validOperation['文件']);
     const templateRows = await ops.readData('templates');
-    log.operations.push('getOperationAndTemplates: got template rows');
+    log.operations.push('getOpsAndLine: got template rows');
     const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
         const [templateName, ...templateContent] = row;
         if (templateName) {
@@ -98,7 +98,7 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
         const item = headers.values[0][index];
         for (const key of actions) {
             if (item === `${key} TaskId`) {
-                log.operations.push(`getOperationAndTemplates: header found ${item} at index ${index}`);
+                log.operations.push(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
                 templates[key].taskIdUpdater = async (newTaskId: string) => {
                     await ops.autoUpdateValues('main', [[newTaskId]], {
@@ -111,6 +111,16 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
             }
         }        
     }
+    
+    return { ops, validOperation, templates };
+}
+
+async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
+    const result = await getOpsAndLine(lineNumber, log);
+    if (!result) {
+        return undefined;
+    }
+    const { ops, validOperation, templates } = result;
 
     const listOfNames = await ops.readDataByColumnName('list of names');
     log.operations.push('getOperationAndTemplates: got list of names');
