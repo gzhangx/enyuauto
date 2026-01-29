@@ -29,7 +29,7 @@ export interface TaskParams {
 }
 interface Processor {
     cookies: string[];
-    doPostAttachment: (taskId: number, params: TaskParams) => Promise<any>;
+    doPostAttachment: (taskId: string, params: TaskParams) => Promise<any>;
     createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
@@ -100,7 +100,7 @@ ${json}${
         return res;
     }
 
-    async function doPostAttachment(taskId: number, params: TaskParams): Promise<any> {
+    async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
         await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             ...params,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 

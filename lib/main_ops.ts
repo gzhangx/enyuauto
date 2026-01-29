@@ -142,7 +142,7 @@ async function processOperation(
     opsAndTemplates: OperationAndTemplates,        
     log: DebugLog,
     debug_Prefix: string = ''
-): Promise<number[]> {
+): Promise<string[]> {
     const { validOperation, templates, editorInfoMap } = opsAndTemplates;
     const pr = await login.getProcessor();
     log.operations.push('processOperation: got processor with login');
@@ -180,13 +180,14 @@ async function processOperation(
             const curTemplateActionInfo = templates[action];
             if (curTemplateActionInfo.existingTaskId) {
                 log.operations.push(`processOperation: skipping action ${action} for file ${fileName} as task ID ${curTemplateActionInfo.existingTaskId} exists`);
+                taskIds.push(curTemplateActionInfo.existingTaskId);
                 continue;
             }
             let template1 = curTemplateActionInfo.template;
             const projectGrpoup = projectGroupMapping[action];
 
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
-            const taskId = taskRes.id;
+            const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.operations.push(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
             taskIds.push(taskId);
