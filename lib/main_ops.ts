@@ -62,7 +62,7 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
     log.operations.push('getOperationAndTemplates: got sheet ops');
     const operationList = await ops.readDataByColumnName('main');
     log.operations.push('getOperationAndTemplates: got operation list from main');
-    const validOperation = (operationList.data || [])[lineNumber - 1] as unknown as OperationWithDueDates;
+    const validOperation = (operationList.data || [])[lineNumber - 2] as unknown as OperationWithDueDates;
 
     if (!validOperation) {
         log.operations.push('getOperationAndTemplates: no such line number ' + lineNumber);
@@ -154,7 +154,7 @@ async function processOperation(
             taskIds.push(taskId);
             const link = action === '校对' ? infos.link : undefined;            
             
-            for (const replaceItem of ['editor', 'author', 'email', 'article']) {
+            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
