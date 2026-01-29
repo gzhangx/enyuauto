@@ -3,7 +3,8 @@ import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
 import { ProjectAndGroup, Processor, IUserInfo, TaskParams } from './util';
 
-type ActionType = '校对' | '美编' | '发布';
+const actions = ['校对', '美编', '发布'] as const;
+type ActionType = typeof actions[number];
 type DueDateKeys = `${ActionType} Due Date`;
 
 interface Operation {
@@ -32,8 +33,15 @@ interface OperationInfo {
     editor: string;
 }
 
+
 type Templates = {
-    [K in ActionType]: string;
+    [K in ActionType]: {
+        template: string;
+        taskIdPos: number;
+        taskIdLine: number;
+        taskIdUpdater: (newTaskId: string) => Promise<void>;
+        existingTaskId: string;
+    }
 };
 
 interface OperationAndTemplates {
@@ -68,16 +76,41 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
         log.operations.push('getOperationAndTemplates: no such line number ' + lineNumber);
         return undefined;
     }
+    
     log.operations.push('getOperationAndTemplates: got operation ' + validOperation['文件']);
     const templateRows = await ops.readData('templates');
     log.operations.push('getOperationAndTemplates: got template rows');
-    const templates = templateRows.values.reduce((acc: any, row: string[]) => {
+    const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
         const [templateName, ...templateContent] = row;
         if (templateName) {
-            acc[templateName] = templateContent.join('\n');
+            acc[templateName as ActionType] = {
+                template: templateContent.join('\n'),
+                taskIdPos: -1, //headers.values[0].indexOf(templateName),
+                taskIdLine: lineNumber,
+                taskIdUpdater: async (newTaskId: string) => { },
+                existingTaskId: validOperation[`${templateName} TaskId` as DueDateKeys]
+            };
         }
         return acc;
-    }, {}) as Templates;
+    }, {} as Templates);
+    const headers = await ops.readData('main', { row: 1, col: 20 });
+    for (let index = 0; index < headers.values[0].length; index++) {
+        const item = headers.values[0][index];
+        for (const key of actions) {
+            if (item === `${key} TaskId`) {
+                log.operations.push(`getOperationAndTemplates: header found ${item} at index ${index}`);
+                templates[key].taskIdPos = index;
+                templates[key].taskIdUpdater = async (newTaskId: string) => {
+                    await ops.autoUpdateValues('main', [[newTaskId]], {
+                        row: lineNumber - 1,
+                        col: index,
+                    });
+                }
+                //await templates[key].taskIdUpdater('test' + key + "test");
+                break;
+            }
+        }        
+    }
 
     const listOfNames = await ops.readDataByColumnName('list of names');
     log.operations.push('getOperationAndTemplates: got list of names');
@@ -144,7 +177,12 @@ async function processOperation(
                     infos['editor'] = `${prettyName}${editorLookup.title}`;
                 }
             }
-            let template1 = templates[action];
+            const curTemplateActionInfo = templates[action];
+            if (curTemplateActionInfo.existingTaskId) {
+                log.operations.push(`processOperation: skipping action ${action} for file ${fileName} as task ID ${curTemplateActionInfo.existingTaskId} exists`);
+                continue;
+            }
+            let template1 = curTemplateActionInfo.template;
             const projectGrpoup = projectGroupMapping[action];
 
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
