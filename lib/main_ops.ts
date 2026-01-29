@@ -244,21 +244,27 @@ export interface DebugLog {
 }
 async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
-        const ops = await getSheetOps();
-        log.operations.push('del: got ops');
-        const temp = await ops.readData('temp');
-        log.operations.push('del: got temp data');
-        
-        //log.operations.push('Deleting tasks:', temp);        
-        const pr = await login.getProcessor();        
-        
-        for (const taskId of temp.values[0][0].split(',')) {
+        const ret = await getOpsAndLine(lineNumber, log);
+        if (!ret) {
+            log.operations.push('del: no such line number ' + lineNumber);
+            return false;
+        }
+        const { templates } = ret;
+        const pr = await login.getProcessor();
+        for (const action of getActions()) {
+            const taskId = templates[action].existingTaskId;
             if (taskId) {
-                log.operations.push(`del: deleting task ${taskId}`);
+                let msg = `del: deleting task ${taskId} for action ${action}`;
+                console.log(msg);
+                log.operations.push(msg);
+                
                 await pr.deleteTask(taskId);
-                log.operations.push(`del: deleted task ${taskId}`);
+                log.operations.push(`del: deleted task ${taskId} for action ${action}`);
+                await templates[action].taskIdUpdater('');
+                log.operations.push(`del: cleared task ID in sheet for action ${action}`);
             }
         }
+        
         return true;
     }
     const mainResult = await main(lineNumber, log, opStr);
