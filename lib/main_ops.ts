@@ -190,6 +190,7 @@ async function processOperation(
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.operations.push(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
+            await curTemplateActionInfo.taskIdUpdater(taskId);
             taskIds.push(taskId);
             const link = action === '校对' ? infos.link : undefined;            
             
