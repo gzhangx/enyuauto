@@ -20,7 +20,7 @@ async function test() {
 
 
     const log: mainOps.DebugLog = { operations: [] };
-    mainOps.debug_main(lineNumber, log,opstr).catch((err: Error) => {
+    await mainOps.debug_main(lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
     console.log('Log:', log.operations);
