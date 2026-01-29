@@ -254,6 +254,12 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
         for (const action of getActions()) {
             const taskId = templates[action].existingTaskId;
             if (taskId) {
+                if (taskId === 'done') {
+                    const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
+                    console.log(msg);
+                    log.operations.push(msg);
+                    continue;
+                }
                 let msg = `del: deleting task ${taskId} for action ${action}`;
                 console.log(msg);
                 log.operations.push(msg);
