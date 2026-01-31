@@ -9,6 +9,7 @@ interface LambdaEvent {
 
 interface LambdaResponse {
   statusCode: number;
+  headers?: { [key: string]: string };
   body: string;
 }
 
@@ -33,7 +34,10 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     const lineNumberStr = params['line'];
     if (!lineNumberStr || !lineNumberStr.match(/^\d+$/)) {
       return {
-        statusCode: 200,
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(
           { error: 'Please provide a valid line number as the "line" query parameter.' }),
       };
@@ -60,12 +64,16 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     
     const response: LambdaResponse = {
       statusCode: 200,
-        body: JSON.stringify({
-            message: 'Success',
-            operation: opStr || 'main',
-            res,
-          params: event.queryStringParameters || {},          
-        }) + '<br>'+log.operations.join('<br>'),
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        message: 'Success',
+        operation: opStr || 'main',
+        res,
+        params: event.queryStringParameters || {},
+        log: log.operations,
+      }),
     };
     return response;
   } catch (error) {
