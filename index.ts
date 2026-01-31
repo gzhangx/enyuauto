@@ -39,8 +39,6 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     let opStr: string | undefined;
     if (params['test']) {
       opStr = 'debug_remove_test_';
-    } else if (params['del']) {
-      opStr = 'del';
     }
 
     const lineNumberStr = params['line'];
@@ -55,8 +53,9 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     const lineNumber = parseInt(lineNumberStr);
         
     let res = 'No operation performed';
-    if (action === 'main') {
+    if (action === 'main' || action === 'del') {
       try {
+        if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
         const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
         res = boolRes ? 'Operation succeeded' : 'Operation failed';
