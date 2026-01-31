@@ -1,5 +1,5 @@
 import * as mainOps from './lib/main_ops';
-
+//aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
     [key: string]: string;
