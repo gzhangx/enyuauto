@@ -43,6 +43,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     let res = 'No operation performed';
     if (params['doit']) {
       try {
+        console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
         const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
         res = boolRes ? 'Operation succeeded' : 'Operation failed';
       } catch (error) {
@@ -69,6 +70,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     };
     return response;
   } catch (error) {
+    console.log('General error in main:', error);
     return {
       statusCode: 200,
       body: JSON.stringify({ 
