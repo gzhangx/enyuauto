@@ -79,7 +79,10 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   } catch (error) {
     console.log('General error in main:', error);
     return {
-      statusCode: 200,
+      statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json'
+      },
       body: JSON.stringify({ 
         message: 'Error',
         error: error instanceof Error ? error.message : String(error),
