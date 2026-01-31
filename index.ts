@@ -57,7 +57,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     return response;
   } catch (error) {
     return {
-      statusCode: 100,
+      statusCode: 200,
       body: JSON.stringify({ 
         message: 'Error',
         error: error instanceof Error ? error.message : String(error),
