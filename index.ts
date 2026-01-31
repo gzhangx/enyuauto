@@ -13,7 +13,10 @@ interface LambdaResponse {
 }
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
-  const log: mainOps.DebugLog = { operations: [] };
+  const log: mainOps.DebugLog = { 
+    operations: [], 
+    doLog: (msg: string) => log.operations.push(msg) 
+  };
   try {
     const params = event.queryStringParameters || {};
     
@@ -40,7 +43,14 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
         const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
         res = boolRes ? 'Operation succeeded' : 'Operation failed';
       } catch (error) {
-        res = `Operation error: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('Operation error:', error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        res = `Operation error: ${errorMessage}`;
+        log.doLog(`ERROR: ${errorMessage}`);
+        if (errorStack) {
+          log.doLog(`STACK: ${errorStack}`);
+        }
       }
     }
     

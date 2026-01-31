@@ -68,19 +68,19 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
 
 async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates } | undefined> {
     const ops = await getSheetOps();
-    log.operations.push('getOpsAndLine: got sheet ops');
+    log.doLog('getOpsAndLine: got sheet ops');
     const operationList = await ops.readDataByColumnName('main');
-    log.operations.push('getOpsAndLine: got operation list from main');
+    log.doLog('getOpsAndLine: got operation list from main');
     const validOperation = (operationList.data || [])[lineNumber - 2] as unknown as OperationWithDueDates;
 
     if (!validOperation) {
-        log.operations.push('getOpsAndLine: no such line number ' + lineNumber);
+        log.doLog('getOpsAndLine: no such line number ' + lineNumber);
         return undefined;
     }
     
-    log.operations.push('getOpsAndLine: got operation ' + validOperation['文件']);
+    log.doLog('getOpsAndLine: got operation ' + validOperation['文件']);
     const templateRows = await ops.readData('templates');
-    log.operations.push('getOpsAndLine: got template rows');
+    log.doLog('getOpsAndLine: got template rows');
     const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
         const [templateName, ...templateContent] = row;
         if (templateName) {
@@ -91,7 +91,7 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
                 taskIdUpdater: async (newTaskId: string) => {
                     const warMsg = 'taskIdUpdater not initialized yet for template ' + templateName;
                     console.warn(warMsg);
-                    log.operations.push(warMsg);
+                    log.doLog(warMsg);
                  },
                 existingTaskId: validOperation[`${templateName} TaskId` as DueDateKeys]
             };
@@ -103,7 +103,7 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
         const item = headers.values[0][index];
         for (const key of actions) {
             if (item === `${key} TaskId`) {
-                log.operations.push(`getOpsAndLine: header found ${item} at index ${index}`);
+                log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
                 templates[key].taskIdUpdater = async (newTaskId: string) => {
                     await ops.autoUpdateValues('main', [[newTaskId]], {
@@ -128,7 +128,7 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
     const { ops, validOperation, templates } = result;
 
     const listOfNames = await ops.readDataByColumnName('list of names');
-    log.operations.push('getOperationAndTemplates: got list of names');
+    log.doLog('getOperationAndTemplates: got list of names');
     const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
         const full_name = item['Name on FreedCamp'];
         const email = item['Email'];
@@ -161,7 +161,7 @@ async function processOperation(
 ): Promise<string[]> {
     const { validOperation, templates, editorInfoMap } = opsAndTemplates;
     const pr = await login.getProcessor();
-    log.operations.push('processOperation: got processor with login');
+    log.doLog('processOperation: got processor with login');
     const taskIds = [];
     const userData = await pr.getSessionCurrentData();
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
@@ -195,7 +195,7 @@ async function processOperation(
             }
             const curTemplateActionInfo = templates[action];
             if (curTemplateActionInfo.existingTaskId) {
-                log.operations.push(`processOperation: skipping action ${action} for file ${fileName} as task ID ${curTemplateActionInfo.existingTaskId} exists`);
+                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${curTemplateActionInfo.existingTaskId} exists`);
                 taskIds.push(curTemplateActionInfo.existingTaskId);
                 continue;
             }
@@ -205,7 +205,7 @@ async function processOperation(
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
-            log.operations.push(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
+            log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
             await curTemplateActionInfo.taskIdUpdater(taskId);
             taskIds.push(taskId);
             const link = action === '校对' ? infos.link : undefined;            
@@ -238,7 +238,7 @@ async function processOperation(
                     }
                 }
             }
-            log.operations.push(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
+            log.doLog(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date
             await pr.doPostAttachment(taskId, postParams);
         }
@@ -248,12 +248,13 @@ async function processOperation(
 
 export interface DebugLog {
     operations: string[];
+    doLog: (msg: string) => void;
 }
 async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
         const ret = await getOpsAndLine(lineNumber, log);
         if (!ret) {
-            log.operations.push('del: no such line number ' + lineNumber);
+            log.doLog('del: no such line number ' + lineNumber);
             return false;
         }
         const { templates } = ret;
@@ -264,17 +265,17 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
                 if (taskId === 'done') {
                     const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
                     console.log(msg);
-                    log.operations.push(msg);
+                    log.doLog(msg);
                     continue;
                 }
                 let msg = `del: deleting task ${taskId} for action ${action}`;
                 console.log(msg);
-                log.operations.push(msg);
+                log.doLog(msg);
                 
                 await pr.deleteTask(taskId);
-                log.operations.push(`del: deleted task ${taskId} for action ${action}`);
+                log.doLog(`del: deleted task ${taskId} for action ${action}`);
                 await templates[action].taskIdUpdater('');
-                log.operations.push(`del: cleared task ID in sheet for action ${action}`);
+                log.doLog(`del: cleared task ID in sheet for action ${action}`);
             }
         }
         
@@ -285,11 +286,11 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
         return false;
     }
     const { ids, ops } = mainResult;
-    log.operations.push('Created task IDs:'+ JSON.stringify(ids));
+    log.doLog('Created task IDs:'+ JSON.stringify(ids));
     
     await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
     
-    log.operations.push(`Saved ${ids.length} task IDs to temp/taskId.txt`);
+    log.doLog(`Saved ${ids.length} task IDs to temp/taskId.txt`);
     return true;
 }
 
