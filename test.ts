@@ -20,7 +20,13 @@ async function test() {
     const lineNumber = parseInt(linNumberStr);
 
 
-    const log: mainOps.DebugLog = { operations: [] };
+    const log: mainOps.DebugLog = { 
+        operations: [], 
+        doLog: (msg: string) => {
+          log.operations.push(msg);
+          console.log(msg);
+        }
+      };
     await mainOps.debug_main(lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
