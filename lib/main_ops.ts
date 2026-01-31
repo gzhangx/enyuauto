@@ -88,13 +88,15 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
                 template: templateContent.join('\n'),
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
                 taskIdLine: lineNumber,
-                taskIdUpdater: async (newTaskId: string) => { },
+                taskIdUpdater: async (newTaskId: string) => {
+                    console.warn('taskIdUpdater not initialized yet for template', templateName);
+                 },
                 existingTaskId: validOperation[`${templateName} TaskId` as DueDateKeys]
             };
         }
         return acc;
     }, {} as Templates);
-    const headers = await ops.readData('main', { row: 1, col: 20 });
+    const headers = await ops.readData('main', { row: 1, col: 80 });
     for (let index = 0; index < headers.values[0].length; index++) {
         const item = headers.values[0][index];
         for (const key of actions) {

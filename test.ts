@@ -7,7 +7,8 @@ async function test() {
 
     if (args.includes('test')) {
         opstr = 'debug_remove_test_';
-    } else if (args.includes('del')) {
+    }
+    if (args.includes('del')) {
         opstr = 'del';
     }
 
