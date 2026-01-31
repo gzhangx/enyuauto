@@ -26,7 +26,11 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 
     const lineNumberStr = params['line'];
     if (!lineNumberStr || !lineNumberStr.match(/^\d+$/)) {
-      throw new Error('Please provide a valid line number as the "line" query parameter.');
+      return {
+        statusCode: 200,
+        body: JSON.stringify(
+          { error: 'Please provide a valid line number as the "line" query parameter.' }),
+      };
     } 
     const lineNumber = parseInt(lineNumberStr);
         
