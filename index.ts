@@ -12,6 +12,9 @@ interface LambdaResponse {
   headers?: { [key: string]: string };
   body: string;
 }
+const headers = {
+  'Content-Type': 'application/json'
+}
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   const log: mainOps.DebugLog = { 
@@ -24,6 +27,15 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   try {
     const params = event.queryStringParameters || {};
     
+    const action = params['action'] || 'main' as 'main' | 'getList';
+    if (action === 'getList') {
+      const list = await mainOps.getOpsAndMainList(log);
+      return {
+        statusCode: 200,
+        headers: headers,          
+        body: JSON.stringify(list),
+      };
+    }
     let opStr: string | undefined;
     if (params['test']) {
       opStr = 'debug_remove_test_';
@@ -35,9 +47,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     if (!lineNumberStr || !lineNumberStr.match(/^\d+$/)) {
       return {
         statusCode: 400,
-        headers: {
-          'Content-Type': 'application/json'
-        },
+        headers: headers,
         body: JSON.stringify(
           { error: 'Please provide a valid line number as the "line" query parameter.' }),
       };
@@ -45,7 +55,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     const lineNumber = parseInt(lineNumberStr);
         
     let res = 'No operation performed';
-    if (params['doit']) {
+    if (action === 'main') {
       try {
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
         const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
@@ -64,9 +74,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     
     const response: LambdaResponse = {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
         message: 'Success',
         operation: opStr || 'main',
