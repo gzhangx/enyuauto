@@ -3,7 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
 import { ProjectAndGroup, Processor, IUserInfo, TaskParams } from './util';
 
-const actions = ['校对', '美编', '发布'] as const;
+const actions = ['校对','二校', '美编', '发布'] as const;
 type ActionType = typeof actions[number];
 type DueDateKeys = `${ActionType} Due Date`;
 
@@ -17,6 +17,7 @@ interface Operation {
     '校对': string;
     '美编': string;
     '发布': string;
+    '二校': string;
     'send': string;
 }
 
@@ -141,11 +142,12 @@ function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
         '校对': { "project_id": "3696514", "task_group_id": "6825082" },
         '美编': { "project_id": "3696516", "task_group_id": "6825087" },
         '发布': { "project_id": "3696243", "task_group_id": "6824401" },
+        '二校': { "project_id": "3708543", "task_group_id": "6856512" },
     };
 }
 
-function getActions(): ActionType[] {
-    return ['校对', '美编', '发布'];
+function getActions(): readonly ActionType[] {
+    return actions;
 }
 
 async function processOperation(
