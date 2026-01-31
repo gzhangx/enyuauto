@@ -34,7 +34,15 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     } 
     const lineNumber = parseInt(lineNumberStr);
         
-    const res = params['doit']?await mainOps.debug_main(lineNumber, log, opStr):'No operation performed';
+    let res = 'No operation performed';
+    if (params['doit']) {
+      try {
+        const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
+        res = boolRes ? 'Operation succeeded' : 'Operation failed';
+      } catch (error) {
+        res = `Operation error: ${error instanceof Error ? error.message : String(error)}`;
+      }
+    }
     
     const response: LambdaResponse = {
       statusCode: 200,
