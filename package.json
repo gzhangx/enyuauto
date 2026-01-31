@@ -18,7 +18,10 @@
     "build": "tsc",
     "start": "node dist/test.js",
     "test": "npm run build && node dist/test.js",
-    "package": "npm run build && node scripts/create-zip.js"
+    "package": "npm run build && node scripts/create-zip.js",
+    "deploy": "npm run package && aws lambda update-function-code --function-name enyu_auto --zip-file fileb://temp/lambda-deployment.zip --region us-east-1",
+    "deploy:guided": "sam build && sam deploy --guided",
+    "deploy:quick": "npm run build && sam build && sam deploy"
   },
   "dependencies": {
     "@gzhangx/googleapi": "^0.0.80",
