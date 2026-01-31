@@ -89,7 +89,9 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
                 taskIdLine: lineNumber,
                 taskIdUpdater: async (newTaskId: string) => {
-                    console.warn('taskIdUpdater not initialized yet for template', templateName);
+                    const warMsg = 'taskIdUpdater not initialized yet for template ' + templateName;
+                    console.warn(warMsg);
+                    log.operations.push(warMsg);
                  },
                 existingTaskId: validOperation[`${templateName} TaskId` as DueDateKeys]
             };
