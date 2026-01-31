@@ -216,6 +216,7 @@ async function processOperation(
             
             const postParams: TaskParams = {
                 description: template1,
+                "priority":2,
             };
             const dueDateKey = `${action} Due Date` as DueDateKeys;
             const due_date = operation[dueDateKey];

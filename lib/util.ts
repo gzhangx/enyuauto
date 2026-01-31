@@ -26,6 +26,7 @@ export interface TaskParams {
     description: string;
     assigned_to_id?: string;
     due_date?: string;
+    "priority": 2;
 }
 interface Processor {
     cookies: string[];
