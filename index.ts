@@ -15,7 +15,10 @@ interface LambdaResponse {
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   const log: mainOps.DebugLog = { 
     operations: [], 
-    doLog: (msg: string) => log.operations.push(msg) 
+    doLog: (msg: string) => {
+      log.operations.push(msg);
+      console.log(msg);
+    }
   };
   try {
     const params = event.queryStringParameters || {};
