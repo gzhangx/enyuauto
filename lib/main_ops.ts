@@ -66,12 +66,19 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     return ops;
 }
 
-async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates } | undefined> {
+
+export async function getOpsAndMainList(log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[] }> {
     const ops = await getSheetOps();
-    log.doLog('getOpsAndLine: got sheet ops');
-    const operationList = await ops.readDataByColumnName('main');
-    log.doLog('getOpsAndLine: got operation list from main');
-    const validOperation = (operationList.data || [])[lineNumber - 2] as unknown as OperationWithDueDates;
+    log.doLog('getOpsAndMainList: got sheet ops');
+    const operationListData = await ops.readDataByColumnName('main');
+    const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
+    log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
+    return { ops, operationList };
+}
+
+async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates } | undefined> {
+    const { ops, operationList } =  await getOpsAndMainList(log);
+    const validOperation = operationList[lineNumber - 2];
 
     if (!validOperation) {
         log.doLog('getOpsAndLine: no such line number ' + lineNumber);
