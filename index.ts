@@ -64,9 +64,8 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
             message: 'Success',
             operation: opStr || 'main',
             res,
-          params: event.queryStringParameters || {},
-          log: log.operations,
-        }),
+          params: event.queryStringParameters || {},          
+        }) + '<br>'+log.operations.join('<br>'),
     };
     return response;
   } catch (error) {
