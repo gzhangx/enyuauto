@@ -67,7 +67,7 @@ interface OperationAndTemplates {
 
 interface IEditorInfo {
     title: string;
-    full_name: string;
+    shortName: string;
     email: string;
     task: string;
     print_name: string; //the full chinese name for printing
@@ -79,17 +79,22 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
 }
 
 
-export async function getOpsAndMainList(log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[] }> {
+export async function getOpsAndMainList(log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[],groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping,editorInfoMap: IEditorInfoMap }> {
     const ops = await getSheetOps();
     log.doLog('getOpsAndMainList: got sheet ops');
     const operationListData = await ops.readDataByColumnName('main');
     const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
     log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
-    return { ops, operationList };
+    const configLines = await ops.readData('config');
+    log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
+    const groupAndMainProjectMapping = getConfigMapping(configLines.values);
+    
+    const editorInfoMap = getEditorInfoMap(configLines.values);
+    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap };
 }
 
-async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates } | undefined> {
-    const { ops, operationList } =  await getOpsAndMainList(log);
+async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
+    const { ops, operationList, groupAndMainProjectMapping, editorInfoMap } =  await getOpsAndMainList(log);
     const validOperation = operationList[lineNumber - 2];
 
     if (!validOperation) {
@@ -136,7 +141,7 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
         }        
     }
     
-    return { ops, validOperation, templates };
+    return { ops, validOperation, templates,groupAndMainProjectMapping, editorInfoMap };
 }
 
 async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
@@ -144,7 +149,7 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
     if (!result) {
         return undefined;
     }
-    const { ops, validOperation, templates } = result;
+    const { ops, validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = result;
 
     // const listOfNames = await ops.readDataByColumnName('list of names');
     // log.doLog('getOperationAndTemplates: got list of names');
@@ -158,11 +163,7 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
     //     return acc;
     // }, {} as IEditorInfoMap) || {};
 
-    const configLines = await ops.readData('config');
-    log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
-    const groupAndMainProjectMapping = getConfigMapping(configLines.values);
     
-    const editorInfoMap = getEditorInfoMap(configLines.values);
     return { validOperation, templates, ops, editorInfoMap,groupAndMainProjectMapping };
 }
 
@@ -182,7 +183,7 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
                 positionToNameMap[index] = 'task';
                 break;
             case 'Name on FreedCamp':
-                positionToNameMap[index] = 'full_name';
+                positionToNameMap[index] = 'shortName';
                 break;
         }
     });
@@ -196,8 +197,8 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
                     hasInfo = true;
                 }
             });
-            if (hasInfo && editor.full_name) {
-                editorInfoMap[editor.full_name] = editor; //ling_q=>printName:令琪
+            if (hasInfo && editor.shortName) {
+                editorInfoMap[editor.shortName] = editor; //ling_q=>printName:令琪
             }
         }
     }
@@ -266,7 +267,7 @@ async function processOperation(
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
-                const prettyName = editorLookup.print_name || editorLookup.full_name; 
+                const prettyName = editorLookup.print_name || editorLookup.shortName; 
                 if (editorLookup.title === 'Brother') {
                     infos['editor'] = `${editorLookup.title} ${prettyName}`;
                 } else {
