@@ -79,22 +79,34 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
 }
 
 
-export async function getOpsAndMainList(log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[],groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping,editorInfoMap: IEditorInfoMap }> {
+export async function getOpsAndMainList(log: DebugLog): Promise<{
+    ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[], groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap, 
+    headers: string[];
+}> {
     const ops = await getSheetOps();
     log.doLog('getOpsAndMainList: got sheet ops');
-    const operationListData = await ops.readDataByColumnName('main');
-    const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
+    const rawMainData = await ops.readData('main');
+    const headers = rawMainData.values[0];
+    //const operationListData = await ops.readDataByColumnName('main');
+    //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
+    const operationList: OperationWithDueDates[] = rawMainData.values.slice(1).map(row => {
+        const obj = {} as OperationWithDueDates;
+        headers.forEach((header, index) => {
+            obj[header as keyof OperationWithDueDates] = row[index] || '';
+        });
+        return obj;
+    });
     log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
     const configLines = await ops.readData('config');
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
     const groupAndMainProjectMapping = getConfigMapping(configLines.values);
     
     const editorInfoMap = getEditorInfoMap(configLines.values);
-    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap };
+    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers };
 }
 
 async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
-    const { ops, operationList, groupAndMainProjectMapping, editorInfoMap } =  await getOpsAndMainList(log);
+    const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } =  await getOpsAndMainList(log);
     const validOperation = operationList[lineNumber - 2];
 
     if (!validOperation) {
@@ -122,9 +134,9 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
         }
         return acc;
     }, {} as Templates);
-    const headers = await ops.readData('main', { row: 1, col: 80 });
-    for (let index = 0; index < headers.values[0].length; index++) {
-        const item = headers.values[0][index];
+    //const headers = await ops.readData('main');
+    for (let index = 0; index < headers.length; index++) {
+        const item = headers[index];
         for (const key of actions) {
             if (item === `${key} TaskId`) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
