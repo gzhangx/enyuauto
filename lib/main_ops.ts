@@ -54,11 +54,13 @@ interface IGroupAndMainProjectLongToShortNameMapping {
         [key in ActionType]: { project_id: string; }; //'校对': { "project_id": "3696514" }
     }
 }
+
+interface IEditorInfoMap { [key: string]: IEditorInfo };
 interface OperationAndTemplates {
     validOperation: OperationWithDueDates;
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
-    editorInfoMap: { [key: string]: IEditorInfo };
+    editorInfoMap: IEditorInfoMap;
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
 }
 
@@ -154,13 +156,51 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
         const print_name = item['Full Name'];
         acc[full_name] = { title, full_name, email, task, print_name };
         return acc;
-    }, {} as { [key: string]: IEditorInfo }) || {};
+    }, {} as IEditorInfoMap) || {};
 
     const configLines = await ops.readData('config');
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
     const groupAndMainProjectMapping = getConfigMapping(configLines.values);
     
     return { validOperation, templates, ops, editorInfoMap,groupAndMainProjectMapping };
+}
+
+
+function getEditorInfoMap(values: string[][]): IEditorInfoMap {
+    const editorInfoMap: IEditorInfoMap = {};
+    const positionToNameMap: { [key: number]: string } = {};
+    (values.find(row => row[0] === 'EditorNameColumn') || []).forEach((name, index) => {
+        switch (name) {
+            case 'Full Name':
+                positionToNameMap[index] = 'print_name';
+                break;
+            case 'Email':
+                positionToNameMap[index] = 'email';
+                break;
+            case 'Task':
+                positionToNameMap[index] = 'task';
+                break;
+            case 'Name on FreedCamp':
+                positionToNameMap[index] = 'full_name';
+                break;
+        }
+    });
+    for (const row of values) {
+        if (row[0] === 'EditorName') {
+            const editor = {} as IEditorInfo;
+            let hasInfo = false;
+            row.forEach((value, index) => {
+                if (value && positionToNameMap[index]) {
+                    editor[positionToNameMap[index] as keyof IEditorInfo] = value;
+                    hasInfo = true;
+                }
+            });
+            if (hasInfo && editor.full_name) {
+                editorInfoMap[editor.full_name] = editor; //ling_q=>printName:令琪
+            }
+        }
+    }
+    return editorInfoMap;
 }
 
 function getConfigMapping(values: string[][]): IGroupAndMainProjectLongToShortNameMapping {
