@@ -42,9 +42,17 @@ export interface IUserInfo {
     email: string;
 }
 
+export interface IProjectInfo {
+    project_id: string;
+    //group_id: string;
+    project_name: string; //文字二校 （Second Proofread)
+    group_name: string; //EnYu_2026
+}
+
 interface ICurrentSessionData {
     data: {
         users: IUserInfo[];
+        projects: IProjectInfo[];
     }
 }
 

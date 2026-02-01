@@ -45,11 +45,21 @@ type Templates = {
     }
 };
 
+interface IGroupAndMainProjectLongToShortNameMapping {
+    groupName: string; //EnYu_2026
+    taskLongToShortNameMapping: {
+        [key: string]: ActionType; //文字校对 (Editorial and Translation team) : 校对
+    };
+    shortProjectNameToProjectId: {
+        [key in ActionType]: { project_id: string; }; //'校对': { "project_id": "3696514" }
+    }
+}
 interface OperationAndTemplates {
     validOperation: OperationWithDueDates;
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
     editorInfoMap: { [key: string]: IEditorInfo };
+    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
 }
 
 
@@ -145,7 +155,29 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
         acc[full_name] = { title, full_name, email, task, print_name };
         return acc;
     }, {} as { [key: string]: IEditorInfo }) || {};
-    return { validOperation, templates, ops, editorInfoMap };
+
+    const configLines = await ops.readData('config');
+    log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
+    const groupAndMainProjectMapping = getConfigMapping(configLines.values);
+    
+    return { validOperation, templates, ops, editorInfoMap,groupAndMainProjectMapping };
+}
+
+function getConfigMapping(values: string[][]): IGroupAndMainProjectLongToShortNameMapping {
+    const configMap: IGroupAndMainProjectLongToShortNameMapping = {
+        groupName: '',
+        taskLongToShortNameMapping: {},
+        shortProjectNameToProjectId: {} as {
+            [key in ActionType]: { project_id: string; }; //populated later after we login to freedcamp
+        },
+    }
+    configMap.groupName = values.find(row => row[0] === 'groupName')?.[1] || '';
+    values.forEach(row => {
+        if (row[0] === 'mapping') {
+            configMap.taskLongToShortNameMapping[row[1]] = row[2] as ActionType;
+        }
+    });
+    return configMap;
 }
 
 function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
