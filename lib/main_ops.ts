@@ -146,22 +146,23 @@ async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Prom
     }
     const { ops, validOperation, templates } = result;
 
-    const listOfNames = await ops.readDataByColumnName('list of names');
-    log.doLog('getOperationAndTemplates: got list of names');
-    const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
-        const full_name = item['Name on FreedCamp'];
-        const email = item['Email'];
-        const task = item['Task'];
-        const title = item['Title'];
-        const print_name = item['Full Name'];
-        acc[full_name] = { title, full_name, email, task, print_name };
-        return acc;
-    }, {} as IEditorInfoMap) || {};
+    // const listOfNames = await ops.readDataByColumnName('list of names');
+    // log.doLog('getOperationAndTemplates: got list of names');
+    // const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
+    //     const full_name = item['Name on FreedCamp'];
+    //     const email = item['Email'];
+    //     const task = item['Task'];
+    //     const title = item['Title'];
+    //     const print_name = item['Full Name'];
+    //     acc[full_name] = { title, full_name, email, task, print_name };
+    //     return acc;
+    // }, {} as IEditorInfoMap) || {};
 
     const configLines = await ops.readData('config');
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
     const groupAndMainProjectMapping = getConfigMapping(configLines.values);
     
+    const editorInfoMap = getEditorInfoMap(configLines.values);
     return { validOperation, templates, ops, editorInfoMap,groupAndMainProjectMapping };
 }
 
