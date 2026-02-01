@@ -6,3 +6,5 @@ enyu_secs.json
 temp
 dist
 .aws-sam
+web/dist
+web/node_modules
