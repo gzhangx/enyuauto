@@ -18,7 +18,6 @@ interface Operation {
     '美编': string;
     '发布': string;
     '二校': string;
-    'send': string;
 }
 
 type OperationWithDueDates = Operation & {
@@ -300,11 +299,9 @@ async function processOperation(
             editor: '',
         } as OperationInfo;
 
-        userData.data.projects.forEach(proj => {
-            if (proj.project_name === infos.category && proj.group_name === opsAndTemplates.groupAndMainProjectMapping.groupName) {
-                log.doLog(`processOperation: found project ${proj.project_name} for category ${infos.category}`);
-            }
-        });
+        // Check if article is English-only (no Chinese characters)
+        const isEnglishOnly = !/[\u4e00-\u9fff]/.test(infos.article);
+        
         //const projectGroupMapping = getProjectGroupMapping();
         const projectGroupMapping = getActionToProjectIdMapping(userData, opsAndTemplates.groupAndMainProjectMapping);
         for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
