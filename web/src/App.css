@@ -40,3 +40,30 @@
 .read-the-docs {
   color: #888;
 }
+
+.btn {
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  fontSize: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+  color: white;
+}
+
+.btn-create {
+  background-color: #4CAF50;
+}
+
+.btn-create:hover {
+  background-color: #45a049;
+}
+
+.btn-delete {
+  background-color: #f44336;
+}
+
+.btn-delete:hover {
+  background-color: #da190b;
+}
