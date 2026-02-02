@@ -37,6 +37,7 @@ interface OperationInfo {
 type Templates = {
     [K in ActionType]: {
         template: string;
+        templateEnglish: string;
         taskIdPos: number;
         taskIdLine: number;
         taskIdUpdater: (newTaskId: string) => Promise<void>;
@@ -123,10 +124,11 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
     const templateRows = await ops.readData('templates');
     log.doLog('getOpsAndLine: got template rows');
     const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
-        const [templateName, ...templateContent] = row;
+        const [templateName, templateChinese, templateEnglish] = row;
         if (templateName) {
             acc[templateName as ActionType] = {
-                template: templateContent.join('\n'),
+                template: templateChinese,
+                templateEnglish,
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
                 taskIdLine: lineNumber,
                 taskIdUpdater: async (newTaskId: string) => {
@@ -322,6 +324,9 @@ async function processOperation(
                 continue;
             }
             let template1 = curTemplateActionInfo.template;
+            if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
+                template1 = curTemplateActionInfo.templateEnglish;
+            } 
             const projectGrpoup = projectGroupMapping[action];
 
             const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
