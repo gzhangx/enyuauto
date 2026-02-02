@@ -49,7 +49,7 @@ export interface IProjectInfo {
     group_name: string; //EnYu_2026
 }
 
-interface ICurrentSessionData {
+export interface ICurrentSessionData {
     data: {
         users: IUserInfo[];
         projects: IProjectInfo[];

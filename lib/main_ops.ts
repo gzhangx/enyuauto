@@ -1,7 +1,7 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
-import { ProjectAndGroup, Processor, IUserInfo, TaskParams } from './util';
+import { ProjectAndGroup, Processor, IUserInfo, TaskParams, ICurrentSessionData } from './util';
 import { ActionType } from './types';
 
 
@@ -51,7 +51,7 @@ interface IGroupAndMainProjectLongToShortNameMapping {
     taskLongToShortNameMapping: {
         [key: string]: ActionType; //文字校对 (Editorial and Translation team) : 校对
     };
-    shortProjectNameToProjectId: {
+    shortProjectNameToProjectId: { //populated later after we login to freedcamp
         [key in ActionType]: { project_id: string; }; //'校对': { "project_id": "3696514" }
     }
 }
@@ -248,22 +248,37 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     return configMap;
 }
 
-function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
-    return {
-        '校对': { "project_id": "3696514", "task_group_id": "6825082" },
-        '美编': { "project_id": "3696516", "task_group_id": "6825087" },
-        '发布': { "project_id": "3696243", "task_group_id": "6824401" },
-        '二校': { "project_id": "3708543", "task_group_id": "6856512" },
-    };
-}
+type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectAndGroup };
+// function getProjectGroupMapping(): IActionToProjectIdMapping {
+//     return {
+//         '校对': { "project_id": "3696514", "task_group_id": "6825082" },
+//         '美编': { "project_id": "3696516", "task_group_id": "6825087" },
+//         '发布': { "project_id": "3696243", "task_group_id": "6824401" },
+//         '二校': { "project_id": "3708543", "task_group_id": "6856512" },
+//     };
+// }
 
+function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping): IActionToProjectIdMapping {
+    const mapping = {} as IActionToProjectIdMapping;
+    userData.data.projects.forEach(proj => {
+        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name]; ////文字校对 (Editorial and Translation team) : 校对
+        if (shortProjectName) {
+            mapping[shortProjectName] = { project_id: proj.project_id, task_group_id: '' }
+        }
+    });
+    for (const action of groupAndMainProjectMapping.actions) {
+        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action]; ////文字校对 (Editorial and Translation team) : 校对
+        const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
+    }
+    return mapping;
+}
 
 async function processOperation(
     opsAndTemplates: OperationAndTemplates,        
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
-    const { validOperation, templates, editorInfoMap } = opsAndTemplates;
+    const { validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
     const pr = await login.getProcessor();
     log.doLog('processOperation: got processor with login');
     const taskIds = [];
@@ -285,7 +300,13 @@ async function processOperation(
             editor: '',
         } as OperationInfo;
 
-        const projectGroupMapping = getProjectGroupMapping();
+        userData.data.projects.forEach(proj => {
+            if (proj.project_name === infos.category && proj.group_name === opsAndTemplates.groupAndMainProjectMapping.groupName) {
+                log.doLog(`processOperation: found project ${proj.project_name} for category ${infos.category}`);
+            }
+        });
+        //const projectGroupMapping = getProjectGroupMapping();
+        const projectGroupMapping = getActionToProjectIdMapping(userData, opsAndTemplates.groupAndMainProjectMapping);
         for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
@@ -363,6 +384,7 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
         }
         const { templates } = ret;
         const pr = await login.getProcessor();
+        getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
             const taskId = templates[action].existingTaskId;
             if (taskId) {
