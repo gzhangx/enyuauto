@@ -2,9 +2,9 @@ import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as fs from 'fs';
 import { ProjectAndGroup, Processor, IUserInfo, TaskParams } from './util';
+import { ActionType } from './types';
 
-const actions = ['校对','二校', '美编', '发布'] as const;
-type ActionType = typeof actions[number];
+
 type DueDateKeys = `${ActionType} Due Date`;
 
 interface Operation {
@@ -47,6 +47,7 @@ type Templates = {
 
 interface IGroupAndMainProjectLongToShortNameMapping {
     groupName: string; //EnYu_2026
+    actions: ActionType[];
     taskLongToShortNameMapping: {
         [key: string]: ActionType; //文字校对 (Editorial and Translation team) : 校对
     };
@@ -72,6 +73,14 @@ interface IEditorInfo {
     task: string;
     print_name: string; //the full chinese name for printing
 }
+
+interface IOpsConfig {
+    operationList: OperationWithDueDates[];
+    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
+    editorInfoMap: IEditorInfoMap;
+    headers: string[];
+}
+
 async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
     const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
@@ -79,10 +88,7 @@ async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
 }
 
 
-export async function getOpsAndMainList(log: DebugLog): Promise<{
-    ops: gs.gsAccount.IGetSheetOpsReturn, operationList: OperationWithDueDates[], groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap, 
-    headers: string[];
-}> {
+export async function getOpsAndMainList(log: DebugLog): Promise<IOpsConfig & { ops: gs.gsAccount.IGetSheetOpsReturn }> {
     const ops = await getSheetOps();
     log.doLog('getOpsAndMainList: got sheet ops');
     const rawMainData = await ops.readData('main');
@@ -99,7 +105,7 @@ export async function getOpsAndMainList(log: DebugLog): Promise<{
     log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
     const configLines = await ops.readData('config');
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
-    const groupAndMainProjectMapping = getConfigMapping(configLines.values);
+    const groupAndMainProjectMapping = getConfigMapping(configLines.values, log);
     
     const editorInfoMap = getEditorInfoMap(configLines.values);
     return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers };
@@ -137,7 +143,7 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
     //const headers = await ops.readData('main');
     for (let index = 0; index < headers.length; index++) {
         const item = headers[index];
-        for (const key of actions) {
+        for (const key of groupAndMainProjectMapping.actions) {
             if (item === `${key} TaskId`) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
@@ -217,15 +223,23 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
     return editorInfoMap;
 }
 
-function getConfigMapping(values: string[][]): IGroupAndMainProjectLongToShortNameMapping {
+function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjectLongToShortNameMapping {
     const configMap: IGroupAndMainProjectLongToShortNameMapping = {
         groupName: '',
+        actions: [],
         taskLongToShortNameMapping: {},
         shortProjectNameToProjectId: {} as {
             [key in ActionType]: { project_id: string; }; //populated later after we login to freedcamp
         },
     }
     configMap.groupName = values.find(row => row[0] === 'groupName')?.[1] || '';
+    configMap.actions = values.find(row => row[0] === 'operations')?.[1].split(',').map(item => item.trim() as ActionType) || [];
+    if (!configMap.groupName) { 
+        log.doLog('getConfigMapping: Warning groupName not found in config');
+    }
+    if (!configMap.actions || configMap.actions.length === 0) {
+        log.doLog('getConfigMapping: Warning actions not found in config');
+     }
     values.forEach(row => {
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = row[2] as ActionType;
@@ -243,9 +257,6 @@ function getProjectGroupMapping(): { [key: string]: ProjectAndGroup } {
     };
 }
 
-function getActions(): readonly ActionType[] {
-    return actions;
-}
 
 async function processOperation(
     opsAndTemplates: OperationAndTemplates,        
@@ -275,7 +286,7 @@ async function processOperation(
         } as OperationInfo;
 
         const projectGroupMapping = getProjectGroupMapping();
-        for (const action of getActions()) {
+        for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
@@ -352,7 +363,7 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
         }
         const { templates } = ret;
         const pr = await login.getProcessor();
-        for (const action of getActions()) {
+        for (const action of ret.groupAndMainProjectMapping.actions) {
             const taskId = templates[action].existingTaskId;
             if (taskId) {
                 if (taskId === 'done') {
