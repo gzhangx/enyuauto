@@ -414,7 +414,7 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
     const { ids, ops } = mainResult;
     log.doLog('Created task IDs:'+ JSON.stringify(ids));
     
-    await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
+    //await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
     
     log.doLog(`Saved ${ids.length} task IDs to temp/taskId.txt`);
     return true;
