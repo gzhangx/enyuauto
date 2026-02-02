@@ -204,6 +204,9 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
             case 'Name on FreedCamp':
                 positionToNameMap[index] = 'shortName';
                 break;
+            case 'Title':
+                positionToNameMap[index] = 'title';
+                break;
         }
     });
     for (const row of values) {
@@ -267,7 +270,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
             mapping[shortProjectName] = { project_id: proj.project_id, task_group_id: '' }
         }
     });
-    for (const action of groupAndMainProjectMapping.actions) {
+    for (const action of groupAndMainProjectMapping.actions) { //not needed
         const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action]; ////文字校对 (Editorial and Translation team) : 校对
         const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
     }
@@ -311,7 +314,7 @@ async function processOperation(
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
                 const prettyName = editorLookup.print_name || editorLookup.shortName; 
-                if (editorLookup.title === 'Brother') {
+                if (isEnglishOnly) {
                     infos['editor'] = `${editorLookup.title} ${prettyName}`;
                 } else {
                     infos['editor'] = `${prettyName}${editorLookup.title}`;
