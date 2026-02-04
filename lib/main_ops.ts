@@ -271,15 +271,18 @@ type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectAndGroup };
 function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping): IActionToProjectIdMapping {
     const mapping = {} as IActionToProjectIdMapping;
     userData.data.projects.forEach(proj => {
-        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name].shortName; ////文字校对 (Editorial and Translation team) : 校对
-        if (shortProjectName) {
-            mapping[shortProjectName] = { project_id: proj.project_id, task_group_id: '' }
+        const projectInfo = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name]; ////文字校对 (Editorial and Translation team) : 校对
+        if (projectInfo && projectInfo.shortName) {
+            mapping[projectInfo.shortName] = {
+                project_id: proj.project_id,
+                task_group_id: '',
+            }
         }
     });
-    for (const action of groupAndMainProjectMapping.actions) { //not needed
-        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action].shortName; ////文字校对 (Editorial and Translation team) : 校对
-        const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
-    }
+    //for (const action of groupAndMainProjectMapping.actions) { //not needed
+    //    const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action].shortName; ////文字校对 (Editorial and Translation team) : 校对
+    //    const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
+    //}
     return mapping;
 }
 
