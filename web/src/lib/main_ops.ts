@@ -19,7 +19,7 @@ interface Operation {
     '二校': string;
 }
 
-type OperationWithDueDates = Operation & {
+export type OperationWithDueDates = Operation & {
     [K in DueDateKeys]: string;
 };
 
@@ -86,7 +86,7 @@ interface IOpsConfig {
     headers: string[];
 }
 
-async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient({
         token,
     });
@@ -118,7 +118,7 @@ export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IO
     return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers };
 }
 
-async function getOpsAndLine(token: string, lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
+export async function getOpsAndLine(token: string, lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
     const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } =  await getOpsAndMainList(token, log);
     const validOperation = operationList[lineNumber - 2];
 
@@ -412,7 +412,6 @@ async function processOperation(
 }
 
 export interface DebugLog {
-    operations: string[];
     doLog: (msg: string) => void;
 }
 async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {

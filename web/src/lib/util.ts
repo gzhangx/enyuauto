@@ -80,7 +80,7 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
         },
     });
 
-    return res as LoginResponse;
+    return res as unknown as LoginResponse;
 }
 
 async function getProcessor(): Promise<Processor> {

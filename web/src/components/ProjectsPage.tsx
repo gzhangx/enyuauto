@@ -1,30 +1,29 @@
 import { useEffect, useState } from 'react'
 import '../App.css'
-import type { ProjectItem, } from '../lib/api'
-import { getProjectList, getActions, createOrDelProject } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
+import { getOpsAndMainList, type OperationWithDueDates } from '../lib/main_ops';
 
+
+type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
 export const ProjectsPage = () => {
-  const [projectList, setProjectList] = useState<ProjectItem[]>([]);
+  const { token } = useAuth();  
+  const [projectList, setProjectList] = useState<OperationWithDueDatesWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   
   useEffect(() => {
     console.log('useEffect run');
-    getProjectList().then(list => {
-      list.reverse();
-      list = list.filter(item => {
-        let allIdDone = true;
-        if (!item.文件) return false;
-        for (const action of getActions()) {
-          const taskId = item[`${action} TaskId`];
-          console.log('taskId', taskId,`${action}TaskId`);
-          if (taskId !== 'done') allIdDone = false;
+    if (token) {
+      getOpsAndMainList(token, {
+        doLog: (msg: string) => {
+          console.log(msg);
         }
-        console.log(item)
-        return !allIdDone;
-      })
-      setProjectList(list);
-    });
-  },['1']);
+      }).then(res => { 
+        //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
+        setProjectList(res.operationList.map((item, index) => ({ ...item, line: index + 2 })));
+        setResponseData('');
+      });
+    }
+  },[token]);
 
   return (
     <>
@@ -46,13 +45,13 @@ export const ProjectsPage = () => {
               return <tr key={p.文章名+idx}>
                 <td><button className="btn btn-create" onClick={
                   async () => {
-                    const retData = await createOrDelProject(p.line, 'main');
-                    setResponseData(JSON.stringify(retData, null, 2));
+                    //const retData = await createOrDelProject(p.line, 'main');
+                    //setResponseData(JSON.stringify(retData, null, 2));
                   }
                 }>Create</button></td>
                 <td><button className="btn btn-delete" onClick={async () => {
-                    const retData = await createOrDelProject(p.line, 'del');
-                    setResponseData(JSON.stringify(retData, null, 2));
+                    //const retData = await createOrDelProject(p.line, 'del');
+                    //setResponseData(JSON.stringify(retData, null, 2));
                 }}>Delete</button></td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
                   <a href={p.文件} target="_blank">{p.文件}</a>
