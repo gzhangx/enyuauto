@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getOpsAndMainList, type OperationWithDueDates } from '../lib/main_ops';
+import { getOpsAndMainList, getTaskIdColumnName, type OperationWithDueDates } from '../lib/main_ops';
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
@@ -20,8 +20,10 @@ export const ProjectsPage = () => {
       }).then(res => { 
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
-          return item
-        })
+          return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {            
+            return acc || item[getTaskIdColumnName(action)] != 'done';
+          }, false) && item.文件.trim() !== '';
+        });
         setProjectList(list);
         setResponseData('');
       });
