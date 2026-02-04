@@ -12,6 +12,7 @@
     "deploy:cloudfront": "npm run deploy && aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --paths \"/*\""
   },
   "dependencies": {
+    "@gzhangx/googleapi": "^0.0.80",
     "@react-oauth/google": "^0.13.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
