@@ -5,10 +5,19 @@ import { getOpsAndMainList, getTaskIdColumnName, type OperationWithDueDates } fr
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
+
+type LogMessage = {
+  id: number;
+  text: string;
+  timestamp: number;
+};
+
 export const ProjectsPage = () => {
   const { token } = useAuth();  
   const [projectList, setProjectList] = useState<OperationWithDueDatesWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
+  const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
+  const [logIdCounter, setLogIdCounter] = useState(0);
   
   useEffect(() => {
     console.log('useEffect run');
@@ -16,6 +25,18 @@ export const ProjectsPage = () => {
       getOpsAndMainList(token, {
         doLog: (msg: string) => {
           console.log(msg);
+          const newLog: LogMessage = {
+            id: logIdCounter,
+            text: msg,
+            timestamp: Date.now()
+          };
+          setLogIdCounter(prev => prev + 1);
+          setLogMessages(prev => [...prev, newLog]);
+          
+          // Remove message after 5 seconds
+          setTimeout(() => {
+            setLogMessages(prev => prev.filter(log => log.id !== newLog.id));
+          }, 5000);
         }
       }).then(res => { 
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
@@ -30,8 +51,67 @@ export const ProjectsPage = () => {
     }
   },[token]);
 
+  // Calculate animation speed based on number of messages
+  const animationDuration = logMessages.length > 10 ? 0.3 : logMessages.length > 5 ? 0.5 : 1;
+
   return (
     <>
+      {/* Scrolling Log Display */}
+      <div style={{
+        position: 'fixed',
+        right: '20px',
+        top: '20px',
+        width: '300px',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        pointerEvents: 'none',
+        zIndex: 1000
+      }}>
+        {logMessages.map((log, index) => (
+          <div
+            key={log.id}
+            style={{
+              backgroundColor: 'rgba(33, 150, 243, 0.9)',
+              color: 'white',
+              padding: '8px 12px',
+              marginBottom: '8px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              wordWrap: 'break-word',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              animation: `slideUp ${animationDuration}s ease-out, fadeOut 0.5s ease-out ${4.5}s`,
+              transform: `translateY(${(logMessages.length - 1 - index) * -60}px)`,
+              transition: `transform ${animationDuration}s ease-out`,
+              opacity: (Date.now() - log.timestamp > 4500) ? 0 : 1
+            }}
+          >
+            {log.text}
+          </div>
+        ))}
+      </div>
+      
+      <style>{`
+        @keyframes slideUp {
+          from {
+            transform: translateY(20px);
+            opacity: 0;
+          }
+          to {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+        
+        @keyframes fadeOut {
+          from {
+            opacity: 1;
+          }
+          to {
+            opacity: 0;
+          }
+        }
+      `}</style>
+
       <h1>Enyu Site</h1>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
