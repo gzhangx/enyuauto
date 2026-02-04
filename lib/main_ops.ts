@@ -55,7 +55,10 @@ interface IGroupAndMainProjectLongToShortNameMapping {
         }; 
     };
     shortProjectNameToProjectId: { //populated later after we login to freedcamp
-        [key in ActionType]: { project_id: string; }; //'校对': { "project_id": "3696514" }
+        [key in ActionType]: {
+            project_id: string;
+            subTaskOf?: ActionType;
+        }; //'校对': { "project_id": "3696514" }
     }
 }
 
@@ -236,7 +239,10 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
         actions: [],
         taskLongToShortNameMapping: {},
         shortProjectNameToProjectId: {} as {
-            [key in ActionType]: { project_id: string; }; //populated later after we login to freedcamp
+            [key in ActionType]: {
+                project_id: string;
+                subTaskOf?: ActionType;
+             }; //populated later after we login to freedcamp
         },
     }
     configMap.groupName = values.find(row => row[0] === 'groupName')?.[1] || '';
@@ -277,6 +283,11 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
                 project_id: proj.project_id,
                 task_group_id: '',
             }
+
+            groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
+                project_id: proj.project_id,
+                subTaskOf: projectInfo.subTaskOf,
+            };
         }
     });
     //for (const action of groupAndMainProjectMapping.actions) { //not needed
@@ -376,6 +387,11 @@ async function processOperation(
                         //postParams.assigned_to_id = '1320079';
                     }
                 }
+            }
+            const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
+            if (subTaskOf) {
+                const h_parent_id = templates[subTaskOf].existingTaskId;
+                postParams.h_parent_id = h_parent_id;
             }
             log.doLog(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date

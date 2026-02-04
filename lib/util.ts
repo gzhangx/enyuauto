@@ -23,6 +23,7 @@ interface CreateTaskResponse {
 }
 
 export interface TaskParams {
+    h_parent_id?: string;
     description: string;
     assigned_to_id?: string;
     due_date?: string;
