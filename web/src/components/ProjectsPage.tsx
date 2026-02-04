@@ -19,7 +19,10 @@ export const ProjectsPage = () => {
         }
       }).then(res => { 
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-        setProjectList(res.operationList.map((item, index) => ({ ...item, line: index + 2 })));
+        const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
+          return item
+        })
+        setProjectList(list);
         setResponseData('');
       });
     }

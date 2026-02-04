@@ -5,7 +5,7 @@ import type { ActionType } from './types';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 type DueDateKeys = `${ActionType} Due Date`;
-
+type TaskIdKeys = `${ActionType} TaskId`;
 interface Operation {
     '文件': string;
     '作者': string;
@@ -19,8 +19,14 @@ interface Operation {
     '二校': string;
 }
 
+export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
+    return `${action} TaskId`;
+}
+
 export type OperationWithDueDates = Operation & {
-    [K in DueDateKeys]: string;
+    [K in DueDateKeys]: string;    
+} & {
+    [k in TaskIdKeys]: string;
 };
 
 interface OperationInfo {
@@ -143,7 +149,7 @@ export async function getOpsAndLine(token: string, lineNumber: number, log: Debu
                     console.warn(warMsg);
                     log.doLog(warMsg);
                  },
-                existingTaskId: validOperation[`${templateName} TaskId` as DueDateKeys]
+                existingTaskId: validOperation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
             };
         }
         return acc;
@@ -152,7 +158,7 @@ export async function getOpsAndLine(token: string, lineNumber: number, log: Debu
     for (let index = 0; index < headers.length; index++) {
         const item = headers[index];
         for (const key of groupAndMainProjectMapping.actions) {
-            if (item === `${key} TaskId`) {
+            if (item === getTaskIdColumnName(key)) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
                 templates[key].taskIdUpdater = async (newTaskId: string) => {
