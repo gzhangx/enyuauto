@@ -1,90 +1,85 @@
-import { useEffect, useState } from 'react'
-
+import { useState } from 'react'
 import './App.css'
-import type { ProjectItem, } from './lib/api'
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LoginPage } from './components/LoginPage';
+import { GoogleSheetsPage } from './components/GoogleSheetsPage';
+import { ProjectsPage } from './components/ProjectsPage';
 
-import { getProjectList, getActions, createOrDelProject } from './lib/api';
-function App() {
+type View = 'projects' | 'sheets';
 
-  const [projectList, setProjectList] = useState<ProjectItem[]>([]);
-  const [responseData, setResponseData] = useState<string>('');
-  
-  useEffect(() => {
-    console.log('useEffect run');
-    getProjectList().then(list => {
-      list.reverse();
-      list = list.filter(item => {
-        let allIdDone = true;
-        if (!item.文件) return false;
-        for (const action of getActions()) {
-          const taskId = item[`${action} TaskId`];
-          console.log('taskId', taskId,`${action}TaskId`);
-          if (taskId !== 'done') allIdDone = false;
-        }
-        console.log(item)
-        return !allIdDone;
-      })
-      setProjectList(list);
-    });
-  },['1']);
+const AppContent = () => {
+  const { isAuthenticated, logout } = useAuth();
+  const [currentView, setCurrentView] = useState<View>('projects');
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return (
     <>
-      <h1>Enyu Site</h1>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
-        <thead>
-          <tr>
-            <th></th>
-            <th></th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>            
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>Line</th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            projectList.map((p,idx) => {
-              return <tr key={p.文章名+idx}>
-                <td><button className="btn btn-create" onClick={
-                  async () => {
-                    const retData = await createOrDelProject(p.line, 'main');
-                    setResponseData(JSON.stringify(retData, null, 2));
-                  }
-                }>Create</button></td>
-                <td><button className="btn btn-delete" onClick={async () => {
-                    const retData = await createOrDelProject(p.line, 'del');
-                    setResponseData(JSON.stringify(retData, null, 2));
-                }}>Delete</button></td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>
-                  <a href={p.文件} target="_blank">{p.文件}</a>
-                </td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>                
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.line}</td>                
-              </tr>
-            })
-          }
-        </tbody>
-      </table>      
-      {responseData && (
-        <div style={{ marginTop: '2rem', textAlign: 'left' }}>
-          <h2>Response Data:</h2>
-          <pre style={{ 
-            backgroundColor: '#f5f5f5', 
-            padding: '1rem', 
+      <nav style={{
+        padding: '1rem',
+        backgroundColor: '#f8f9fa',
+        borderBottom: '1px solid #dee2e6',
+        display: 'flex',
+        gap: '1rem',
+        alignItems: 'center'
+      }}>
+        <button
+          onClick={() => setCurrentView('projects')}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: currentView === 'projects' ? '#007bff' : '#6c757d',
+            color: 'white',
+            border: 'none',
             borderRadius: '4px',
-            overflow: 'auto',
-            maxHeight: '400px'
-          }}>
-            {responseData}
-          </pre>
+            cursor: 'pointer'
+          }}
+        >
+          Projects
+        </button>
+        <button
+          onClick={() => setCurrentView('sheets')}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: currentView === 'sheets' ? '#007bff' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Google Sheets
+        </button>
+        <div style={{ marginLeft: 'auto' }}>
+          <button
+            onClick={logout}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
         </div>
-      )}
-      <p className="read-the-docs">
-        
-      </p>
+      </nav>
+      
+      {currentView === 'projects' && <ProjectsPage />}
+      {currentView === 'sheets' && <GoogleSheetsPage />}
     </>
-  )
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App

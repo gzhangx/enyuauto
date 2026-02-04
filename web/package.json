@@ -11,7 +11,8 @@
     "deploy": "npm run build && aws s3 sync dist/ s3://enyu-web --delete",
     "deploy:cloudfront": "npm run deploy && aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --paths \"/*\""
   },
-  "dependencies": {    
+  "dependencies": {
+    "@react-oauth/google": "^0.13.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
