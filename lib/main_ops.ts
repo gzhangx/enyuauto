@@ -49,7 +49,10 @@ interface IGroupAndMainProjectLongToShortNameMapping {
     groupName: string; //EnYu_2026
     actions: ActionType[];
     taskLongToShortNameMapping: {
-        [key: string]: ActionType; //文字校对 (Editorial and Translation team) : 校对
+        [key: string]: {
+            shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
+            subTaskOf?: ActionType;
+        }; 
     };
     shortProjectNameToProjectId: { //populated later after we login to freedcamp
         [key in ActionType]: { project_id: string; }; //'校对': { "project_id": "3696514" }
@@ -246,7 +249,10 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
      }
     values.forEach(row => {
         if (row[0] === 'mapping') {
-            configMap.taskLongToShortNameMapping[row[1]] = row[2] as ActionType;
+            configMap.taskLongToShortNameMapping[row[1]] = {
+                shortName: row[2] as ActionType,
+                subTaskOf: row[3] ? row[3] as ActionType : undefined,
+            };
         }
     });
     return configMap;
@@ -265,13 +271,13 @@ type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectAndGroup };
 function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping): IActionToProjectIdMapping {
     const mapping = {} as IActionToProjectIdMapping;
     userData.data.projects.forEach(proj => {
-        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name]; ////文字校对 (Editorial and Translation team) : 校对
+        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name].shortName; ////文字校对 (Editorial and Translation team) : 校对
         if (shortProjectName) {
             mapping[shortProjectName] = { project_id: proj.project_id, task_group_id: '' }
         }
     });
     for (const action of groupAndMainProjectMapping.actions) { //not needed
-        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action]; ////文字校对 (Editorial and Translation team) : 校对
+        const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action].shortName; ////文字校对 (Editorial and Translation team) : 校对
         const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
     }
     return mapping;
