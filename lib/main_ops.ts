@@ -282,6 +282,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
             mapping[projectInfo.shortName] = {
                 project_id: proj.project_id,
                 task_group_id: '',
+                priority: 2,
             }
 
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
@@ -350,14 +351,6 @@ async function processOperation(
             if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
                 template1 = curTemplateActionInfo.templateEnglish;
             } 
-            const projectGrpoup = projectGroupMapping[action];
-
-            const taskRes = await pr.createTask(projectGrpoup, `${debug_Prefix}${fileName}`);
-            const taskId = taskRes.id.toString();
-            console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
-            log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
-            await curTemplateActionInfo.taskIdUpdater(taskId);
-            taskIds.push(taskId);
             const link = action === '校对' ? infos.link : undefined;            
             
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category']) {
@@ -367,6 +360,25 @@ async function processOperation(
             if (link) {
                 template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
+
+
+            let projectGrpoup = projectGroupMapping[action];
+            const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
+            let taskTitle = `${debug_Prefix}${fileName}`
+            if (subTaskOf) {
+                const h_parent_id = templates[subTaskOf].existingTaskId;
+                projectGrpoup = { ...projectGroupMapping[subTaskOf] };
+                projectGrpoup.h_parent_id = h_parent_id;
+                projectGrpoup.description = template1;
+                taskTitle = action;
+            }
+            const taskRes = await pr.createTask(projectGrpoup, taskTitle);
+            const taskId = taskRes.id.toString();
+            console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
+            log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
+            await curTemplateActionInfo.taskIdUpdater(taskId);
+            taskIds.push(taskId);
+            
             
             const postParams: TaskParams = {
                 description: template1,
@@ -387,15 +399,12 @@ async function processOperation(
                         //postParams.assigned_to_id = '1320079';
                     }
                 }
-            }
-            const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
-            if (subTaskOf) {
-                const h_parent_id = templates[subTaskOf].existingTaskId;
-                postParams.h_parent_id = h_parent_id;
-            }
+            }            
             log.doLog(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date
-            await pr.doPostAttachment(taskId, postParams);
+            if (!subTaskOf) {
+                await pr.doPostAttachment(taskId, postParams);
+            }
         }
     }
     return taskIds;

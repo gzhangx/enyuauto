@@ -13,8 +13,11 @@ interface LoginResponse {
 }
 
 interface ProjectAndGroup {
+    h_parent_id?: string;
     project_id: string;
     task_group_id: string;
+    description?: string;
+    "priority": 2;
 }
 
 interface CreateTaskResponse {
