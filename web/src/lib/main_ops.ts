@@ -274,7 +274,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
     return mapping;
 }
 
-async function processOperation(
+export async function processOperation(
     opsAndTemplates: IOpsConfigWithOps,
     lineNumber: number,    
     log: DebugLog,

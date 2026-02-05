@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getOpsAndMainList, getTaskIdColumnName, type OperationWithDueDates } from '../lib/main_ops';
+import { getOpsAndMainList, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../lib/main_ops';
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
@@ -12,35 +12,43 @@ type LogMessage = {
   timestamp: number;
 };
 
+const useLogger = (displayDuration = 5000) => {
+  const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
+  const logIdCounterRef = useRef(0);
+  
+  const doLog = useCallback((msg: string) => {
+    console.log(msg);
+    const newLog: LogMessage = {
+      id: logIdCounterRef.current++,
+      text: msg,
+      timestamp: Date.now()
+    };
+    setLogMessages(prev => [...prev, newLog]);
+    
+    setTimeout(() => {
+      setLogMessages(prev => prev.filter(log => log.id !== newLog.id));
+    }, displayDuration);
+  }, [displayDuration]);
+
+  const animationDuration = logMessages.length > 10 ? 0.3 : logMessages.length > 5 ? 0.5 : 1;
+
+  return { logMessages, doLog, animationDuration };
+};
+
 export const ProjectsPage = () => {
   const { token } = useAuth();  
   const [projectList, setProjectList] = useState<OperationWithDueDatesWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
-  const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
-  const [logIdCounter, setLogIdCounter] = useState(0);
   const [isLoading, setIsLoading] = useState('');
+  const opsDataRef = useRef<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
+  const { logMessages, doLog, animationDuration } = useLogger(5000);
   
   useEffect(() => {
     console.log('useEffect run');
     if (token) {
       setIsLoading('Loading projects...');
-      getOpsAndMainList(token, {
-        doLog: (msg: string) => {
-          console.log(msg);
-          const newLog: LogMessage = {
-            id: logIdCounter,
-            text: msg,
-            timestamp: Date.now()
-          };
-          setLogIdCounter(prev => prev + 1);
-          setLogMessages(prev => [...prev, newLog]);
-          
-          // Remove message after 5 seconds
-          setTimeout(() => {
-            setLogMessages(prev => prev.filter(log => log.id !== newLog.id));
-          }, 5000);
-        }
-      }).then(res => {
+      getOpsAndMainList(token, { doLog }).then(res => {
+        opsDataRef.current = res; // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
           return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
@@ -53,7 +61,7 @@ export const ProjectsPage = () => {
         setResponseData('');
       });
     }
-  },[token]);
+  },[token, doLog]);
 
   // Calculate animation speed based on number of messages
   if (isLoading) {
@@ -84,8 +92,6 @@ export const ProjectsPage = () => {
       </div>
     );
   }
-
-  const animationDuration = logMessages.length > 10 ? 0.3 : logMessages.length > 5 ? 0.5 : 1;
 
   return (
     <>
@@ -161,6 +167,11 @@ export const ProjectsPage = () => {
               return <tr key={p.文章名+idx}>
                 <td><button className="btn btn-create" onClick={
                   async () => {
+                    if (opsDataRef.current === null) {
+                      setResponseData('Operation data not loaded yet.');
+                      return;
+                    }
+                    await processOperation(opsDataRef.current, p.line, { doLog });
                     //const retData = await createOrDelProject(p.line, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
                   }
