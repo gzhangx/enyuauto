@@ -60,54 +60,52 @@ export const ProjectsPage = () => {
       <div style={{
         position: 'fixed',
         right: '20px',
-        top: '20px',
+        bottom: '20px',
         width: '300px',
         maxHeight: '80vh',
         overflow: 'hidden',
         pointerEvents: 'none',
-        zIndex: 1000
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column-reverse',
+        gap: '8px'
       }}>
-        {logMessages.map((log, index) => (
-          <div
-            key={log.id}
-            style={{
-              backgroundColor: 'rgba(33, 150, 243, 0.9)',
-              color: 'white',
-              padding: '8px 12px',
-              marginBottom: '8px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              wordWrap: 'break-word',
-              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              animation: `slideUp ${animationDuration}s ease-out, fadeOut 0.5s ease-out ${4.5}s`,
-              transform: `translateY(${(logMessages.length - 1 - index) * -60}px)`,
-              transition: `transform ${animationDuration}s ease-out`,
-              opacity: (Date.now() - log.timestamp > 4500) ? 0 : 1
-            }}
-          >
-            {log.text}
-          </div>
-        ))}
+        {logMessages.map((log) => {
+          const age = Date.now() - log.timestamp;
+          const isFadingOut = age > 4500;
+          
+          return (
+            <div
+              key={log.id}
+              style={{
+                backgroundColor: 'rgba(33, 150, 243, 0.9)',
+                color: 'white',
+                padding: '8px 12px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                wordWrap: 'break-word',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                animation: `slideInFromBottom ${animationDuration}s ease-out`,
+                opacity: isFadingOut ? 0 : 1,
+                transition: `opacity 0.5s ease-out`,
+                transformOrigin: 'bottom'
+              }}
+            >
+              {log.text}
+            </div>
+          );
+        })}
       </div>
       
       <style>{`
-        @keyframes slideUp {
+        @keyframes slideInFromBottom {
           from {
-            transform: translateY(20px);
+            transform: translateY(100%);
             opacity: 0;
           }
           to {
             transform: translateY(0);
             opacity: 1;
-          }
-        }
-        
-        @keyframes fadeOut {
-          from {
-            opacity: 1;
-          }
-          to {
-            opacity: 0;
           }
         }
       `}</style>
