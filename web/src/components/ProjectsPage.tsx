@@ -18,10 +18,12 @@ export const ProjectsPage = () => {
   const [responseData, setResponseData] = useState<string>('');
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const [logIdCounter, setLogIdCounter] = useState(0);
+  const [isLoading, setIsLoading] = useState('');
   
   useEffect(() => {
     console.log('useEffect run');
     if (token) {
+      setIsLoading('Loading projects...');
       getOpsAndMainList(token, {
         doLog: (msg: string) => {
           console.log(msg);
@@ -38,20 +40,51 @@ export const ProjectsPage = () => {
             setLogMessages(prev => prev.filter(log => log.id !== newLog.id));
           }, 5000);
         }
-      }).then(res => { 
+      }).then(res => {
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
-          return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {            
+          return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
             return acc || item[getTaskIdColumnName(action)] != 'done';
           }, false) && item.文件.trim() !== '';
         });
         setProjectList(list);
+      }).finally(() => {
+        setIsLoading('');
         setResponseData('');
       });
     }
   },[token]);
 
   // Calculate animation speed based on number of messages
+  if (isLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: '100vh',
+        gap: '20px'
+      }}>
+        <div style={{
+          width: '60px',
+          height: '60px',
+          border: '6px solid rgba(33, 150, 243, 0.2)',
+          borderTop: '6px solid rgb(33, 150, 243)',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+        <h2 style={{ margin: 0, color: '#555' }}>{isLoading}</h2>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   const animationDuration = logMessages.length > 10 ? 0.3 : logMessages.length > 5 ? 0.5 : 1;
 
   return (

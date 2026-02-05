@@ -44,9 +44,8 @@ type Templates = {
         template: string;
         templateEnglish: string;
         taskIdPos: number;
-        taskIdLine: number;
-        taskIdUpdater: (newTaskId: string) => Promise<void>;
-        existingTaskId: string;
+        taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
+        getExistingTaskId: (operation: OperationWithDueDates)=>string;
     }
 };
 
@@ -90,7 +89,10 @@ interface IOpsConfig {
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
+    templates: Templates;
 }
+
+type IOpsConfigWithOps = IOpsConfig & { ops: gs.gsAccount.IGetSheetOpsReturn };
 
 export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient({
@@ -101,7 +103,7 @@ export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheet
 }
 
 
-export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IOpsConfig & { ops: gs.gsAccount.IGetSheetOpsReturn }> {
+export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IOpsConfigWithOps> {
     const ops = await getSheetOps(token);
     log.doLog('getOpsAndMainList: got sheet ops');
     const rawMainData = await ops.readData('main');
@@ -121,19 +123,7 @@ export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IO
     const groupAndMainProjectMapping = getConfigMapping(configLines.values, log);
     
     const editorInfoMap = getEditorInfoMap(configLines.values);
-    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers };
-}
 
-export async function getOpsAndLine(token: string, lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
-    const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } =  await getOpsAndMainList(token, log);
-    const validOperation = operationList[lineNumber - 2];
-
-    if (!validOperation) {
-        log.doLog('getOpsAndLine: no such line number ' + lineNumber);
-        return undefined;
-    }
-    
-    log.doLog('getOpsAndLine: got operation ' + validOperation['文件']);
     const templateRows = await ops.readData('templates');
     log.doLog('getOpsAndLine: got template rows');
     const templates = templateRows.values.reduce((acc: Templates, row: string[]) => {
@@ -143,13 +133,12 @@ export async function getOpsAndLine(token: string, lineNumber: number, log: Debu
                 template: templateChinese,
                 templateEnglish,
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
-                taskIdLine: lineNumber,
-                taskIdUpdater: async (newTaskId: string) => {
-                    const warMsg = 'taskIdUpdater not initialized yet for template ' + templateName+ ' newTaskId=' + newTaskId;
+                taskIdUpdater: async (newTaskId: string, lineNumber: number) => {
+                    const warMsg = 'taskIdUpdater not initialized yet for template ' + templateName+ ' newTaskId=' + newTaskId+ ' lineNumber=' + lineNumber;
                     console.warn(warMsg);
                     log.doLog(warMsg);
                  },
-                existingTaskId: validOperation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
+                getExistingTaskId: (operation: OperationWithDueDates) => operation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
             };
         }
         return acc;
@@ -161,7 +150,8 @@ export async function getOpsAndLine(token: string, lineNumber: number, log: Debu
             if (item === getTaskIdColumnName(key)) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
-                templates[key].taskIdUpdater = async (newTaskId: string) => {
+                templates[key].taskIdUpdater = async (newTaskId: string, lineNumber: number) => {
+                    log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
                     await ops.autoUpdateValues('main', [[newTaskId]], {
                         row: lineNumber - 1,
                         col: index,
@@ -172,32 +162,18 @@ export async function getOpsAndLine(token: string, lineNumber: number, log: Debu
             }
         }        
     }
-    
-    return { ops, validOperation, templates,groupAndMainProjectMapping, editorInfoMap };
+
+    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
 }
 
-async function getOperationAndTemplates(token: string, lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
-    const result = await getOpsAndLine(token,lineNumber, log);
-    if (!result) {
-        return undefined;
-    }
-    const { ops, validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = result;
 
-    // const listOfNames = await ops.readDataByColumnName('list of names');
-    // log.doLog('getOperationAndTemplates: got list of names');
-    // const editorInfoMap = listOfNames.data?.reduce((acc, item) => {
-    //     const full_name = item['Name on FreedCamp'];
-    //     const email = item['Email'];
-    //     const task = item['Task'];
-    //     const title = item['Title'];
-    //     const print_name = item['Full Name'];
-    //     acc[full_name] = { title, full_name, email, task, print_name };
-    //     return acc;
-    // }, {} as IEditorInfoMap) || {};
-
-    
-    return { validOperation, templates, ops, editorInfoMap,groupAndMainProjectMapping };
+function getOperationFromLineNumber(operationList: OperationWithDueDates[], lineNumber: number): OperationWithDueDates | undefined {
+    const operation = operationList[lineNumber - 2];
+    return operation;
 }
+
+
+
 
 
 function getEditorInfoMap(values: string[][]): IEditorInfoMap {
@@ -306,13 +282,19 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 }
 
 async function processOperation(
-    opsAndTemplates: OperationAndTemplates,        
+    opsAndTemplates: IOpsConfigWithOps,
+    lineNumber: number,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
-    const { validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
+    const { templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
     const pr = await login.getProcessor();
     log.doLog('processOperation: got processor with login');
+    const validOperation: OperationWithDueDates = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
+    if (!validOperation) {
+        log.doLog('processOperation: no such line number ' + lineNumber);
+        return [];
+    }
     const taskIds = [];
     const userData = await pr.getSessionCurrentData();
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
@@ -338,7 +320,7 @@ async function processOperation(
         //const projectGroupMapping = getProjectGroupMapping();
         const projectGroupMapping = getActionToProjectIdMapping(userData, opsAndTemplates.groupAndMainProjectMapping);
         for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
-            const editor = operation[action];
+            const editor = validOperation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
                 const prettyName = editorLookup.print_name || editorLookup.shortName; 
@@ -349,9 +331,10 @@ async function processOperation(
                 }
             }
             const curTemplateActionInfo = templates[action];
-            if (curTemplateActionInfo.existingTaskId) {
-                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${curTemplateActionInfo.existingTaskId} exists`);
-                taskIds.push(curTemplateActionInfo.existingTaskId);
+            const existingTaskId = curTemplateActionInfo.getExistingTaskId(validOperation);
+            if (existingTaskId) {
+                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
+                taskIds.push(existingTaskId);
                 continue;
             }
             let template1 = curTemplateActionInfo.template;
@@ -373,7 +356,7 @@ async function processOperation(
             const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
-                const h_parent_id = templates[subTaskOf].existingTaskId;
+                const h_parent_id = templates[subTaskOf].getExistingTaskId(validOperation);
                 projectGrpoup = { ...projectGroupMapping[subTaskOf] };
                 projectGrpoup.h_parent_id = h_parent_id;
                 projectGrpoup.description = template1;
@@ -383,7 +366,7 @@ async function processOperation(
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
-            await curTemplateActionInfo.taskIdUpdater(taskId);
+            await curTemplateActionInfo.taskIdUpdater(taskId, lineNumber);
             taskIds.push(taskId);
             
             
@@ -422,16 +405,18 @@ export interface DebugLog {
 }
 async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
-        const ret = await getOpsAndLine(token, lineNumber, log);
-        if (!ret) {
+        const ret =  await getOpsAndMainList(token, log);
+        const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
+        if (!validOperation) {
             log.doLog('del: no such line number ' + lineNumber);
             return false;
         }
+        //const ret = await getOpsAndLine(token, lineNumber, log);        
         const { templates } = ret;
         const pr = await login.getProcessor();
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
-            const taskId = templates[action].existingTaskId;
+            const taskId = templates[action].getExistingTaskId(validOperation);
             if (taskId) {
                 if (taskId === 'done') {
                     const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
@@ -445,7 +430,7 @@ async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr
                 
                 await pr.deleteTask(taskId);
                 log.doLog(`del: deleted task ${taskId} for action ${action}`);
-                await templates[action].taskIdUpdater('');
+                await templates[action].taskIdUpdater('', lineNumber);
                 log.doLog(`del: cleared task ID in sheet for action ${action}`);
             }
         }
@@ -466,12 +451,12 @@ async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr
 }
 
 async function main(token: string, lineNumber: number, log: DebugLog, opStr?: string) {
-    const opsAndTemplates = await getOperationAndTemplates(token, lineNumber, log);
+    const opsAndTemplates = await getOpsAndMainList(token, log);
     if (!opsAndTemplates) {        
         return undefined;
     }
     const prefix = opStr || '';
-    const ids = await processOperation(opsAndTemplates, log, prefix);
+    const ids = await processOperation(opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,
