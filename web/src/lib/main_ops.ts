@@ -67,13 +67,6 @@ interface IGroupAndMainProjectLongToShortNameMapping {
 }
 
 interface IEditorInfoMap { [key: string]: IEditorInfo };
-interface OperationAndTemplates {
-    validOperation: OperationWithDueDates;
-    templates: Templates;
-    ops: gs.gsAccount.IGetSheetOpsReturn;
-    editorInfoMap: IEditorInfoMap;
-    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
-}
 
 
 interface IEditorInfo {
