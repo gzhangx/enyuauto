@@ -104,6 +104,12 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   }
 };
 
+// action: freedcamp
+// subAction: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment
+// login: username, password
+// createTask: projectId, title, description?, assignedToId?, dueDate?, parentId?
+// deleteTask: taskId
+// doPostAttachment: taskId, description?, assignedToId?, dueDate?
 async function doFreedcampAction(params: { [key: string]: string; }, log: mainOps.DebugLog): Promise<LambdaResponse> {
   try {
     log.doLog('Processing freedcamp action');
