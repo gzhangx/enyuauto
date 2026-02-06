@@ -3,7 +3,11 @@ import * as util from './lib/util';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
-    [key: string]: string;
+    action: string;
+    subAction?: string;
+    params: { [key: string]: string };
+    test: string;
+    line: string;
   };
   [key: string]: any;
 }
@@ -31,7 +35,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
 
     if (action === 'freedcamp') {
-      return doFreedcampAction(params, log);
+      return doFreedcampAction(params.params, log);
     }
     if (action === 'getList') {
       const list = await mainOps.getOpsAndMainList(log);
@@ -112,6 +116,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 // doPostAttachment: taskId, description?, assignedToId?, dueDate?
 async function doFreedcampAction(params: { [key: string]: string; }, log: mainOps.DebugLog): Promise<LambdaResponse> {
   try {
+    if (!params) throw new Error('Missing parameters for freedcamp action');
     log.doLog('Processing freedcamp action');
     
     let result: any = {};

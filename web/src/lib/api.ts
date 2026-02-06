@@ -35,10 +35,58 @@ export async function createOrDelProject(line: number, action: 'main' | 'del' = 
     return projects;      
 }
 
-// action: freedcamp
-// subAction: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment
-// login: username, password
-// createTask: projectId, title, description?, assignedToId?, dueDate?, parentId?
-// deleteTask: taskId
-// doPostAttachment: taskId, description?, assignedToId?, dueDate?
+// Freedcamp API types
+type FreedcampLoginParams = {
+    username: string;
+    password: string;
+};
+
+type FreedcampCreateTaskParams = {
+    projectId: string;
+    title: string;
+    description?: string;
+    assignedToId?: string;
+    dueDate?: string;
+    parentId?: string;
+};
+
+type FreedcampDeleteTaskParams = {
+    taskId: string;
+};
+
+type FreedcampDoPostAttachmentParams = {
+    taskId: string;
+    description?: string;
+    assignedToId?: string;
+    dueDate?: string;
+};
+
+type FreedcampParams = 
+    | { subAction: 'login'; params: FreedcampLoginParams }
+    | { subAction: 'getSessionCurrentData'; params?: never }
+    | { subAction: 'createTask'; params: FreedcampCreateTaskParams }
+    | { subAction: 'deleteTask'; params: FreedcampDeleteTaskParams }
+    | { subAction: 'doPostAttachment'; params: FreedcampDoPostAttachmentParams };
+
+export async function freedcampApi<T = any>(request: FreedcampParams): Promise<T> {
+    const body = {
+        action: 'freedcamp',
+        subAction: request.subAction,
+        ...request.params
+    };
+
+    const response = await fetch(enyuApiBaseUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Freedcamp API error: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
 

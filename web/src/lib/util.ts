@@ -1,4 +1,5 @@
-import * as gs from '@gzhangx/googleapi';
+
+import { freedcampApi } from './api';
 
 interface LoginParams {
     username?: string;
@@ -32,7 +33,6 @@ export interface TaskParams {
     "priority": 2;
 }
 interface Processor {
-    cookies: string[];
     doPostAttachment: (taskId: string, params: TaskParams) => Promise<any>;
     createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
@@ -60,112 +60,70 @@ export interface ICurrentSessionData {
 }
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {    
-    const auth = {
-        is_ajax1: true,
-        time_on_page1: 5,
-        assets_version1: 1866,
-        username,
-        password,
-        remember: 1,
-        f_ajax_login: 1,
-    };
-
-    const formData = gs.util.getFormData(auth);
-    const res = await gs.util.doHttpRequest({
-        method: 'POST',
-        url: 'https://freedcamp.com/login',
-        data: formData || '',
-        headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
+    const res = await freedcampApi({
+        subAction: 'login',
+        params: {
+            username: username || '',
+            password: password || '',
         },
     });
 
     return res as unknown as LoginResponse;
 }
 
-async function getProcessor(): Promise<Processor> {
-    const loginRes = await login({});
-    const cookies = loginRes.headers['set-cookie'];
+function getProcessor(loginToken: LoginResponse): Promise<Processor> {
+    // Initialize session by logging in
 
-    async function doPostMultiPart(path: string, json: string | object): Promise<any> {
-        if (typeof json !== 'string') {
-            json = JSON.stringify(json);
-        }
-        const data = `------geckoformboundarya5436b018dcf600688cc0244d5319984\r\nContent-Disposition: form-data; name="data"\r\n
-${json}${
-            '\r\n'
-}------geckoformboundarya5436b018dcf600688cc0244d5319984--\r\n`;
-        const res = await gs.util.doHttpRequest({
-            method: 'POST',
-            url: `https://freedcamp.com${path}`,
-            data,
-            headers: {
-                Cookie: cookies.join('; '),                
-                'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
+    async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
+        const res = await freedcampApi({
+            subAction: 'doPostAttachment',
+            params: {
+                cookies: loginToken.headers['set-cookie'],
+                taskId,
+                description: params.description,
+                assignedToId: params.assigned_to_id,
+                dueDate: params.due_date,
             },
         });
         return res;
-    }
-
-    async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
-        await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
-            ...params,
-            "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
-            "time_on_page": 37378 
-        });
     }
 
     async function createTask(projectAndGroup: ProjectAndGroup, title: string): Promise<CreateTaskResponse> {
-        const res = await doPostMultiPart('/iapi/tasks',
-            {
-                "title": title,
-                "assigned_to_id": "0", 
-                ...projectAndGroup, 
-                "conditions": {"filter": {}, "order": {}, "substring": "", "f_use_and": "0"},
-                "time_on_page": 3704
-            }
-        );
-        const result = res.data;
+        const res = await freedcampApi({
+            subAction: 'createTask',
+            params: {
+                projectId: projectAndGroup.project_id,
+                title,
+                description: projectAndGroup.description,
+                dueDate: undefined,
+                assignedToId: undefined,
+                parentId: projectAndGroup.h_parent_id,
+            },
+        });
         return {
-            result,
-            id: result.data.tasks[0].id,
+            result: res,
+            id: res.data.tasks[0].id,
         };
     }
 
-    async function doDelAction(path: string): Promise<any> {
-        const res = await gs.util.doHttpRequest({
-            method: 'DELETE',
-            url: `https://freedcamp.com${path}`,
-            headers: {
-                Cookie: cookies.join('; '),
-            },
-        });
-        return res;
-    }
-
-    async function doGetAction(path: string): Promise<any> {
-        const res = await gs.util.doHttpRequest({
-            method: 'GET',
-            url: `https://freedcamp.com${path}`,
-            headers: {
-                Cookie: cookies.join('; '),
-            },
-        });
-        return res;
-    };
-
     async function deleteTask(taskId: string | number): Promise<any> {
-        const res = await doDelAction(`/iapi/tasks/${taskId}`);
+        const res = await freedcampApi({
+            subAction: 'deleteTask',
+            params: {
+                taskId: String(taskId),
+            },
+        });
         return res;
     }
 
     async function getSessionCurrentData(): Promise<ICurrentSessionData> {
-        const res = await doGetAction('/iapi/sessions/current');
-        return res.data as ICurrentSessionData;
+        const res = await freedcampApi({
+            subAction: 'getSessionCurrentData',
+        });
+        return res as ICurrentSessionData;
     }
 
     return {
-        cookies,
         doPostAttachment,
         createTask,
         deleteTask,
