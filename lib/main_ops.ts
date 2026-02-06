@@ -1,7 +1,7 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as secs from '../enyu_secs.json';
-import { ProjectAndGroup, Processor, IUserInfo, TaskParams, ICurrentSessionData } from './util';
+import { ProjectAndGroup, Processor, IUserInfo, ActionTaskParams, ICurrentSessionData } from './util';
 import { ActionType } from './types';
 
 
@@ -294,7 +294,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
         if (projectInfo && projectInfo.shortName) {
             mapping[projectInfo.shortName] = {
                 project_id: proj.project_id,
-                task_group_id: '',
+                //task_group_id: '',
                 priority: 2,
             }
 
@@ -394,7 +394,7 @@ async function processOperation(
             taskIds.push(taskId);
             
             
-            const postParams: TaskParams = {
+            const postParams: ActionTaskParams = {
                 description: template1,
                 "priority":2,
             };

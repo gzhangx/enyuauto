@@ -11,11 +11,13 @@ interface LoginResponse {
     };
 }
 
-interface ProjectAndGroup {
+export interface ActionTaskParams {
     h_parent_id?: string;
-    project_id: string;
-    task_group_id: string;
+    project_id?: string;
+    //task_group_id: string;
     description?: string;
+    assigned_to_id?: string;
+    due_date?: string;
     "priority": 2;
 }
 
@@ -24,16 +26,9 @@ interface CreateTaskResponse {
     id: number;
 }
 
-export interface TaskParams {
-    h_parent_id?: string;
-    description: string;
-    assigned_to_id?: string;
-    due_date?: string;
-    "priority": 2;
-}
 interface Processor {
-    doPostAttachment: (taskId: string, params: TaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
+    doPostAttachment: (taskId: string, params: ActionTaskParams) => Promise<any>;
+    createTask: (projectAndGroup: ActionTaskParams, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
 }
@@ -107,7 +102,7 @@ ${json}${
         return res;
     }
 
-    async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
+    async function doPostAttachment(taskId: string, params: ActionTaskParams): Promise<any> {
         await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             ...params,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
@@ -115,7 +110,7 @@ ${json}${
         });
     }
 
-    async function createTask(projectAndGroup: ProjectAndGroup, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ActionTaskParams, title: string): Promise<CreateTaskResponse> {
         const res = await doPostMultiPart('/iapi/tasks',
             {
                 "title": title,
@@ -177,7 +172,7 @@ export {
     getProcessor,
     LoginParams,
     LoginResponse,
-    ProjectAndGroup,
+    ActionTaskParams as ProjectAndGroup,
     CreateTaskResponse,
     Processor,
 };
