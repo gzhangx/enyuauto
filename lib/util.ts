@@ -26,7 +26,7 @@ interface CreateTaskResponse {
     id: number;
 }
 
-interface Processor {
+export interface Processor {
     doPostAttachment: (taskId: string, params: ActionTaskParams) => Promise<any>;
     createTask: (projectAndGroup: ActionTaskParams, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
@@ -174,5 +174,4 @@ export {
     LoginResponse,
     ActionTaskParams as ProjectAndGroup,
     CreateTaskResponse,
-    Processor,
 };

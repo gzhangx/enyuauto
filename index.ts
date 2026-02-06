@@ -109,7 +109,39 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     log.doLog('Processing freedcamp action');
     
     let result: any = {};
-    switch (params['subAction']) {
+    const subAction = params['subAction'];
+    
+    // For most actions, we need cookies (either from params or via login)
+    let processor: util.Processor | undefined;
+    if (subAction !== 'login') {
+      let cookies: string[];
+      
+      // Check if cookies are provided in parameters
+      if (params['cookies']) {
+        cookies = params['cookies'] as unknown as string[];
+        log.doLog(`Using ${cookies.length} cookies from parameters for action: ${subAction}`);
+      } else {
+        // If no cookies provided, try to login
+        const username = params['username'] || '';
+        const password = params['password'] || '';
+        if (!username || !password) {
+          return {
+            statusCode: 400,
+            headers: headers,
+            body: JSON.stringify({
+              message: 'Missing authentication',
+              error: 'Either cookies parameter or username/password are required for this action',
+            }),
+          };
+        }
+        cookies = await util.login({ username, password });
+        log.doLog(`Logged in successfully for action: ${subAction}`);
+      }
+      
+      processor = util.getProcessor(cookies);
+    }
+    
+    switch (subAction) {
       case 'login':
         const loginRes = await util.login({
           username: params['username'] || '',
@@ -117,9 +149,95 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         });
         result = { cookies: loginRes };
         break;
+        
+      case 'getSessionCurrentData':
+        if (!processor) throw new Error('Processor not initialized');
+        const sessionData = await processor.getSessionCurrentData();
+        result = sessionData;
+        log.doLog('Retrieved session current data');
+        break;
+        
+      case 'createTask':
+        if (!processor) throw new Error('Processor not initialized');
+        const projectId = params['projectId'];
+        const title = params['title'];
+        if (!projectId || !title) {
+          return {
+            statusCode: 400,
+            headers: headers,
+            body: JSON.stringify({
+              message: 'Missing required parameters',
+              error: 'projectId and title are required for createTask',
+            }),
+          };
+        }
+        const taskParams: util.ActionTaskParams = {
+          project_id: projectId,
+          priority: 2,
+        };
+        if (params['description']) taskParams.description = params['description'];
+        if (params['assignedToId']) taskParams.assigned_to_id = params['assignedToId'];
+        if (params['dueDate']) taskParams.due_date = params['dueDate'];
+        if (params['parentId']) taskParams.h_parent_id = params['parentId'];
+        
+        const createRes = await processor.createTask(taskParams, title);
+        result = createRes;
+        log.doLog(`Created task with ID: ${createRes.id}`);
+        break;
+        
+      case 'deleteTask':
+        if (!processor) throw new Error('Processor not initialized');
+        const taskId = params['taskId'];
+        if (!taskId) {
+          return {
+            statusCode: 400,
+            headers: headers,
+            body: JSON.stringify({
+              message: 'Missing required parameters',
+              error: 'taskId is required for deleteTask',
+            }),
+          };
+        }
+        const deleteRes = await processor.deleteTask(taskId);
+        result = deleteRes;
+        log.doLog(`Deleted task with ID: ${taskId}`);
+        break;
+        
+      case 'doPostAttachment':
+        if (!processor) throw new Error('Processor not initialized');
+        const attachTaskId = params['taskId'];
+        if (!attachTaskId) {
+          return {
+            statusCode: 400,
+            headers: headers,
+            body: JSON.stringify({
+              message: 'Missing required parameters',
+              error: 'taskId is required for doPostAttachment',
+            }),
+          };
+        }
+        const attachParams: util.ActionTaskParams = {
+          priority: 2,
+        };
+        if (params['description']) attachParams.description = params['description'];
+        if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
+        if (params['dueDate']) attachParams.due_date = params['dueDate'];
+        
+        const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
+        result = attachRes;
+        log.doLog(`Updated task ${attachTaskId} with attachment/params`);
+        break;
+        
+      default:
+        return {
+          statusCode: 400,
+          headers: headers,
+          body: JSON.stringify({
+            message: 'Invalid subAction',
+            error: `Unknown subAction: ${subAction}. Valid actions: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment`,
+          }),
+        };
     }
-    // Example implementation - adjust based on your actual freedcamp integration needs
-    
     
     return {
       statusCode: 200,
@@ -127,6 +245,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       body: JSON.stringify({
         message: 'OK',
         result,        
+        log: log.operations,
       }),
     };
   } catch (error) {
