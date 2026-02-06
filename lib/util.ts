@@ -2,8 +2,8 @@ import * as gs from '@gzhangx/googleapi';
 import * as secs from '../enyu_secs.json';
 
 interface LoginParams {
-    username?: string;
-    password?: string;
+    username: string;
+    password: string;
 }
 
 interface LoginResponse {
@@ -33,7 +33,6 @@ export interface TaskParams {
     "priority": 2;
 }
 interface Processor {
-    cookies: string[];
     doPostAttachment: (taskId: string, params: TaskParams) => Promise<any>;
     createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
@@ -60,12 +59,7 @@ export interface ICurrentSessionData {
     }
 }
 
-async function login({ username, password }: LoginParams): Promise<LoginResponse> {
-    if (!username || !password) {
-        const auth = secs.auth;
-        username = auth.username;
-        password = auth.password;
-    }
+async function login({ username, password }: LoginParams): Promise<string[]> {
     const auth = {
         is_ajax1: true,
         time_on_page1: 5,
@@ -86,12 +80,13 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
         },
     });
 
-    return res as LoginResponse;
+    const rsp = res as LoginResponse;
+    return rsp.headers['set-cookie'];
 }
 
-async function getProcessor(): Promise<Processor> {
-    const loginRes = await login({});
-    const cookies = loginRes.headers['set-cookie'];
+function getProcessor(cookies: string[]): Processor {
+    //const loginRes = await login({});
+    //const cookies = loginRes.headers['set-cookie'];
 
     async function doPostMultiPart(path: string, json: string | object): Promise<any> {
         if (typeof json !== 'string') {
@@ -171,7 +166,6 @@ ${json}${
     }
 
     return {
-        cookies,
         doPostAttachment,
         createTask,
         deleteTask,

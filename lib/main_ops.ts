@@ -46,6 +46,10 @@ type Templates = {
 };
 
 interface IGroupAndMainProjectLongToShortNameMapping {
+    freedcampInfo: {
+        username: string;
+        password: string;
+    };
     groupName: string; //EnYu_2026
     actions: ActionType[];
     taskLongToShortNameMapping: {
@@ -235,6 +239,10 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
 
 function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjectLongToShortNameMapping {
     const configMap: IGroupAndMainProjectLongToShortNameMapping = {
+        freedcampInfo: {
+            username: '',
+            password: '',
+        },
         groupName: '',
         actions: [],
         taskLongToShortNameMapping: {},
@@ -261,6 +269,11 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             };
         }
     });
+    const freedcampInfoRow = values.find(row => row[0] === 'freedcampInfo');
+    if (freedcampInfoRow) {
+        configMap.freedcampInfo.username = freedcampInfoRow[1] || '';
+        configMap.freedcampInfo.password = freedcampInfoRow[2] || '';
+    }
     return configMap;
 }
 
@@ -304,7 +317,8 @@ async function processOperation(
     debug_Prefix: string = ''
 ): Promise<string[]> {
     const { validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
-    const pr = await login.getProcessor();
+    const freedLogin = await login.login(groupAndMainProjectMapping.freedcampInfo);
+    const pr = login.getProcessor(freedLogin);
     log.doLog('processOperation: got processor with login');
     const taskIds = [];
     const userData = await pr.getSessionCurrentData();
@@ -422,7 +436,8 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
             return false;
         }
         const { templates } = ret;
-        const pr = await login.getProcessor();
+        const freedLogin = await login.login(ret.groupAndMainProjectMapping.freedcampInfo);
+        const pr = login.getProcessor(freedLogin);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
             const taskId = templates[action].existingTaskId;
