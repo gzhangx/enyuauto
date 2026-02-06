@@ -1,5 +1,4 @@
 import * as gs from '@gzhangx/googleapi';
-import * as secs from '../enyu_secs.json';
 
 interface LoginParams {
     username: string;
@@ -176,7 +175,6 @@ ${json}${
 export {
     login,
     getProcessor,
-    secs,
     LoginParams,
     LoginResponse,
     ProjectAndGroup,

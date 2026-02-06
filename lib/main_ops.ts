@@ -1,6 +1,6 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
-import * as fs from 'fs';
+import * as secs from '../enyu_secs.json';
 import { ProjectAndGroup, Processor, IUserInfo, TaskParams, ICurrentSessionData } from './util';
 import { ActionType } from './types';
 
@@ -92,8 +92,8 @@ interface IOpsConfig {
 }
 
 async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
-    const gsc = await gs.google.gsAccount.getClient(login.secs.gsAuth);
-    const ops = await gsc.getSheetOps(login.secs.gsAuth.main_sheet_id);
+    const gsc = await gs.google.gsAccount.getClient(secs.gsAuth);
+    const ops = await gsc.getSheetOps(secs.gsAuth.main_sheet_id);
     return ops;
 }
 

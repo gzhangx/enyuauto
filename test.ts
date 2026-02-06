@@ -1,7 +1,7 @@
 import * as mainOps from './lib/main_ops';
+import *  as freed from './lib/util'
 
-
-async function test() {
+async function test() {    
     const args = process.argv.slice(2);
     let opstr: string | undefined;
 
@@ -33,4 +33,8 @@ async function test() {
     console.log('Log:', log.operations);
 }
 
-test();
+
+async function quickTest() {
+    
+}
+quickTest();
