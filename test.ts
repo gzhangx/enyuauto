@@ -34,7 +34,10 @@ async function test() {
 }
 
 
+import * as secs from './enyu_secs.json';
 async function quickTest() {
-    
+    freed.login({ ...secs.auth }).then((loginData) => {
+        console.log('Login successful. Session cookies:', loginData);
+    });
 }
 quickTest();
