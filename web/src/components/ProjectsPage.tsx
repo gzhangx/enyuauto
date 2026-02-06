@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import { getOpsAndMainList, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../lib/main_ops';
+import { ErrorDialog } from './ErrorDialog';
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
@@ -40,6 +41,7 @@ export const ProjectsPage = () => {
   const [projectList, setProjectList] = useState<OperationWithDueDatesWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
+  const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const opsDataRef = useRef<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   
@@ -60,6 +62,7 @@ export const ProjectsPage = () => {
         console.error('Error loading projects:', error);
         setResponseData(`Error: ${error.message || String(error)}`);
         doLog(`Error: ${error.message || String(error)}`);
+        setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
       }).finally(() => {
         setIsLoading('');
       });
@@ -98,6 +101,12 @@ export const ProjectsPage = () => {
 
   return (
     <>
+      <ErrorDialog 
+        show={errorDialog.show}
+        message={errorDialog.message}
+        onClose={() => setErrorDialog({ show: false, message: '' })}
+      />
+
       {/* Scrolling Log Display */}
       <div style={{
         position: 'fixed',
