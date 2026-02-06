@@ -183,7 +183,13 @@ export const ProjectsPage = () => {
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
-                    await processOperation(opsDataRef.current, p.line, { doLog });
+                    try {
+                      await processOperation(opsDataRef.current, p.line, { doLog });
+                    } catch (error: any) {
+                      console.error('Error creating project:', error);                                            
+                      setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
+                      return;
+                    }
                     //const retData = await createOrDelProject(p.line, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
                   }
