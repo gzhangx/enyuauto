@@ -140,7 +140,7 @@ ${json}${
                 Cookie: cookies.join('; '),
             },
         });
-        return res;
+        return res.data;
     }
 
     async function doGetAction(path: string): Promise<any> {
@@ -151,7 +151,7 @@ ${json}${
                 Cookie: cookies.join('; '),
             },
         });
-        return res;
+        return res.data;
     };
 
     async function deleteTask(taskId: string | number): Promise<any> {
@@ -161,7 +161,7 @@ ${json}${
 
     async function getSessionCurrentData(): Promise<ICurrentSessionData> {
         const res = await doGetAction('/iapi/sessions/current');
-        return res.data as ICurrentSessionData;
+        return res as ICurrentSessionData;
     }
 
     return {
