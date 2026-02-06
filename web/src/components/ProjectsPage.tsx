@@ -56,9 +56,12 @@ export const ProjectsPage = () => {
           }, false) && item.文件.trim() !== '';
         });
         setProjectList(list);
+      }).catch(error => {
+        console.error('Error loading projects:', error);
+        setResponseData(`Error: ${error.message || String(error)}`);
+        doLog(`Error: ${error.message || String(error)}`);
       }).finally(() => {
         setIsLoading('');
-        setResponseData('');
       });
     }
   },[token, doLog]);
