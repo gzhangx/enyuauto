@@ -5,6 +5,7 @@ export function getActions(): readonly ActionType[] {
     return actions ;
 }
 
+const enyuApiBaseUrl = 'https://fk9u03bqm3.execute-api.us-east-1.amazonaws.com/default/enyu_auto';
 export type ProjectItem = {
         '文件': string;
         '作者': string;
@@ -15,7 +16,7 @@ export type ProjectItem = {
 };
 
 export async function getProjectList() {
-    const response = await fetch('https://fk9u03bqm3.execute-api.us-east-1.amazonaws.com/default/enyu_auto?line=14&doit1=true&del=true&action=getList');
+    const response = await fetch(enyuApiBaseUrl + '?line=14&doit1=true&del=true&action=getList');
     const projects = await response.json(); 
     console.log('projects', projects);
     const items = (projects.operationList as any as ProjectItem[]).map((item, idx) => {
@@ -28,8 +29,16 @@ export async function getProjectList() {
 
 
 export async function createOrDelProject(line: number, action: 'main' | 'del' = 'main') {
-    const response = await fetch('https://fk9u03bqm3.execute-api.us-east-1.amazonaws.com/default/enyu_auto?action='+action+'&line='+line);
+    const response = await fetch(enyuApiBaseUrl + '?action='+action+'&line='+line);
     const projects = await response.json(); 
     console.log('projects', projects);
     return projects;      
 }
+
+// action: freedcamp
+// subAction: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment
+// login: username, password
+// createTask: projectId, title, description?, assignedToId?, dueDate?, parentId?
+// deleteTask: taskId
+// doPostAttachment: taskId, description?, assignedToId?, dueDate?
+
