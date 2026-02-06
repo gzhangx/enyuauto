@@ -1,4 +1,5 @@
 import * as mainOps from './lib/main_ops';
+import * as util from './lib/util';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
@@ -27,7 +28,11 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   try {
     const params = event.queryStringParameters || {};
     
-    const action = params['action'] || 'main' as 'main' | 'getList';
+    const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
+
+    if (action === 'freedcamp') {
+      return doFreedcampAction(params, log);
+    }
     if (action === 'getList') {
       const list = await mainOps.getOpsAndMainList(log);
       return {
@@ -98,3 +103,44 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     };
   }
 };
+
+async function doFreedcampAction(params: { [key: string]: string; }, log: mainOps.DebugLog): Promise<LambdaResponse> {
+  try {
+    log.doLog('Processing freedcamp action');
+    
+    let result: any = {};
+    switch (params['subAction']) {
+      case 'login':
+        const loginRes = await util.login({
+          username: params['username'] || '',
+          password: params['password'] || '',
+        });
+        result = { cookies: loginRes };
+        break;
+    }
+    // Example implementation - adjust based on your actual freedcamp integration needs
+    
+    
+    return {
+      statusCode: 200,
+      headers: headers,
+      body: JSON.stringify({
+        message: 'OK',
+        result,        
+      }),
+    };
+  } catch (error) {
+    log.doLog(`Freedcamp action error: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      statusCode: 500,
+      headers: headers,
+      body: JSON.stringify({
+        message: 'Freedcamp action failed',
+        error: error instanceof Error ? error.message : String(error),
+        log: log.operations,
+      }),
+    };
+  }
+}
+
+
