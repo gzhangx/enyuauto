@@ -11,6 +11,7 @@ interface LambdaEvent {
     test: string;
     line: string;
   };
+  body: string;
   [key: string]: any;
 }
 
@@ -33,14 +34,16 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     }
   };
   try {
+    const body = event.body ? JSON.parse(event.body) : {};
+    if (body.action === 'freedcamp') {
+      return doFreedcampAction(body, log);
+    }
     const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
     
     const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
 
-    if (action === 'freedcamp') {
-      return doFreedcampAction(params.params, log);
-    }
+    
     if (action === 'getList') {
       const list = await mainOps.getOpsAndMainList(ops, log);
       return {
