@@ -1,7 +1,7 @@
 
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from '../src/lib/types';
-import type { ActionTaskParams, FreedCampOps, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
+import type { ActionTaskParams, FreedCampOps, ICurrentSessionData, IUserInfo } from './freedcampTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 type DueDateKeys = `${ActionType} Due Date`;
@@ -45,7 +45,7 @@ type Templates = {
         templateEnglish: string;
         taskIdPos: number;
         taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
-        getExistingTaskId: (operation: OperationWithDueDates)=>string;
+        //getExistingTaskId: (operation: OperationWithDueDates)=>string;
     }
 };
 
@@ -96,6 +96,9 @@ export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds): Pro
     return ops;
 }
 
+function getExistingTaskId(templateName: ActionType, operation: OperationWithDueDates) {
+    return operation[getTaskIdColumnName(templateName as ActionType)];
+}
 
 export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
     //const ops = await getSheetOps(token);
@@ -132,7 +135,7 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
                     console.warn(warMsg);
                     log.doLog(warMsg);
                  },
-                getExistingTaskId: (operation: OperationWithDueDates) => operation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
+                //getExistingTaskId: (operation: OperationWithDueDates) => operation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
             };
         }
         return acc;
@@ -348,7 +351,7 @@ export async function processOperation(
                 }
             }
             const curTemplateActionInfo = templates[action];
-            const existingTaskId = curTemplateActionInfo.getExistingTaskId(validOperation);
+            const existingTaskId = getExistingTaskId(action, validOperation);
             if (existingTaskId) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
                 taskIds.push(existingTaskId);
@@ -373,7 +376,7 @@ export async function processOperation(
             const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
-                const h_parent_id = templates[subTaskOf].getExistingTaskId(validOperation);
+                const h_parent_id = getExistingTaskId(subTaskOf, validOperation);
                 projectGrpoup = { ...projectGroupMapping[subTaskOf] };
                 projectGrpoup.h_parent_id = h_parent_id;
                 projectGrpoup.description = template1;
@@ -435,7 +438,7 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: Fr
         const pr = freedCampOps.getProcessor(loginToken);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
-            const taskId = templates[action].getExistingTaskId(validOperation);
+            const taskId = getExistingTaskId(action, validOperation);
             if (taskId) {
                 if (taskId === 'done') {
                     const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
