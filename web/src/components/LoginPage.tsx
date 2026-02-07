@@ -13,7 +13,7 @@ export const LoginPage = () => {
       console.error('Login Failed');
       alert('Google login failed. Please try again.');
     },
-    scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
   });
 
   return (
