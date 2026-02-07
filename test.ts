@@ -28,7 +28,7 @@ async function test() {
         }
     };
     const ops = await mainOps.getSheetOps(secs.gsAuth);
-    await mainOps.debug_main(ops, lineNumber, log,opstr).catch((err: Error) => {
+    await mainOps.debug_main(ops, freed.freedCampOps, lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
     console.log('Log:', log.getOperations());

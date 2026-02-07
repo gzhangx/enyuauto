@@ -17,7 +17,7 @@
     "sourceMap": true
   },
   "include": [
-    "index.ts",
+    "*.ts",
     "lib/**/*.ts",
     "scripts/**/*.ts",
     "web/shared/*.ts"
