@@ -7,9 +7,7 @@ interface LoginParams {
 }
 
 interface LoginResponse {
-    headers: {
-        'set-cookie': string[];
-    };
+    cookies: string; //it is actually
 }
 
 interface ProjectAndGroup {
@@ -71,14 +69,14 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
     return res as unknown as LoginResponse;
 }
 
-function getProcessor(loginToken: LoginResponse): Promise<Processor> {
+function getProcessor(loginToken: LoginResponse): Processor {
     // Initialize session by logging in
 
     async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
         const res = await freedcampApi({
-            subAction: 'doPostAttachment',
-            params: {
-                cookies: loginToken.headers['set-cookie'],
+            subAction: 'doPostAttachment',            
+            params: {                
+                cookies: loginToken.cookies,
                 taskId,
                 description: params.description,
                 assignedToId: params.assigned_to_id,
@@ -92,6 +90,7 @@ function getProcessor(loginToken: LoginResponse): Promise<Processor> {
         const res = await freedcampApi({
             subAction: 'createTask',
             params: {
+                cookies: loginToken.cookies,
                 projectId: projectAndGroup.project_id,
                 title,
                 description: projectAndGroup.description,
@@ -110,6 +109,7 @@ function getProcessor(loginToken: LoginResponse): Promise<Processor> {
         const res = await freedcampApi({
             subAction: 'deleteTask',
             params: {
+                cookies: loginToken.cookies,
                 taskId: String(taskId),
             },
         });
@@ -117,8 +117,11 @@ function getProcessor(loginToken: LoginResponse): Promise<Processor> {
     }
 
     async function getSessionCurrentData(): Promise<ICurrentSessionData> {
-        const res = await freedcampApi({
+        const res = await freedcampApi({            
             subAction: 'getSessionCurrentData',
+            params: {
+                cookies: loginToken.cookies,
+            },
         });
         return res as ICurrentSessionData;
     }

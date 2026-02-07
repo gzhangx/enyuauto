@@ -1,95 +1,9 @@
 import * as login from './util';
 import * as gs from '@gzhangx/googleapi';
 import * as secs from '../enyu_secs.json';
-import { ProjectAndGroup, Processor, IUserInfo, ActionTaskParams, ICurrentSessionData } from './util';
-import { ActionType } from './types';
-
-
-type DueDateKeys = `${ActionType} Due Date`;
-
-interface Operation {
-    '文件': string;
-    '作者': string;
-    '文章名': string;
-    '文章链接': string;
-    '作者电邮': string;
-    '文章类别': string;
-    '校对': string;
-    '美编': string;
-    '发布': string;
-    '二校': string;
-}
-
-type OperationWithDueDates = Operation & {
-    [K in DueDateKeys]: string;
-};
-
-interface OperationInfo {
-    author: string;
-    article: string;
-    link: string;
-    email: string;
-    category: string;
-    editor: string;
-}
-
-
-type Templates = {
-    [K in ActionType]: {
-        template: string;
-        templateEnglish: string;
-        taskIdPos: number;
-        taskIdLine: number;
-        taskIdUpdater: (newTaskId: string) => Promise<void>;
-        existingTaskId: string;
-    }
-};
-
-interface IGroupAndMainProjectLongToShortNameMapping {
-    freedcampInfo: {
-        username: string;
-        password: string;
-    };
-    groupName: string; //EnYu_2026
-    actions: ActionType[];
-    taskLongToShortNameMapping: {
-        [key: string]: {
-            shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
-            subTaskOf?: ActionType;
-        }; 
-    };
-    shortProjectNameToProjectId: { //populated later after we login to freedcamp
-        [key in ActionType]: {
-            project_id: string;
-            subTaskOf?: ActionType;
-        }; //'校对': { "project_id": "3696514" }
-    }
-}
-
-interface IEditorInfoMap { [key: string]: IEditorInfo };
-interface OperationAndTemplates {
-    validOperation: OperationWithDueDates;
-    templates: Templates;
-    ops: gs.gsAccount.IGetSheetOpsReturn;
-    editorInfoMap: IEditorInfoMap;
-    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
-}
-
-
-interface IEditorInfo {
-    title: string;
-    shortName: string;
-    email: string;
-    task: string;
-    print_name: string; //the full chinese name for printing
-}
-
-interface IOpsConfig {
-    operationList: OperationWithDueDates[];
-    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
-    editorInfoMap: IEditorInfoMap;
-    headers: string[];
-}
+import { ActionTaskParams, IUserInfo, ICurrentSessionData } from '../web/src/lib/shared/freedcampTypes';
+import { ActionType } from '../web/src/lib/shared/types';
+import { OperationWithDueDates, Templates, IGroupAndMainProjectLongToShortNameMapping, IEditorInfoMap, OperationAndTemplates, IOpsConfig, IEditorInfo, DueDateKeys, OperationInfo } from '../web/src/lib/shared/opsTypes';
 
 async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(secs.gsAuth);
@@ -277,7 +191,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     return configMap;
 }
 
-type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectAndGroup };
+type IActionToProjectIdMapping  ={ [key in ActionType]: ActionTaskParams };
 // function getProjectGroupMapping(): IActionToProjectIdMapping {
 //     return {
 //         '校对': { "project_id": "3696514", "task_group_id": "6825082" },

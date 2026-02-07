@@ -275,13 +275,14 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 }
 
 export async function processOperation(
+    loginToken: login.LoginResponse,
     opsAndTemplates: IOpsConfigWithOps,
     lineNumber: number,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
     const { templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
-    const pr = await login.getProcessor();
+    const pr = login.getProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
     const validOperation: OperationWithDueDates = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
     if (!validOperation) {
@@ -396,7 +397,7 @@ export async function processOperation(
 export interface DebugLog {
     doLog: (msg: string) => void;
 }
-async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
+async function debug_main(token: string, loginToken: login.LoginResponse, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
         const ret =  await getOpsAndMainList(token, log);
         const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
@@ -406,7 +407,7 @@ async function debug_main(token: string, lineNumber: number, log:DebugLog, opStr
         }
         //const ret = await getOpsAndLine(token, lineNumber, log);        
         const { templates } = ret;
-        const pr = await login.getProcessor();
+        const pr = login.getProcessor(loginToken);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
             const taskId = templates[action].getExistingTaskId(validOperation);
@@ -449,6 +450,7 @@ async function main(token: string, lineNumber: number, log: DebugLog, opStr?: st
         return undefined;
     }
     const prefix = opStr || '';
+    const loginToken = await login.login(opsAndTemplates);
     const ids = await processOperation(opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 

@@ -1,57 +1,7 @@
 import * as gs from '@gzhangx/googleapi';
 
-interface LoginParams {
-    username: string;
-    password: string;
-}
+import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData} from '../web/src/lib/shared/freedcampTypes';
 
-interface LoginResponse {
-    headers: {
-        'set-cookie': string[];
-    };
-}
-
-export interface ActionTaskParams {
-    h_parent_id?: string;
-    project_id?: string;
-    //task_group_id: string;
-    description?: string;
-    assigned_to_id?: string;
-    due_date?: string;
-    "priority": 2;
-}
-
-interface CreateTaskResponse {
-    result: any;
-    id: number;
-}
-
-export interface Processor {
-    doPostAttachment: (taskId: string, params: ActionTaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ActionTaskParams, title: string) => Promise<CreateTaskResponse>;
-    deleteTask: (taskId: string | number) => Promise<any>;
-    getSessionCurrentData(): Promise<ICurrentSessionData>;
-}
-
-export interface IUserInfo {
-    user_id: string;
-    full_name: string;
-    email: string;
-}
-
-export interface IProjectInfo {
-    project_id: string;
-    //group_id: string;
-    project_name: string; //文字二校 （Second Proofread)
-    group_name: string; //EnYu_2026
-}
-
-export interface ICurrentSessionData {
-    data: {
-        users: IUserInfo[];
-        projects: IProjectInfo[];
-    }
-}
 
 async function login({ username, password }: LoginParams): Promise<string[]> {
     const auth = {
@@ -78,7 +28,7 @@ async function login({ username, password }: LoginParams): Promise<string[]> {
     return rsp.headers['set-cookie'];
 }
 
-function getProcessor(cookies: string[]): Processor {
+function getProcessor(cookies: string[]): FreedCampProcessor {
     //const loginRes = await login({});
     //const cookies = loginRes.headers['set-cookie'];
 
@@ -172,6 +122,6 @@ export {
     getProcessor,
     LoginParams,
     LoginResponse,
-    ActionTaskParams as ProjectAndGroup,
+    ActionTaskParams,
     CreateTaskResponse,
 };

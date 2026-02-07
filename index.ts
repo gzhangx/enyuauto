@@ -1,5 +1,6 @@
 import * as mainOps from './lib/main_ops';
 import * as util from './lib/util';
+import { FreedCampProcessor } from './web/src/lib/shared/freedcampTypes';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
@@ -123,7 +124,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     const subAction = params['subAction'];
     
     // For most actions, we need cookies (either from params or via login)
-    let processor: util.Processor | undefined;
+    let processor: FreedCampProcessor | undefined;
     if (subAction !== 'login') {
       let cookies: string[];
       
