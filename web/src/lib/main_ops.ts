@@ -90,10 +90,8 @@ interface IOpsConfig {
 }
 
 
-export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheetOpsReturn> {
-    const gsc = await gs.google.gsAccount.getClient({
-        token,
-    });
+export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+    const gsc = await gs.google.gsAccount.getClient(creds);
     const ops = await gsc.getSheetOps(mainSheetId);
     return ops;
 }
@@ -407,9 +405,10 @@ export async function processOperation(
 }
 
 export interface DebugLog {
+    getOperations: () => string[];
     doLog: (msg: string) => void;
 }
-async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, loginToken: login.LoginResponse, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
+async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
         const ret =  await getOpsAndMainList(ops, log);
         const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
@@ -419,6 +418,7 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, loginToken: logi
         }
         //const ret = await getOpsAndLine(token, lineNumber, log);        
         const { templates } = ret;
+        const loginToken = await login.login(ret.groupAndMainProjectMapping.freedcampInfo);
         const pr = login.getProcessor(loginToken);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {

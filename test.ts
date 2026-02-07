@@ -1,6 +1,6 @@
-import * as mainOps from './lib/main_ops';
+import * as mainOps from './web/src/lib/main_ops';
 import *  as freed from './lib/util'
-
+import * as secs from './enyu_secs.json';
 async function test() {    
     const args = process.argv.slice(2);
     let opstr: string | undefined;
@@ -19,25 +19,25 @@ async function test() {
     }
     const lineNumber = parseInt(linNumberStr);
 
-
+    const operations: string[] = [];
     const log: mainOps.DebugLog = { 
-        operations: [], 
+        getOperations: () => operations,
         doLog: (msg: string) => {
-          log.operations.push(msg);
+          operations.push(msg);
           console.log(msg);
         }
     };
-    const ops = await mainOps.getSheetOps();
+    const ops = await mainOps.getSheetOps(secs.gsAuth);
     await mainOps.debug_main(ops, lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
-    console.log('Log:', log.operations);
+    console.log('Log:', log.getOperations());
 }
 
 
-import * as secs from './enyu_secs.json';
+
 async function quickTest() {
-    freed.login({ ...secs.auth }).then((loginData) => {
+    freed.freedCampOps.login({ ...secs.auth }).then((loginData) => {
         console.log('Login successful. Session cookies:', loginData);
     });
 }

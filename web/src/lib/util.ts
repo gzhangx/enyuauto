@@ -6,10 +6,6 @@ interface LoginParams {
     password?: string;
 }
 
-interface LoginResponse {
-    cookies: string; //it is actually
-}
-
 interface ProjectAndGroup {
     h_parent_id?: string;
     project_id: string;

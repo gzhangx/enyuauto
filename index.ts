@@ -1,6 +1,8 @@
-import * as mainOps from './lib/main_ops';
+import * as mainOps from './web/src/lib/main_ops';
 import * as util from './lib/util';
-import { FreedCampProcessor } from './web/src/lib/shared/freedcampTypes';
+import { ActionTaskParams, FreedCampProcessor } from './web/src/lib/shared/freedcampTypes';
+import * as secs from './enyu_secs.json';
+import { LoginResponse } from './web/src/lib/util';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
@@ -23,15 +25,16 @@ const headers = {
 }
 
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
-  const log: mainOps.DebugLog = { 
-    operations: [], 
-    doLog: (msg: string) => {
-      log.operations.push(msg);
+  const operations: string[] = [];
+  const log: mainOps.DebugLog = {     
+    getOperations: () => operations,
+    doLog: (msg: string) => {     
+      operations.push(msg);
       console.log(msg);
     }
   };
   try {
-    const ops = await mainOps.getSheetOps();
+    const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
     
     const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
@@ -90,7 +93,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
         operation: opStr || 'main',
         res,
         params: event.queryStringParameters || {},
-        log: log.operations,
+        log: operations,
       }),
     };
     return response;
@@ -104,7 +107,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       body: JSON.stringify({ 
         message: 'Error',
         error: error instanceof Error ? error.message : String(error),
-        log: log.operations,
+        log: operations,
       }),
     };
   }
@@ -127,12 +130,12 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     // For most actions, we need cookies (either from params or via login)
     let processor: FreedCampProcessor | undefined;
     if (subAction !== 'login') {
-      let cookies: string[];
+      let cookies: LoginResponse = {} as LoginResponse;
       
       // Check if cookies are provided in parameters
       if (params['cookies']) {
-        cookies = params['cookies'] as unknown as string[];
-        log.doLog(`Using ${cookies.length} cookies from parameters for action: ${subAction}`);
+        cookies.cookies = params['cookies'];
+        log.doLog(`Using ${cookies.cookies} cookies from parameters for action: ${subAction}`);
       } else {
         // If no cookies provided, try to login
         const username = params['username'] || '';
@@ -147,20 +150,20 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
             }),
           };
         }
-        cookies = await util.login({ username, password });
+        cookies = await util.freedCampOps.login({ username, password });
         log.doLog(`Logged in successfully for action: ${subAction}`);
       }
       
-      processor = util.getProcessor(cookies);
+      processor = util.freedCampOps.getProcessor(cookies);
     }
     
     switch (subAction) {
       case 'login':
-        const loginRes = await util.login({
+        const loginRes = await util.freedCampOps.login({
           username: params['username'] || '',
           password: params['password'] || '',
         });
-        result = { cookies: loginRes };
+        result = loginRes;
         break;
         
       case 'getSessionCurrentData':
@@ -184,7 +187,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
             }),
           };
         }
-        const taskParams: util.ActionTaskParams = {
+        const taskParams: ActionTaskParams = {
           project_id: projectId,
           priority: 2,
         };
@@ -229,7 +232,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
             }),
           };
         }
-        const attachParams: util.ActionTaskParams = {
+        const attachParams: ActionTaskParams = {
           priority: 2,
         };
         if (params['description']) attachParams.description = params['description'];
@@ -258,7 +261,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       body: JSON.stringify({
         message: 'OK',
         result,        
-        log: log.operations,
+        log: log.getOperations(),
       }),
     };
   } catch (error) {
@@ -269,7 +272,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       body: JSON.stringify({
         message: 'Freedcamp action failed',
         error: error instanceof Error ? error.message : String(error),
-        log: log.operations,
+        log: log.getOperations(),
       }),
     };
   }
