@@ -31,6 +31,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     }
   };
   try {
+    const ops = await mainOps.getSheetOps();
     const params = event.queryStringParameters || {};
     
     const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
@@ -39,7 +40,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       return doFreedcampAction(params.params, log);
     }
     if (action === 'getList') {
-      const list = await mainOps.getOpsAndMainList(log);
+      const list = await mainOps.getOpsAndMainList(ops, log);
       return {
         statusCode: 200,
         headers: headers,          
@@ -67,7 +68,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       try {
         if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
-        const boolRes = await mainOps.debug_main(lineNumber, log, opStr);
+        const boolRes = await mainOps.debug_main(ops, lineNumber, log, opStr);
         res = boolRes ? 'Operation succeeded' : 'Operation failed';
       } catch (error) {
         console.error('Operation error:', error);

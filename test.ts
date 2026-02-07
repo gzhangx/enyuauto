@@ -26,8 +26,9 @@ async function test() {
           log.operations.push(msg);
           console.log(msg);
         }
-      };
-    await mainOps.debug_main(lineNumber, log,opstr).catch((err: Error) => {
+    };
+    const ops = await mainOps.getSheetOps();
+    await mainOps.debug_main(ops, lineNumber, log,opstr).catch((err: Error) => {
         console.error('Test failed:', err);        
     });
     console.log('Log:', log.operations);

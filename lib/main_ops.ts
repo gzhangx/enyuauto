@@ -5,15 +5,15 @@ import { ActionTaskParams, IUserInfo, ICurrentSessionData } from '../web/src/lib
 import { ActionType } from '../web/src/lib/shared/types';
 import { OperationWithDueDates, Templates, IGroupAndMainProjectLongToShortNameMapping, IEditorInfoMap, OperationAndTemplates, IOpsConfig, IEditorInfo, DueDateKeys, OperationInfo } from '../web/src/lib/shared/opsTypes';
 
-async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+export async function getSheetOps(): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(secs.gsAuth);
     const ops = await gsc.getSheetOps(secs.gsAuth.main_sheet_id);
     return ops;
 }
 
 
-export async function getOpsAndMainList(log: DebugLog): Promise<IOpsConfig & { ops: gs.gsAccount.IGetSheetOpsReturn }> {
-    const ops = await getSheetOps();
+export async function getOpsAndMainList( ops: gs.gsAccount.IGetSheetOpsReturn, log: DebugLog): Promise<IOpsConfig> {
+    //const ops = await getSheetOps();
     log.doLog('getOpsAndMainList: got sheet ops');
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];
@@ -32,11 +32,11 @@ export async function getOpsAndMainList(log: DebugLog): Promise<IOpsConfig & { o
     const groupAndMainProjectMapping = getConfigMapping(configLines.values, log);
     
     const editorInfoMap = getEditorInfoMap(configLines.values);
-    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers };
+    return { operationList,groupAndMainProjectMapping,editorInfoMap, headers };
 }
 
-async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: gs.gsAccount.IGetSheetOpsReturn, validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
-    const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } =  await getOpsAndMainList(log);
+async function getOpsAndLine(ops: gs.gsAccount.IGetSheetOpsReturn,lineNumber: number, log: DebugLog): Promise<{ validOperation: OperationWithDueDates, templates: Templates, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping, editorInfoMap: IEditorInfoMap } | undefined> {
+    const { operationList, groupAndMainProjectMapping, editorInfoMap, headers } =  await getOpsAndMainList(ops, log);
     const validOperation = operationList[lineNumber - 2];
 
     if (!validOperation) {
@@ -84,15 +84,15 @@ async function getOpsAndLine(lineNumber: number, log: DebugLog): Promise<{ ops: 
         }        
     }
     
-    return { ops, validOperation, templates,groupAndMainProjectMapping, editorInfoMap };
+    return { validOperation, templates,groupAndMainProjectMapping, editorInfoMap };
 }
 
-async function getOperationAndTemplates(lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
-    const result = await getOpsAndLine(lineNumber, log);
+async function getOperationAndTemplates(ops: gs.gsAccount.IGetSheetOpsReturn,lineNumber: number, log: DebugLog): Promise<OperationAndTemplates|undefined> {    
+    const result = await getOpsAndLine(ops, lineNumber, log);
     if (!result) {
         return undefined;
     }
-    const { ops, validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = result;
+    const { validOperation, templates, editorInfoMap, groupAndMainProjectMapping } = result;
 
     // const listOfNames = await ops.readDataByColumnName('list of names');
     // log.doLog('getOperationAndTemplates: got list of names');
@@ -342,9 +342,9 @@ export interface DebugLog {
     operations: string[];
     doLog: (msg: string) => void;
 }
-async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
+async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
-        const ret = await getOpsAndLine(lineNumber, log);
+        const ret = await getOpsAndLine(ops, lineNumber, log);
         if (!ret) {
             log.doLog('del: no such line number ' + lineNumber);
             return false;
@@ -375,11 +375,11 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
         
         return true;
     }
-    const mainResult = await main(lineNumber, log, opStr);
+    const mainResult = await main(ops, lineNumber, log, opStr);
     if (!mainResult) {        
         return false;
     }
-    const { ids, ops } = mainResult;
+    const { ids, } = mainResult;
     log.doLog('Created task IDs:'+ JSON.stringify(ids));
     
     //await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
@@ -388,8 +388,8 @@ async function debug_main(lineNumber: number, log:DebugLog, opStr?: string): Pro
     return true;
 }
 
-async function main(lineNumber: number, log: DebugLog, opStr?: string) {
-    const opsAndTemplates = await getOperationAndTemplates(lineNumber, log);
+async function main(ops: gs.gsAccount.IGetSheetOpsReturn,lineNumber: number, log: DebugLog, opStr?: string) {
+    const opsAndTemplates = await getOperationAndTemplates(ops, lineNumber, log);
     if (!opsAndTemplates) {        
         return undefined;
     }
