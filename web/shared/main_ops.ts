@@ -263,7 +263,7 @@ type IActionToProjectIdMapping  ={ [key in ActionType]: ActionTaskParams };
 function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping): IActionToProjectIdMapping {
     const mapping = {} as IActionToProjectIdMapping;
     userData.data.projects.forEach(proj => {
-        const projectInfo = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name]; ////文字校对 (Editorial and Translation team) : 校对
+        const projectInfo = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name.trim()]; ////文字校对 (Editorial and Translation team) : 校对
         if (projectInfo && projectInfo.shortName) {
             mapping[projectInfo.shortName] = {
                 project_id: proj.project_id,
