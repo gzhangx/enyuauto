@@ -37,7 +37,7 @@ export async function createOrDelProject(line: number, action: 'main' | 'del' = 
 
 type FreedcampParams = {
     subAction: 'login' | 'getSessionCurrentData' | 'createTask' | 'deleteTask' | 'doPostAttachment';
-    params: {
+    
         username?: string;
         password?: string;
         cookies?: string;
@@ -48,15 +48,13 @@ type FreedcampParams = {
         dueDate?: string;
         parentId?: string;
         taskId?: string;
-    }
+    
 };
 
-export async function freedcampApi<T = any>(request: FreedcampParams): Promise<T> {
-    const { subAction, params } = request;
+export async function freedcampApi<T = any>(request: FreedcampParams): Promise<T> {    
     const body = {
         action: 'freedcamp',
-        subAction,
-        ...params
+       ...request,
     };
 
     const response = await fetch(enyuApiBaseUrl, {

@@ -260,11 +260,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     return {
       statusCode: 200,
       headers: headers,
-      body: JSON.stringify({
-        message: 'OK',
-        result,        
-        log: log.getOperations(),
-      }),
+      body: JSON.stringify(result),
     };
   } catch (error) {
     log.doLog(`Freedcamp action error: ${error instanceof Error ? error.message : String(error)}`);
