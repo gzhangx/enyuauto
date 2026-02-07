@@ -50,6 +50,10 @@ type Templates = {
 };
 
 interface IGroupAndMainProjectLongToShortNameMapping {
+    freedcampInfo: {
+        username: string;
+        password: string;
+    };
     groupName: string; //EnYu_2026
     actions: ActionType[];
     taskLongToShortNameMapping: {
@@ -85,7 +89,6 @@ interface IOpsConfig {
     templates: Templates;
 }
 
-type IOpsConfigWithOps = IOpsConfig & { ops: gs.gsAccount.IGetSheetOpsReturn };
 
 export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient({
@@ -96,8 +99,8 @@ export async function getSheetOps(token: string): Promise<gs.gsAccount.IGetSheet
 }
 
 
-export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IOpsConfigWithOps> {
-    const ops = await getSheetOps(token);
+export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
+    //const ops = await getSheetOps(token);
     log.doLog('getOpsAndMainList: got sheet ops');
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];
@@ -156,7 +159,7 @@ export async function getOpsAndMainList(token: string,log: DebugLog): Promise<IO
         }        
     }
 
-    return { ops, operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
+    return { operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
 }
 
 
@@ -211,6 +214,10 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
 
 function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjectLongToShortNameMapping {
     const configMap: IGroupAndMainProjectLongToShortNameMapping = {
+        freedcampInfo: {
+            username: '',
+            password: '',
+        },
         groupName: '',
         actions: [],
         taskLongToShortNameMapping: {},
@@ -237,6 +244,11 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             };
         }
     });
+    const freedcampInfoRow = values.find(row => row[0] === 'freedcampInfo');
+    if (freedcampInfoRow) {
+        configMap.freedcampInfo.username = freedcampInfoRow[1] || '';
+        configMap.freedcampInfo.password = freedcampInfoRow[2] || '';
+    }
     return configMap;
 }
 
@@ -276,7 +288,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 
 export async function processOperation(
     loginToken: login.LoginResponse,
-    opsAndTemplates: IOpsConfigWithOps,
+    opsAndTemplates: IOpsConfig,
     lineNumber: number,    
     log: DebugLog,
     debug_Prefix: string = ''

@@ -2,7 +2,7 @@ import type { ActionType } from "./types";
 
 import * as gs from '@gzhangx/googleapi';
 export type DueDateKeys = `${ActionType} Due Date`;
-
+type TaskIdKeys = `${ActionType} TaskId`;
 export interface Operation {
     '文件': string;
     '作者': string;
@@ -16,8 +16,14 @@ export interface Operation {
     '二校': string;
 }
 
+export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
+    return `${action} TaskId`;
+}
+
 export type OperationWithDueDates = Operation & {
-    [K in DueDateKeys]: string;
+    [K in DueDateKeys]: string;    
+} & {
+    [k in TaskIdKeys]: string;
 };
 
 export interface OperationInfo {
@@ -36,8 +42,8 @@ export type Templates = {
         templateEnglish: string;
         taskIdPos: number;
         taskIdLine: number;
-        taskIdUpdater: (newTaskId: string) => Promise<void>;
-        existingTaskId: string;
+        taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
+        getExistingTaskId: (operation: OperationWithDueDates)=>string;
     }
 };
 
@@ -85,4 +91,5 @@ export interface IOpsConfig {
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
+    templates: Templates;
 }
