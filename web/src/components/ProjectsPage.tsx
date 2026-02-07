@@ -170,7 +170,7 @@ export const ProjectsPage = () => {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
           <tr>
-            <th><button className="btn" onClick={fetchData}>Reload</button></th>
+            <th><button className="btn btn-create" onClick={fetchData}>Reload</button></th>
             <th></th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
