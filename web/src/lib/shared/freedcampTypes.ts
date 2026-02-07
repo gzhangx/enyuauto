@@ -4,9 +4,7 @@ export interface LoginParams {
 }
 
 export interface LoginResponse {
-    headers: {
-        'set-cookie': string[];
-    };
+    Cookie: string;
 }
 
 export interface ActionTaskParams {
@@ -49,4 +47,10 @@ export interface ICurrentSessionData {
         users: IUserInfo[];
         projects: IProjectInfo[];
     }
+}
+
+
+export interface FreedCampOps {
+    login: (prm: LoginParams) => Promise<LoginResponse>;
+    getProcessor: (loginResponse: LoginResponse) => FreedCampProcessor;
 }

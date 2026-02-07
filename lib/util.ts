@@ -1,9 +1,9 @@
 import * as gs from '@gzhangx/googleapi';
 
-import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData} from '../web/src/lib/shared/freedcampTypes';
+import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/src/lib/shared/freedcampTypes';
 
 
-async function login({ username, password }: LoginParams): Promise<string[]> {
+async function login({ username, password }: LoginParams): Promise<LoginResponse> {
     const auth = {
         is_ajax1: true,
         time_on_page1: 5,
@@ -24,11 +24,15 @@ async function login({ username, password }: LoginParams): Promise<string[]> {
         },
     });
 
-    const rsp = res as LoginResponse;
-    return rsp.headers['set-cookie'];
+    const rsp = res as {
+        headers: {
+            'set-cookie': string[];
+        };
+    };
+    return { Cookie: rsp.headers['set-cookie'].join('; ') };
 }
 
-function getProcessor(cookies: string[]): FreedCampProcessor {
+function getProcessor(loginResponse: LoginResponse): FreedCampProcessor {
     //const loginRes = await login({});
     //const cookies = loginRes.headers['set-cookie'];
 
@@ -45,7 +49,7 @@ ${json}${
             url: `https://freedcamp.com${path}`,
             data,
             headers: {
-                Cookie: cookies.join('; '),                
+                Cookie: loginResponse.Cookie,                
                 'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
             },
         });
@@ -82,7 +86,7 @@ ${json}${
             method: 'DELETE',
             url: `https://freedcamp.com${path}`,
             headers: {
-                Cookie: cookies.join('; '),
+                Cookie: loginResponse.Cookie,
             },
         });
         return res.data;
@@ -93,7 +97,7 @@ ${json}${
             method: 'GET',
             url: `https://freedcamp.com${path}`,
             headers: {
-                Cookie: cookies.join('; '),
+                Cookie: loginResponse.Cookie,
             },
         });
         return res.data;
@@ -117,11 +121,7 @@ ${json}${
     };
 }
 
-export {
+export const freedCampOps: FreedCampOps = {
     login,
     getProcessor,
-    LoginParams,
-    LoginResponse,
-    ActionTaskParams,
-    CreateTaskResponse,
-};
+}

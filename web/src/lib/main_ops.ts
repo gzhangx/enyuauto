@@ -409,9 +409,9 @@ export async function processOperation(
 export interface DebugLog {
     doLog: (msg: string) => void;
 }
-async function debug_main(token: string, loginToken: login.LoginResponse, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
+async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, loginToken: login.LoginResponse, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
-        const ret =  await getOpsAndMainList(token, log);
+        const ret =  await getOpsAndMainList(ops, log);
         const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
         if (!validOperation) {
             log.doLog('del: no such line number ' + lineNumber);
@@ -443,7 +443,7 @@ async function debug_main(token: string, loginToken: login.LoginResponse, lineNu
         
         return true;
     }
-    const mainResult = await main(token, lineNumber, log, opStr);
+    const mainResult = await main(ops, lineNumber, log, opStr);
     if (!mainResult) {        
         return false;
     }
@@ -456,14 +456,14 @@ async function debug_main(token: string, loginToken: login.LoginResponse, lineNu
     return true;
 }
 
-async function main(token: string, lineNumber: number, log: DebugLog, opStr?: string) {
-    const opsAndTemplates = await getOpsAndMainList(token, log);
+async function main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: number, log: DebugLog, opStr?: string) {
+    const opsAndTemplates = await getOpsAndMainList(ops, log);
     if (!opsAndTemplates) {        
         return undefined;
     }
     const prefix = opStr || '';
-    const loginToken = await login.login(opsAndTemplates);
-    const ids = await processOperation(opsAndTemplates, lineNumber, log, prefix);
+    const loginToken = await login.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
+    const ids = await processOperation(loginToken, opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,
