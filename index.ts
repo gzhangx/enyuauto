@@ -1,6 +1,6 @@
 import * as mainOps from './web/src/lib/main_ops';
 import * as util from './lib/util';
-import { ActionTaskParams, FreedCampProcessor } from './web/src/lib/shared/freedcampTypes';
+import { ActionTaskParams, FreedCampProcessor } from './web/shared/freedcampTypes';
 import * as secs from './enyu_secs.json';
 import { LoginResponse } from './web/src/lib/util';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1

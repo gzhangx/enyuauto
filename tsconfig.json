@@ -18,11 +18,11 @@
   },
   "include": [
     "**/*.ts",
-    "web/src/lib/shared/*.ts"
+    "web/shared/*.ts"
   ],
   "exclude": [
     "node_modules",
     "dist",
-    "web"
+    "web/src"
   ]
 }

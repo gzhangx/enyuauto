@@ -1,6 +1,6 @@
 import * as gs from '@gzhangx/googleapi';
 
-import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/src/lib/shared/freedcampTypes';
+import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/shared/freedcampTypes';
 
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {
