@@ -1,8 +1,7 @@
-import * as mainOps from './web/src/lib/main_ops';
+import * as mainOps from './web/shared/main_ops';
 import * as util from './lib/util';
-import { ActionTaskParams, FreedCampProcessor } from './web/shared/freedcampTypes';
+import { ActionTaskParams, FreedCampProcessor, LoginResponse } from './web/shared/freedcampTypes';
 import * as secs from './enyu_secs.json';
-import { LoginResponse } from './web/src/lib/util';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
@@ -71,7 +70,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       try {
         if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
-        const boolRes = await mainOps.debug_main(ops, lineNumber, log, opStr);
+        const boolRes = await mainOps.debug_main(ops, util.freedCampOps, lineNumber, log, opStr);
         res = boolRes ? 'Operation succeeded' : 'Operation failed';
       } catch (error) {
         console.error('Operation error:', error);
@@ -134,8 +133,8 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       
       // Check if cookies are provided in parameters
       if (params['cookies']) {
-        cookies.cookies = params['cookies'];
-        log.doLog(`Using ${cookies.cookies} cookies from parameters for action: ${subAction}`);
+        cookies.Cookie = params['cookies'];
+        log.doLog(`Using ${cookies.Cookie} cookies from parameters for action: ${subAction}`);
       } else {
         // If no cookies provided, try to login
         const username = params['username'] || '';

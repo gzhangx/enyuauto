@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getOpsAndMainList, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../lib/main_ops';
+import { getOpsAndMainList, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 
 

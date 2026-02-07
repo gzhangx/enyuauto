@@ -1,57 +1,9 @@
 
+import type { ActionTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { freedcampApi } from './api';
 
-interface LoginParams {
-    username?: string;
-    password?: string;
-}
 
-interface ProjectAndGroup {
-    h_parent_id?: string;
-    project_id: string;
-    task_group_id: string;
-    description?: string;
-    "priority": 2;
-}
 
-interface CreateTaskResponse {
-    result: any;
-    id: number;
-}
-
-export interface TaskParams {
-    h_parent_id?: string;
-    description: string;
-    assigned_to_id?: string;
-    due_date?: string;
-    "priority": 2;
-}
-interface Processor {
-    doPostAttachment: (taskId: string, params: TaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
-    deleteTask: (taskId: string | number) => Promise<any>;
-    getSessionCurrentData(): Promise<ICurrentSessionData>;
-}
-
-export interface IUserInfo {
-    user_id: string;
-    full_name: string;
-    email: string;
-}
-
-export interface IProjectInfo {
-    project_id: string;
-    //group_id: string;
-    project_name: string; //文字二校 （Second Proofread)
-    group_name: string; //EnYu_2026
-}
-
-export interface ICurrentSessionData {
-    data: {
-        users: IUserInfo[];
-        projects: IProjectInfo[];
-    }
-}
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {    
     const res = await freedcampApi({
@@ -65,14 +17,14 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
     return res as unknown as LoginResponse;
 }
 
-function getProcessor(loginToken: LoginResponse): Processor {
+function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
     // Initialize session by logging in
 
-    async function doPostAttachment(taskId: string, params: TaskParams): Promise<any> {
+    async function doPostAttachment(taskId: string, params: ActionTaskParams): Promise<any> {
         const res = await freedcampApi({
             subAction: 'doPostAttachment',            
             params: {                
-                cookies: loginToken.cookies,
+                cookies: loginToken.Cookie,
                 taskId,
                 description: params.description,
                 assignedToId: params.assigned_to_id,
@@ -82,11 +34,11 @@ function getProcessor(loginToken: LoginResponse): Processor {
         return res;
     }
 
-    async function createTask(projectAndGroup: ProjectAndGroup, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ActionTaskParams, title: string): Promise<CreateTaskResponse> {
         const res = await freedcampApi({
             subAction: 'createTask',
             params: {
-                cookies: loginToken.cookies,
+                cookies: loginToken.Cookie,
                 projectId: projectAndGroup.project_id,
                 title,
                 description: projectAndGroup.description,
@@ -105,7 +57,7 @@ function getProcessor(loginToken: LoginResponse): Processor {
         const res = await freedcampApi({
             subAction: 'deleteTask',
             params: {
-                cookies: loginToken.cookies,
+                cookies: loginToken.Cookie,
                 taskId: String(taskId),
             },
         });
@@ -116,7 +68,7 @@ function getProcessor(loginToken: LoginResponse): Processor {
         const res = await freedcampApi({            
             subAction: 'getSessionCurrentData',
             params: {
-                cookies: loginToken.cookies,
+                cookies: loginToken.Cookie,
             },
         });
         return res as ICurrentSessionData;
@@ -130,15 +82,8 @@ function getProcessor(loginToken: LoginResponse): Processor {
     };
 }
 
-export {
+export const freedCampOps: FreedCampOps = {
     login,
     getProcessor,
 };
-export type {
-        LoginParams,
-        LoginResponse,
-        ProjectAndGroup,
-        CreateTaskResponse,
-        Processor
-    };
 

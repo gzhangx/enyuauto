@@ -1,7 +1,7 @@
-import * as login from './util';
+
 import * as gs from '@gzhangx/googleapi';
-import type { ProjectAndGroup, IUserInfo, TaskParams, ICurrentSessionData } from './util';
-import type { ActionType } from './types';
+import type { ActionType } from '../src/lib/types';
+import type { ActionTaskParams, FreedCampOps, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 type DueDateKeys = `${ActionType} Due Date`;
@@ -250,7 +250,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     return configMap;
 }
 
-type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectAndGroup };
+type IActionToProjectIdMapping  ={ [key in ActionType]: ActionTaskParams };
 // function getProjectGroupMapping(): IActionToProjectIdMapping {
 //     return {
 //         '校对': { "project_id": "3696514", "task_group_id": "6825082" },
@@ -267,7 +267,6 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
         if (projectInfo && projectInfo.shortName) {
             mapping[projectInfo.shortName] = {
                 project_id: proj.project_id,
-                task_group_id: '',
                 priority: 2,
             }
 
@@ -285,14 +284,15 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 }
 
 export async function processOperation(
-    loginToken: login.LoginResponse,
+    freedCampOps: FreedCampOps,    
     opsAndTemplates: IOpsConfig,
     lineNumber: number,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
     const { templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
-    const pr = login.getProcessor(loginToken);
+    const loginToken = await freedCampOps.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
+    const pr = freedCampOps.getProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
     const validOperation: OperationWithDueDates = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
     if (!validOperation) {
@@ -374,7 +374,7 @@ export async function processOperation(
             taskIds.push(taskId);
             
             
-            const postParams: TaskParams = {
+            const postParams: ActionTaskParams = {
                 description: template1,
                 "priority":2,
             };
@@ -408,7 +408,7 @@ export interface DebugLog {
     getOperations: () => string[];
     doLog: (msg: string) => void;
 }
-async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
+async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
     if (opStr === 'del') {
         const ret =  await getOpsAndMainList(ops, log);
         const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
@@ -418,8 +418,8 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: numb
         }
         //const ret = await getOpsAndLine(token, lineNumber, log);        
         const { templates } = ret;
-        const loginToken = await login.login(ret.groupAndMainProjectMapping.freedcampInfo);
-        const pr = login.getProcessor(loginToken);
+        const loginToken = await freedCampOps.login(ret.groupAndMainProjectMapping.freedcampInfo);
+        const pr = freedCampOps.getProcessor(loginToken);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
         for (const action of ret.groupAndMainProjectMapping.actions) {
             const taskId = templates[action].getExistingTaskId(validOperation);
@@ -443,7 +443,7 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: numb
         
         return true;
     }
-    const mainResult = await main(ops, lineNumber, log, opStr);
+    const mainResult = await main(ops, freedCampOps, lineNumber, log, opStr);
     if (!mainResult) {        
         return false;
     }
@@ -456,14 +456,13 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: numb
     return true;
 }
 
-async function main(ops: gs.gsAccount.IGetSheetOpsReturn, lineNumber: number, log: DebugLog, opStr?: string) {
+async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
     const opsAndTemplates = await getOpsAndMainList(ops, log);
     if (!opsAndTemplates) {        
         return undefined;
     }
-    const prefix = opStr || '';
-    const loginToken = await login.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
-    const ids = await processOperation(loginToken, opsAndTemplates, lineNumber, log, prefix);
+    const prefix = opStr || '';    
+    const ids = await processOperation(freedCampOps, opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,

@@ -1,4 +1,4 @@
-import * as mainOps from './web/src/lib/main_ops';
+import * as mainOps from './web/shared/main_ops';
 import *  as freed from './lib/util'
 import * as secs from './enyu_secs.json';
 async function test() {    
