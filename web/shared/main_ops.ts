@@ -280,6 +280,19 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
     //    const shortProjectName = groupAndMainProjectMapping.taskLongToShortNameMapping[action].shortName; ////文字校对 (Editorial and Translation team) : 校对
     //    const projectInfo = userData.data.projects.find(proj => proj.project_name === shortProjectName && proj.group_name === groupAndMainProjectMapping.groupName);
     //}
+    
+    // Validate that all required mappings are present
+    const missingKeys: string[] = [];
+    for (const [longName, projectInfo] of Object.entries(groupAndMainProjectMapping.taskLongToShortNameMapping)) {
+        if (projectInfo.shortName && !mapping[projectInfo.shortName]) {
+            missingKeys.push(`${longName} (shortName: ${projectInfo.shortName})`);
+        }
+    }
+    
+    if (missingKeys.length > 0) {
+        throw new Error(`Missing project mappings for the following keys: ${missingKeys.join(', ')}`);
+    }
+    
     return mapping;
 }
 
