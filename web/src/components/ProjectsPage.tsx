@@ -1,8 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getOpsAndMainList, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../../shared/main_ops';
+import { getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
+import { freedCampOps } from '../lib/util';
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
@@ -45,11 +46,12 @@ export const ProjectsPage = () => {
   const opsDataRef = useRef<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   
-  useEffect(() => {
+  async function fetchData() {
     console.log('useEffect run');
     if (token) {
       setIsLoading('Loading projects...');
-      getOpsAndMainList(token, { doLog }).then(res => {
+      const sheetOps = await getSheetOps({ token });
+      getOpsAndMainList(sheetOps, { getOperations: () => [], doLog }).then(res => {
         opsDataRef.current = res; // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
@@ -67,6 +69,9 @@ export const ProjectsPage = () => {
         setIsLoading('');
       });
     }
+  }
+  useEffect(() => {
+    fetchData();
   },[token, doLog]);
 
   // Calculate animation speed based on number of messages
@@ -184,7 +189,7 @@ export const ProjectsPage = () => {
                       return;
                     }
                     try {
-                      await processOperation(opsDataRef.current, p.line, { doLog });
+                      await processOperation(freedCampOps, opsDataRef.current, p.line, { getOperations: ()=>[], doLog });
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
                       setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
