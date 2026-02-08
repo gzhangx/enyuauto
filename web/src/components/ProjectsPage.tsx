@@ -44,14 +44,17 @@ export const ProjectsPage = () => {
   const [isLoading, setIsLoading] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const opsDataRef = useRef<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
+  const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   
   async function fetchData() {
     console.log('useEffect run');
     if (token) {
       setIsLoading('Loading projects...');
-      const sheetOps = await getSheetOps({ token });
-      getOpsAndMainList(sheetOps, { getOperations: () => [], doLog }).then(res => {
+      if (!sheetOpsRef.current) {
+        sheetOpsRef.current = await getSheetOps({ token });
+      }
+      getOpsAndMainList(sheetOpsRef.current, { getOperations: () => [], doLog }).then(res => {
         opsDataRef.current = res; // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
@@ -189,7 +192,10 @@ export const ProjectsPage = () => {
                       return;
                     }
                     try {
-                      await processOperation(freedCampOps, opsDataRef.current, p.line, { getOperations: ()=>[], doLog });
+                      const ops = sheetOpsRef.current;
+                      if (ops) {
+                        await processOperation(ops, freedCampOps, opsDataRef.current, p.line, { getOperations: () => [], doLog });
+                      }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
                       setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
