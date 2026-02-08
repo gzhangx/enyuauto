@@ -112,9 +112,7 @@ async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IO
     });
 }
 
-export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
-    //const ops = await getSheetOps(token);
-    log.doLog('getOpsAndMainList: got sheet ops');
+export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];
     //const operationListData = await ops.readDataByColumnName('main');
@@ -127,6 +125,14 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
         obj.itemPositionOnSheet = index; // Assuming the first data row corresponds to line 2 in the sheet
         return obj;
     });
+    return { operationList, headers };
+}
+export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
+    //const ops = await getSheetOps(token);
+    log.doLog('getOpsAndMainList: got sheet ops');
+    const { operationList, headers } = await loadMainData(ops);
+    //const operationListData = await ops.readDataByColumnName('main');
+    //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
     log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
     const configLines = await ops.readData('config');
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);

@@ -43,7 +43,7 @@ export const ProjectsPage = () => {
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
-  const opsDataRef = useRef<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
+  const [opsData, setOpsData] = useState<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   
@@ -55,7 +55,7 @@ export const ProjectsPage = () => {
         sheetOpsRef.current = await getSheetOps({ token });
       }
       getOpsAndMainList(sheetOpsRef.current, { getOperations: () => [], doLog }).then(res => {
-        opsDataRef.current = res; // Save the complete response (including functions)
+        setOpsData(res); // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
           return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
@@ -187,14 +187,14 @@ export const ProjectsPage = () => {
               return <tr key={p.文章名+idx}>
                 <td><button className="btn btn-create" onClick={
                   async () => {
-                    if (opsDataRef.current === null) {
+                    if (opsData === null) {
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {
-                        await processOperation(ops, freedCampOps, opsDataRef.current, p.line, { getOperations: () => [], doLog });
+                        await processOperation(ops, freedCampOps, opsData, p.line, { getOperations: () => [], doLog });
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
