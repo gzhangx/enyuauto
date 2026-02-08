@@ -16,7 +16,7 @@ interface Operation {
     '校对': string;
     '美编': string;
     '发布': string;
-    '二校': string;
+    '二校': string;    
 }
 
 export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
@@ -28,6 +28,8 @@ export type OperationWithDueDates = Operation & {
 } & {
     [k in TaskIdKeys]: string;
 };
+
+export type IOperationWithLineNumber = OperationWithDueDates & { itemPositionOnSheet: number; };
 
 interface OperationInfo {
     author: string;
@@ -44,7 +46,7 @@ type Templates = {
         template: string;
         templateEnglish: string;
         taskIdPos: number;
-        taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
+        //taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
         //getExistingTaskId: (operation: OperationWithDueDates)=>string;
     }
 };
@@ -82,7 +84,7 @@ interface IEditorInfo {
 }
 
 interface IOpsConfig {
-    operationList: OperationWithDueDates[];
+    operationList: IOperationWithLineNumber[];
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
@@ -99,6 +101,16 @@ export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds): Pro
 function getExistingTaskId(templateName: ActionType, operation: OperationWithDueDates) {
     return operation[getTaskIdColumnName(templateName as ActionType)];
 }
+async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
+    const newTaskId: string = getExistingTaskId(key, item);
+    const lineNumber: number = item.itemPositionOnSheet;
+    const index = opsConfig.templates[key].taskIdPos;
+    log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
+    await ops.autoUpdateValues('main', [[newTaskId]], {
+        row: lineNumber - 1,
+        col: index,
+    });
+}
 
 export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
     //const ops = await getSheetOps(token);
@@ -107,11 +119,12 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
     const headers = rawMainData.values[0];
     //const operationListData = await ops.readDataByColumnName('main');
     //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
-    const operationList: OperationWithDueDates[] = rawMainData.values.slice(1).map(row => {
-        const obj = {} as OperationWithDueDates;
-        headers.forEach((header, index) => {
-            obj[header as keyof OperationWithDueDates] = row[index] || '';
+    const operationList: IOperationWithLineNumber[] = rawMainData.values.slice(1).map((row, index) => {
+        const obj = {} as IOperationWithLineNumber;
+        headers.forEach((header, colIndex) => {
+            obj[header as keyof OperationWithDueDates] = row[colIndex] || '';
         });
+        obj.itemPositionOnSheet = index; // Assuming the first data row corresponds to line 2 in the sheet
         return obj;
     });
     log.doLog('getOpsAndLine: got operation list from main ' + operationList?.length + ' items');
@@ -130,11 +143,6 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
                 template: templateChinese,
                 templateEnglish,
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
-                taskIdUpdater: async (newTaskId: string, lineNumber: number) => {
-                    const warMsg = 'taskIdUpdater not initialized yet for template ' + templateName+ ' newTaskId=' + newTaskId+ ' lineNumber=' + lineNumber;
-                    console.warn(warMsg);
-                    log.doLog(warMsg);
-                 },
                 //getExistingTaskId: (operation: OperationWithDueDates) => operation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
             };
         }
@@ -147,13 +155,6 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
             if (item === getTaskIdColumnName(key)) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
-                templates[key].taskIdUpdater = async (newTaskId: string, lineNumber: number) => {
-                    log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
-                    await ops.autoUpdateValues('main', [[newTaskId]], {
-                        row: lineNumber - 1,
-                        col: index,
-                    });
-                }
                 //await templates[key].taskIdUpdater('test' + key + "test");
                 break;
             }
@@ -164,7 +165,7 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
 }
 
 
-function getOperationFromLineNumber(operationList: OperationWithDueDates[], lineNumber: number): OperationWithDueDates | undefined {
+function getOperationFromLineNumber(operationList: IOperationWithLineNumber[], lineNumber: number): IOperationWithLineNumber | undefined {
     const operation = operationList[lineNumber - 2];
     return operation;
 }
@@ -300,6 +301,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 }
 
 export async function processOperation(
+    ops: gs.gsAccount.IGetSheetOpsReturn,
     freedCampOps: FreedCampOps,    
     opsAndTemplates: IOpsConfig,
     lineNumber: number,    
@@ -310,7 +312,7 @@ export async function processOperation(
     const loginToken = await freedCampOps.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
     const pr = freedCampOps.getProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
-    const validOperation: OperationWithDueDates = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
+    const validOperation = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
     if (!validOperation) {
         log.doLog('processOperation: no such line number ' + lineNumber);
         return [];
@@ -386,7 +388,7 @@ export async function processOperation(
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
-            await curTemplateActionInfo.taskIdUpdater(taskId, lineNumber);
+            await taskIdUpdater(ops, opsAndTemplates, action, operation, log);
             taskIds.push(taskId);
             
             
@@ -433,7 +435,6 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: Fr
             return false;
         }
         //const ret = await getOpsAndLine(token, lineNumber, log);        
-        const { templates } = ret;
         const loginToken = await freedCampOps.login(ret.groupAndMainProjectMapping.freedcampInfo);
         const pr = freedCampOps.getProcessor(loginToken);
         getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
@@ -452,7 +453,7 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: Fr
                 
                 await pr.deleteTask(taskId);
                 log.doLog(`del: deleted task ${taskId} for action ${action}`);
-                await templates[action].taskIdUpdater('', lineNumber);
+                await taskIdUpdater(ops, ret, action, ret.operationList[lineNumber + 2], log);
                 log.doLog(`del: cleared task ID in sheet for action ${action}`);
             }
         }
@@ -478,7 +479,7 @@ async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCam
         return undefined;
     }
     const prefix = opStr || '';    
-    const ids = await processOperation(freedCampOps, opsAndTemplates, lineNumber, log, prefix);
+    const ids = await processOperation(ops, freedCampOps, opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,
