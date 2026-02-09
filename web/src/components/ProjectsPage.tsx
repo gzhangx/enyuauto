@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type FreeCampAndUpdateOperations, type OperationWithDueDates } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
+import type { LoginResponse } from '../../shared/freedcampTypes';
 
 
 type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
@@ -46,12 +47,26 @@ export const ProjectsPage = () => {
   const [opsData, setOpsData] = useState<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
+  const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
     getFreedCampToken: async (opsAndTemplates) => {
-      return originalFreedCampOps.getFreedCampToken(opsAndTemplates);
+      const now = Date.now();
+      const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
+      
+      // Check if cached token exists and is still valid
+      if (cachedToken && (now - cachedToken.timestamp) < oneHour) {
+        doLog('Using cached FreedCamp token');
+        return cachedToken.token;
+      }
+      
+      // Get new token if cache is expired or doesn't exist
+      doLog('Fetching new FreedCamp token');
+      const newToken = await originalFreedCampOps.getFreedCampToken(opsAndTemplates);
+      setCachedToken({ token: newToken, timestamp: now });
+      return newToken;
     },    
   };
   async function fetchData() {
