@@ -57,7 +57,7 @@ ${json}${
     }
 
     async function doPostAttachment(taskId: string, params: ActionTaskParams): Promise<any> {
-        await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
+        return await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             ...params,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
             "time_on_page": 37378 
