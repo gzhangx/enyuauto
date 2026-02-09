@@ -222,7 +222,12 @@ export const ProjectsPage = () => {
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {                        
-                        await processOperation(ops, freeCampOpsWithCache, opsData, p, { getOperations: () => [], doLog });
+                        await processOperation(ops, freeCampOpsWithCache, opsData, p, {
+                          getOperations: () => [], 
+                          doLog: msg => {
+                            setIsLoading(msg);
+                          }
+                         });
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
