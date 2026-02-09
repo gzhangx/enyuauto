@@ -44,6 +44,7 @@ export const ProjectsPage = () => {
   const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
+  const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const [opsData, setOpsData] = useState<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -120,12 +121,25 @@ export const ProjectsPage = () => {
           animation: 'spin 1s linear infinite'
         }}></div>
         <h2 style={{ margin: 0, color: '#555' }}>{isLoading}</h2>
+        {progressText && (
+          <div style={{ 
+            maxWidth: '600px', 
+            padding: '10px 20px',
+            color: '#777',
+            fontSize: '13px',
+            textAlign: 'center',
+            lineHeight: '1.4'
+          }}>
+            {progressText}
+          </div>
+        )}
         <style>{`
           @keyframes spin {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
           }
         `}</style>
+
       </div>
     );
   }
@@ -225,7 +239,8 @@ export const ProjectsPage = () => {
                         await processOperation(ops, freeCampOpsWithCache, opsData, p, {
                           getOperations: () => [], 
                           doLog: msg => {
-                            setIsLoading(msg);
+                            console.log(msg);
+                            setProgressText(msg);
                           }
                          });
                       }
@@ -235,6 +250,7 @@ export const ProjectsPage = () => {
                       return;
                     } finally {
                       setIsLoading('');
+                      setProgressText('');
                     }
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
