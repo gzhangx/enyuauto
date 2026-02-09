@@ -1,7 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type FreeCampAndUpdateOperations, type IOperationWithLineNumber } from '../../shared/main_ops';
+import {
+  getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation,deleteItemActionTask,
+  type FreeCampAndUpdateOperations, type IOperationWithLineNumber
+} from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
@@ -227,14 +230,17 @@ export const ProjectsPage = () => {
                 }>Create</button></td>
                 <td><button className="btn btn-delete" onClick={async () => {
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-                    //setResponseData(JSON.stringify(retData, null, 2));
+                  //setResponseData(JSON.stringify(retData, null, 2));
+                  if (sheetOpsRef.current && opsData) {
+                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsData, p, colAction, { getOperations: () => [], doLog });
+                  }
                 }}>Delete</button></td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
                   <a href={p.文件} target="_blank">{p.文件}</a>
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>                
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>                
+                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>
               </tr>
             })
           }
