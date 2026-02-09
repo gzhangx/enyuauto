@@ -28,9 +28,17 @@ async function test() {
         }
     };
     const ops = await mainOps.getSheetOps(secs.gsAuth);
-    await mainOps.debug_main(ops, freed.freedCampOps, lineNumber, log,opstr).catch((err: Error) => {
-        console.error('Test failed:', err);        
-    });
+    const fops = mainOps.getFreeCampAndUpdateOperations(freed.freedCampOps);
+            const mainCfg = await mainOps.getOpsAndMainList(ops, log);
+            let sres: string[] = [];
+            const operation = mainOps.getOperationFromLineNumber(mainCfg.operationList, lineNumber);
+            if (!operation) {
+              throw new Error(`No operation found for line number ${lineNumber}`);
+            }
+            for (const action of mainCfg.groupAndMainProjectMapping.actions) {
+              const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
+              sres.push(rr || '');
+            }
     console.log('Log:', log.getOperations());
 }
 
