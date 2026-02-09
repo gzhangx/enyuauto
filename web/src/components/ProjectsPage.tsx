@@ -218,6 +218,7 @@ export const ProjectsPage = () => {
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
+                    setIsLoading('Creating project...');
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {                        
@@ -227,6 +228,8 @@ export const ProjectsPage = () => {
                       console.error('Error creating project:', error);                                            
                       setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
                       return;
+                    } finally {
+                      setIsLoading('');
                     }
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
