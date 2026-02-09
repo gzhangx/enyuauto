@@ -448,55 +448,39 @@ export interface DebugLog {
     getOperations: () => string[];
     doLog: (msg: string) => void;
 }
-async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log:DebugLog, opStr?: string): Promise<boolean> {
-    if (opStr === 'del') {
-        const ret =  await getOpsAndMainList(ops, log);
-        const validOperation = getOperationFromLineNumber(ret.operationList, lineNumber);
-        if (!validOperation) {
-            log.doLog('del: no such line number ' + lineNumber);
-            return false;
+
+
+export async function deleteItemActionTask( ops: gs.gsAccount.IGetSheetOpsReturn,
+    freedCampOps: FreeCampAndUpdateOperations,    
+    opsAndTemplates: IOpsConfig,
+    operation: IOperationWithLineNumber,    
+    action: ActionType,
+    log: DebugLog,) {
+    
+    const loginToken = await freedCampOps.getFreedCampToken(opsAndTemplates);
+    const pr = freedCampOps.getFreedCampProcessor(loginToken);
+    const existingTaskId = getExistingTaskId(action, operation);
+    if (existingTaskId) {
+        if (existingTaskId === 'done') {
+            const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
+            console.log(msg);
+            log.doLog(msg);
+            return msg;
         }
-        //const ret = await getOpsAndLine(token, lineNumber, log);        
-        const loginToken = await freedCampOps.login(ret.groupAndMainProjectMapping.freedcampInfo);
-        const pr = freedCampOps.getProcessor(loginToken);
-        getActionToProjectIdMapping(await pr.getSessionCurrentData(), ret.groupAndMainProjectMapping);
-        for (const action of ret.groupAndMainProjectMapping.actions) {
-            const taskId = getExistingTaskId(action, validOperation);
-            if (taskId) {
-                if (taskId === 'done') {
-                    const msg = `del: skipping deletion for action ${action} as task ID is marked done`;
-                    console.log(msg);
-                    log.doLog(msg);
-                    continue;
-                }
-                let msg = `del: deleting task ${taskId} for action ${action}`;
-                console.log(msg);
-                log.doLog(msg);
+        let msg = `del: deleting task ${existingTaskId} for action ${action}`;
+        console.log(msg);
+        log.doLog(msg);
                 
-                await pr.deleteTask(taskId);
-                log.doLog(`del: deleted task ${taskId} for action ${action}`);
-                validOperation[getTaskIdColumnName(action)] = '';
-                await taskIdUpdater(ops, ret, action, validOperation, log);
-                log.doLog(`del: cleared task ID in sheet for action ${action}`);
-            }
-        }
-        
-        return true;
+        await pr.deleteTask(existingTaskId);
+        log.doLog(`del: deleted task ${existingTaskId} for action ${action}`);
+        operation[getTaskIdColumnName(action)] = '';
+        await taskIdUpdater(ops, opsAndTemplates, action, operation, log);
+        log.doLog(`del: cleared task ID in sheet for action ${action}`);
     }
-    const mainResult = await main(ops, freedCampOps, lineNumber, log, opStr);
-    if (!mainResult) {        
-        return false;
-    }
-    const { ids, } = mainResult;
-    log.doLog('Created task IDs:'+ JSON.stringify(ids));
-    
-    //await ops.updateValues('temp!A1', [['forceStringValDEBUGNO_USE,'+ids.join(',')]]);
-    
-    log.doLog(`Saved ${ids.length} task IDs to temp/taskId.txt`);
-    return true;
 }
 
-async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
+
+export async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
     const opsAndTemplates = await getOpsAndMainList(ops, log);
     if (!opsAndTemplates) {        
         return undefined;
@@ -514,8 +498,3 @@ async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCam
         ...opsAndTemplates,
     }
 }
-
-export {
-    debug_main,
-    main,
-};
