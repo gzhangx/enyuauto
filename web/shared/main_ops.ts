@@ -1,7 +1,7 @@
 
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from '../src/lib/types';
-import type { ActionTaskParams, FreedCampOps, ICurrentSessionData, IUserInfo } from './freedcampTypes';
+import type { ActionTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 type DueDateKeys = `${ActionType} Due Date`;
@@ -306,17 +306,36 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
     return mapping;
 }
 
+export interface FreeCampAndUpdateOperations {
+    getFreedCampToken: (opsAndTemplates: IOpsConfig) => Promise<LoginResponse>;
+    getFreedCampProcessor: (loginToken: LoginResponse) => FreedCampProcessor;
+}
+
+export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): FreeCampAndUpdateOperations {
+    async function getFreedCampToken(opsAndTemplates: IOpsConfig) {
+        const loginToken = await freedCampOps.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
+        return loginToken;
+    }
+    function getFreedCampProcessor(loginToken: LoginResponse) {
+        const pr = freedCampOps.getProcessor(loginToken);
+        return pr;
+    }
+    return {
+        getFreedCampToken,
+        getFreedCampProcessor,
+    }
+}
 export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
-    freedCampOps: FreedCampOps,    
+    freedCampOps: FreeCampAndUpdateOperations,    
     opsAndTemplates: IOpsConfig,
     lineNumber: number,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
     const { templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
-    const loginToken = await freedCampOps.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
-    const pr = freedCampOps.getProcessor(loginToken);
+    const loginToken = await freedCampOps.getFreedCampToken(opsAndTemplates);
+    const pr = freedCampOps.getFreedCampProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
     const validOperation = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
     if (!validOperation) {
@@ -485,7 +504,8 @@ async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCam
         return undefined;
     }
     const prefix = opStr || '';    
-    const ids = await processOperation(ops, freedCampOps, opsAndTemplates, lineNumber, log, prefix);
+    const fops = getFreeCampAndUpdateOperations(freedCampOps);
+    const ids = await processOperation(ops, fops, opsAndTemplates, lineNumber, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,

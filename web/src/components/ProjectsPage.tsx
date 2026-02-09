@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type OperationWithDueDates } from '../../shared/main_ops';
+import { getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type FreeCampAndUpdateOperations, type OperationWithDueDates } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 
@@ -47,6 +47,13 @@ export const ProjectsPage = () => {
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   
+  const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+  const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
+    ...originalFreedCampOps,
+    getFreedCampToken: async (opsAndTemplates) => {
+      return originalFreedCampOps.getFreedCampToken(opsAndTemplates);
+    },    
+  };
   async function fetchData() {
     console.log('useEffect run');
     if (token) {
@@ -193,8 +200,8 @@ export const ProjectsPage = () => {
                     }
                     try {
                       const ops = sheetOpsRef.current;
-                      if (ops) {
-                        await processOperation(ops, freedCampOps, opsData, p.line, { getOperations: () => [], doLog });
+                      if (ops) {                        
+                        await processOperation(ops, freeCampOpsWithCache, opsData, p.line, { getOperations: () => [], doLog });
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
