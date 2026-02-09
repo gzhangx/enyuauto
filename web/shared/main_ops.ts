@@ -104,8 +104,7 @@ function getExistingTaskId(templateName: ActionType, operation: OperationWithDue
 async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
     const newTaskId: string = getExistingTaskId(key, item);
     const lineNumber: number = item.itemPositionOnSheet;
-    const index = opsConfig.templates[key].taskIdPos;
-    item[getTaskIdColumnName(key)] = newTaskId;
+    const index = opsConfig.templates[key].taskIdPos;    
     log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
     await ops.autoUpdateValues('main', [[newTaskId]], {
         row: lineNumber,
@@ -410,6 +409,7 @@ export async function processOperation(
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
+            operation[getTaskIdColumnName(action)] = taskId;
             await taskIdUpdater(ops, opsAndTemplates, action, operation, log);
             taskIds.push(taskId);
             
@@ -475,7 +475,8 @@ async function debug_main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: Fr
                 
                 await pr.deleteTask(taskId);
                 log.doLog(`del: deleted task ${taskId} for action ${action}`);
-                await taskIdUpdater(ops, ret, action, ret.operationList[lineNumber + 2], log);
+                validOperation[getTaskIdColumnName(action)] = '';
+                await taskIdUpdater(ops, ret, action, validOperation, log);
                 log.doLog(`del: cleared task ID in sheet for action ${action}`);
             }
         }
