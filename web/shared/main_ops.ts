@@ -99,15 +99,16 @@ export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds): Pro
 }
 
 function getExistingTaskId(templateName: ActionType, operation: OperationWithDueDates) {
-    return operation[getTaskIdColumnName(templateName as ActionType)];
+    return operation[getTaskIdColumnName(templateName)];
 }
 async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
     const newTaskId: string = getExistingTaskId(key, item);
     const lineNumber: number = item.itemPositionOnSheet;
     const index = opsConfig.templates[key].taskIdPos;
+    item[getTaskIdColumnName(key)] = newTaskId;
     log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
     await ops.autoUpdateValues('main', [[newTaskId]], {
-        row: lineNumber - 1,
+        row: lineNumber,
         col: index,
     });
 }
@@ -122,7 +123,7 @@ export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
         headers.forEach((header, colIndex) => {
             obj[header as keyof OperationWithDueDates] = row[colIndex] || '';
         });
-        obj.itemPositionOnSheet = index; // Assuming the first data row corresponds to line 2 in the sheet
+        obj.itemPositionOnSheet = index + 1;
         return obj;
     });
     return { operationList, headers };
