@@ -23,7 +23,7 @@ export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
     return `${action} TaskId`;
 }
 
-export type OperationWithDueDates = Operation & {
+type OperationWithDueDates = Operation & {
     [K in DueDateKeys]: string;    
 } & {
     [k in TaskIdKeys]: string;
@@ -330,7 +330,7 @@ export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
     freedCampOps: FreeCampAndUpdateOperations,    
     opsAndTemplates: IOpsConfig,
-    lineNumber: number,    
+    operation: IOperationWithLineNumber,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
@@ -338,18 +338,14 @@ export async function processOperation(
     const loginToken = await freedCampOps.getFreedCampToken(opsAndTemplates);
     const pr = freedCampOps.getFreedCampProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
-    const validOperation = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
-    if (!validOperation) {
-        log.doLog('processOperation: no such line number ' + lineNumber);
-        return [];
-    }
+    
     const taskIds = [];
     const userData = await pr.getSessionCurrentData();
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
         acc[user.full_name] = user;
         return acc;
     }, {} as { [key: string]: IUserInfo });
-    const operation = validOperation;
+    
     {
         const fileName = operation['文件'];
         const infos: OperationInfo = {
@@ -368,7 +364,7 @@ export async function processOperation(
         //const projectGroupMapping = getProjectGroupMapping();
         const projectGroupMapping = getActionToProjectIdMapping(userData, opsAndTemplates.groupAndMainProjectMapping);
         for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
-            const editor = validOperation[action];
+            const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
                 const prettyName = editorLookup.print_name || editorLookup.shortName; 
@@ -379,7 +375,7 @@ export async function processOperation(
                 }
             }
             const curTemplateActionInfo = templates[action];
-            const existingTaskId = getExistingTaskId(action, validOperation);
+            const existingTaskId = getExistingTaskId(action, operation);
             if (existingTaskId) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
                 taskIds.push(existingTaskId);
@@ -404,7 +400,7 @@ export async function processOperation(
             const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
-                const h_parent_id = getExistingTaskId(subTaskOf, validOperation);
+                const h_parent_id = getExistingTaskId(subTaskOf, operation);
                 projectGrpoup = { ...projectGroupMapping[subTaskOf] };
                 projectGrpoup.h_parent_id = h_parent_id;
                 projectGrpoup.description = template1;
@@ -506,7 +502,12 @@ async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCam
     }
     const prefix = opStr || '';    
     const fops = getFreeCampAndUpdateOperations(freedCampOps);
-    const ids = await processOperation(ops, fops, opsAndTemplates, lineNumber, log, prefix);
+    const validOperation = getOperationFromLineNumber(opsAndTemplates.operationList, lineNumber)!;
+    if (!validOperation) {
+        log.doLog('processOperation: no such line number ' + lineNumber);
+        return undefined;
+    }
+    const ids = await processOperation(ops, fops, opsAndTemplates, validOperation, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,

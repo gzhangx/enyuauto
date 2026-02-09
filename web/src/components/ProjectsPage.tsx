@@ -1,13 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
-import { getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type FreeCampAndUpdateOperations, type OperationWithDueDates } from '../../shared/main_ops';
+import { getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation, type FreeCampAndUpdateOperations, type IOperationWithLineNumber } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 
-
-type OperationWithDueDatesWithLineNumber = OperationWithDueDates & { line: number };
 
 type LogMessage = {
   id: number;
@@ -40,7 +38,7 @@ const useLogger = (displayDuration = 5000) => {
 
 export const ProjectsPage = () => {
   const { token } = useAuth();  
-  const [projectList, setProjectList] = useState<OperationWithDueDatesWithLineNumber[]>([]);
+  const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -216,19 +214,19 @@ export const ProjectsPage = () => {
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {                        
-                        await processOperation(ops, freeCampOpsWithCache, opsData, p.line, { getOperations: () => [], doLog });
+                        await processOperation(ops, freeCampOpsWithCache, opsData, p, { getOperations: () => [], doLog });
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
                       setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
                       return;
                     }
-                    //const retData = await createOrDelProject(p.line, 'main');
+                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
                   }
                 }>Create</button></td>
                 <td><button className="btn btn-delete" onClick={async () => {
-                    //const retData = await createOrDelProject(p.line, 'del');
+                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
                     //setResponseData(JSON.stringify(retData, null, 2));
                 }}>Delete</button></td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
@@ -236,7 +234,7 @@ export const ProjectsPage = () => {
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>                
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.line}</td>                
+                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>                
               </tr>
             })
           }
