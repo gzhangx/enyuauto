@@ -73,8 +73,18 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       try {
         if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
-        const boolRes = await mainOps.debug_main(ops, util.freedCampOps, lineNumber, log, opStr);
-        res = boolRes ? 'Operation succeeded' : 'Operation failed';
+        const fops = mainOps.getFreeCampAndUpdateOperations(util.freedCampOps);
+        const mainCfg = await mainOps.getOpsAndMainList(ops, log);
+        let sres: string[] = [];
+        const operation = mainOps.getOperationFromLineNumber(mainCfg.operationList, lineNumber);
+        if (!operation) {
+          throw new Error(`No operation found for line number ${lineNumber}`);
+        }
+        for (const action of mainCfg.groupAndMainProjectMapping.actions) {
+          const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
+          sres.push(rr || '');
+        }
+        res = sres.join('\n');
       } catch (error) {
         console.error('Operation error:', error);
         const errorMessage = error instanceof Error ? error.message : String(error);

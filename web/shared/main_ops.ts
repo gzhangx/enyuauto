@@ -171,7 +171,7 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
 }
 
 
-function getOperationFromLineNumber(operationList: IOperationWithLineNumber[], lineNumber: number): IOperationWithLineNumber | undefined {
+export function getOperationFromLineNumber(operationList: IOperationWithLineNumber[], lineNumber: number): IOperationWithLineNumber | undefined {
     const operation = operationList[lineNumber - 2];
     return operation;
 }
