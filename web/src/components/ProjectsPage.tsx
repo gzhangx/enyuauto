@@ -197,10 +197,14 @@ export const ProjectsPage = () => {
         <thead>
           <tr>
             <th><button className="btn btn-create" onClick={fetchData}>Reload</button></th>
-            <th></th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>            
+            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>
+            {opsData?.groupAndMainProjectMapping.actions.map((action) => (
+              <th key={action} style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>
+                {action}
+              </th>
+            ))}
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>Line</th>
           </tr>
         </thead>
@@ -228,18 +232,22 @@ export const ProjectsPage = () => {
                     //setResponseData(JSON.stringify(retData, null, 2));
                   }
                 }>Create</button></td>
-                <td><button className="btn btn-delete" onClick={async () => {
-                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-                  //setResponseData(JSON.stringify(retData, null, 2));
-                  if (sheetOpsRef.current && opsData) {
-                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsData, p, colAction, { getOperations: () => [], doLog });
-                  }
-                }}>Delete</button></td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
                   <a href={p.文件} target="_blank">{p.文件}</a>
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>                
+                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
+                {opsData?.groupAndMainProjectMapping.actions.map((action) => (
+                  <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
+                    {p[getTaskIdColumnName(action)] && p[getTaskIdColumnName(action)] !== 'done' && <button className="btn btn-delete" onClick={async () => {
+                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
+                  //setResponseData(JSON.stringify(retData, null, 2));
+                  if (sheetOpsRef.current && opsData) {
+                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsData, p, action, { getOperations: () => [], doLog });
+                  }
+                    }}>Delete { p[getTaskIdColumnName(action)]}</button>}
+                  </td>
+                ))}
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>
               </tr>
             })
