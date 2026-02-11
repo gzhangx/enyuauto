@@ -1,5 +1,5 @@
 
-import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse } from '../../shared/freedcampTypes';
+import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse, IProjectTasksResult } from '../../shared/freedcampTypes';
 import { freedcampApi } from './api';
 
 
@@ -62,11 +62,22 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
         return res as ICurrentSessionData;
     }
 
+    async function getTasksForProjects(projectId: string, pageNumber: number = 1): Promise<IProjectTasksResult> {
+        const res = await freedcampApi({
+            subAction: 'getTasksForProjects',
+            cookies: loginToken.Cookie,
+            projectId,
+            pageNumber,
+        });
+        return res as IProjectTasksResult;
+    }
+
     return {
         doPostAttachment,
         createTask,
         deleteTask,
         getSessionCurrentData,
+        getTasksForProjects,
     };
 }
 

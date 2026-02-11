@@ -36,8 +36,8 @@ export async function createOrDelProject(line: number, action: 'main' | 'del' = 
 }
 
 type FreedcampParams = {
-    subAction: 'login' | 'getSessionCurrentData' | 'createTask' | 'deleteTask' | 'doPostAttachment';
-    
+    subAction: 'login' | 'getSessionCurrentData' | 'createTask' | 'deleteTask' | 'doPostAttachment' | 'getTasksForProjects';
+    pageNumber?: number;
         username?: string;
         password?: string;
         cookies?: string;
