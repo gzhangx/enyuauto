@@ -34,6 +34,7 @@ export interface FreedCampProcessor {
     createTask: (projectAndGroup: ProjectTaskParams, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
+    getTasksForProjects(projectId: string, pageNumber: number): Promise<IProjectTasksResult>
 }
 
 export interface IUserInfo {
@@ -60,4 +61,8 @@ export interface ICurrentSessionData {
 export interface FreedCampOps {
     login: (prm: LoginParams) => Promise<LoginResponse>;
     getProcessor: (loginResponse: LoginResponse) => FreedCampProcessor;
+}
+
+export interface IProjectTasksResult {
+    tasks: ProjectTaskParams[];
 }

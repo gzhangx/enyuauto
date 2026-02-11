@@ -1,6 +1,6 @@
 import * as gs from '@gzhangx/googleapi';
 
-import type {LoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/shared/freedcampTypes';
+import type {LoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps, IProjectTasksResult} from '../web/shared/freedcampTypes';
 
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {
@@ -113,11 +113,11 @@ ${json}${
         return res as ICurrentSessionData;
     }
 
-    async function getTasksForProjects(projectId: string, pageNumber: number = 1): Promise<ICurrentSessionData> {
+    async function getTasksForProjects(projectId: string, pageNumber: number = 1): Promise<IProjectTasksResult> {
         const res = await doGetAction(`/iapi/tasks?project_id=${
             projectId
         }&page_num=${pageNumber}&filter={}&order={}&substring=""&f_use_and=0&f_react_app=1&f_include_tr_data=1&f_include_tags=0&f_include_ms_data=true&group_mode=lists&group_mode_tpl_id=`);
-        return res as ICurrentSessionData;
+        return res as IProjectTasksResult;
     }
 
     return {
@@ -125,7 +125,7 @@ ${json}${
         createTask,
         deleteTask,
         getSessionCurrentData,
-    };
+        getTasksForProjects,
 }
 
 export const freedCampOps: FreedCampOps = {
