@@ -113,6 +113,13 @@ ${json}${
         return res as ICurrentSessionData;
     }
 
+    async function getTasksForProjects(projectId: string, pageNumber: number = 1): Promise<ICurrentSessionData> {
+        const res = await doGetAction(`/iapi/tasks?project_id=${
+            projectId
+        }&page_num=${pageNumber}&filter={}&order={}&substring=""&f_use_and=0&f_react_app=1&f_include_tr_data=1&f_include_tags=0&f_include_ms_data=true&group_mode=lists&group_mode_tpl_id=`);
+        return res as ICurrentSessionData;
+    }
+
     return {
         doPostAttachment,
         createTask,

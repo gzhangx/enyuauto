@@ -14,7 +14,14 @@ export interface ActionTaskParams {
     description?: string;
     assigned_to_id?: string;
     due_date?: string;
+    title?: string;
+    status?: number;
+    status_id?: number;
+    status_title?: string; //'Completed': 1, No Progress: 0
+    assigned_to_fullname?: string;
+    app_id?: string; //2
     "priority": 2;
+    priority_title?: string; //'Medium'
 }
 
 export interface CreateTaskResponse {
