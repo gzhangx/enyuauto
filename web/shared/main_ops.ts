@@ -1,6 +1,6 @@
 
 import * as gs from '@gzhangx/googleapi';
-import type { ActionType } from '../src/lib/types';
+import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
