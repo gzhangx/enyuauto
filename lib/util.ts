@@ -126,6 +126,7 @@ ${json}${
         deleteTask,
         getSessionCurrentData,
         getTasksForProjects,
+    };
 }
 
 export const freedCampOps: FreedCampOps = {
