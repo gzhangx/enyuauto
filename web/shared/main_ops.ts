@@ -2,99 +2,100 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
+import { getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type TaskIdKeys, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
-type DueDateKeys = `${ActionType} Due Date`;
-type TaskIdKeys = `${ActionType} TaskId`;
-interface Operation {
-    '文件': string;
-    '作者': string;
-    '文章名': string;
-    '文章链接': string;
-    '作者电邮': string;
-    '文章类别': string;
-    '校对': string;
-    '美编': string;
-    '发布': string;
-    '二校': string;    
-}
+// type DueDateKeys = `${ActionType} Due Date`;
+// type TaskIdKeys = `${ActionType} TaskId`;
+// interface Operation {
+//     '文件': string;
+//     '作者': string;
+//     '文章名': string;
+//     '文章链接': string;
+//     '作者电邮': string;
+//     '文章类别': string;
+//     '校对': string;
+//     '美编': string;
+//     '发布': string;
+//     '二校': string;    
+// }
 
-export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
-    return `${action} TaskId`;
-}
+// export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
+//     return `${action} TaskId`;
+// }
 
-type OperationWithDueDates = Operation & {
-    [K in DueDateKeys]: string;    
-} & {
-    [k in TaskIdKeys]: string;
-};
-
-export type IOperationWithLineNumber = OperationWithDueDates & { itemPositionOnSheet: number; };
-
-interface OperationInfo {
-    author: string;
-    article: string;
-    link: string;
-    email: string;
-    category: string;
-    editor: string;
-}
+// type OperationWithDueDates = Operation & {
+//     [K in DueDateKeys]: string;    
+// } & {
+//     [k in TaskIdKeys]: string;
+// };
 
 
-type Templates = {
-    [K in ActionType]: {
-        template: string;
-        templateEnglish: string;
-        taskIdPos: number;
-        //taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
-        //getExistingTaskId: (operation: OperationWithDueDates)=>string;
-    }
-};
 
-interface IGroupAndMainProjectLongToShortNameMapping {
-    freedcampInfo: {
-        username: string;
-        password: string;
-    };
-    groupName: string; //EnYu_2026
-    actions: ActionType[];
-    taskLongToShortNameMapping: {
-        [key: string]: {
-            shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
-            subTaskOf?: ActionType;
-        }; 
-    };
-    shortProjectNameToProjectId: { //populated later after we login to freedcamp
-        [key in ActionType]: {
-            project_id: string;
-            subTaskOf?: ActionType;
-        }; //'校对': { "project_id": "3696514" }
-    }
-}
-
-interface IEditorInfoMap { [key: string]: IEditorInfo };
+// interface OperationInfo {
+//     author: string;
+//     article: string;
+//     link: string;
+//     email: string;
+//     category: string;
+//     editor: string;
+// }
 
 
-interface IEditorInfo {
-    title: string;
-    shortName: string;
-    email: string;
-    task: string;
-    print_name: string; //the full chinese name for printing
-}
+// type Templates = {
+//     [K in ActionType]: {
+//         template: string;
+//         templateEnglish: string;
+//         taskIdPos: number;
+//         //taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
+//         //getExistingTaskId: (operation: OperationWithDueDates)=>string;
+//     }
+// };
 
-interface IOpsConfig {
-    operationList: IOperationWithLineNumber[];
-    groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
-    editorInfoMap: IEditorInfoMap;
-    headers: string[];
-    templates: Templates;
-}
+// interface IGroupAndMainProjectLongToShortNameMapping {
+//     freedcampInfo: {
+//         username: string;
+//         password: string;
+//     };
+//     groupName: string; //EnYu_2026
+//     actions: ActionType[];
+//     taskLongToShortNameMapping: {
+//         [key: string]: {
+//             shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
+//             subTaskOf?: ActionType;
+//         }; 
+//     };
+//     shortProjectNameToProjectId: { //populated later after we login to freedcamp
+//         [key in ActionType]: {
+//             project_id: string;
+//             subTaskOf?: ActionType;
+//         }; //'校对': { "project_id": "3696514" }
+//     }
+// }
+
+// interface IEditorInfoMap { [key: string]: IEditorInfo };
 
 
-export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+// interface IEditorInfo {
+//     title: string;
+//     shortName: string;
+//     email: string;
+//     task: string;
+//     print_name: string; //the full chinese name for printing
+// }
+
+// interface IOpsConfig {
+//     operationList: IOperationWithLineNumber[];
+//     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
+//     editorInfoMap: IEditorInfoMap;
+//     headers: string[];
+//     templates: Templates;
+// }
+
+
+export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cache: ISheetInfoCache): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(creds);
-    const ops = await gsc.getSheetOps(mainSheetId);
+    const ops = await gsc.getSheetOps(mainSheetId, cache);
     return ops;
 }
 

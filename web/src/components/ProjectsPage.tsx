@@ -2,12 +2,13 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, getTaskIdColumnName, processOperation,deleteItemActionTask,
-  type FreeCampAndUpdateOperations, type IOperationWithLineNumber
+  getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation,deleteItemActionTask,
+  type FreeCampAndUpdateOperations
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
+import { getTaskIdColumnName, type IOperationWithLineNumber, type IOpsConfig } from '../../shared/opsTypes';
 
 
 type LogMessage = {
@@ -40,13 +41,13 @@ const useLogger = (displayDuration = 5000) => {
 };
 
 export const ProjectsPage = () => {
-  const { token } = useAuth();  
+  const { token, sheetInfoCache } = useAuth();  
   const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
-  const [opsData, setOpsData] = useState<Awaited<ReturnType<typeof getOpsAndMainList>> | null>(null);
+  const [opsData, setOpsData] = useState<IOpsConfig | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
@@ -76,7 +77,7 @@ export const ProjectsPage = () => {
     if (token) {
       setIsLoading('Loading projects...');
       if (!sheetOpsRef.current) {
-        sheetOpsRef.current = await getSheetOps({ token });
+        sheetOpsRef.current = await getSheetOps({ token }, sheetInfoCache);
       }
       getOpsAndMainList(sheetOpsRef.current, { getOperations: () => [], doLog }).then(res => {
         setOpsData(res); // Save the complete response (including functions)

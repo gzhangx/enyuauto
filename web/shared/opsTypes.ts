@@ -1,8 +1,9 @@
+import type { ISheetInfoSimple } from "@gzhangx/googleapi/lib/googleApi";
 import type { ActionType } from "./types";
 
 import * as gs from '@gzhangx/googleapi';
 export type DueDateKeys = `${ActionType} Due Date`;
-type TaskIdKeys = `${ActionType} TaskId`;
+export type TaskIdKeys = `${ActionType} TaskId`;
 export interface Operation {
     '文件': string;
     '作者': string;
@@ -26,6 +27,8 @@ export type OperationWithDueDates = Operation & {
     [k in TaskIdKeys]: string;
 };
 
+export type IOperationWithLineNumber = OperationWithDueDates & { itemPositionOnSheet: number; };
+
 export interface OperationInfo {
     author: string;
     article: string;
@@ -41,9 +44,9 @@ export type Templates = {
         template: string;
         templateEnglish: string;
         taskIdPos: number;
-        taskIdLine: number;
-        taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
-        getExistingTaskId: (operation: OperationWithDueDates)=>string;
+        //taskIdLine: number;
+        //taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
+        //getExistingTaskId: (operation: OperationWithDueDates)=>string;
     }
 };
 
@@ -70,7 +73,7 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
 
 export interface IEditorInfoMap { [key: string]: IEditorInfo };
 export interface OperationAndTemplates {
-    validOperation: OperationWithDueDates;
+    validOperation: IOperationWithLineNumber;
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
     editorInfoMap: IEditorInfoMap;
@@ -87,9 +90,16 @@ export interface IEditorInfo {
 }
 
 export interface IOpsConfig {
-    operationList: OperationWithDueDates[];
+    operationList: IOperationWithLineNumber[];
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
     templates: Templates;
+}
+
+
+
+export interface ISheetInfoCache {
+    getCachedSheetInfo(): ISheetInfoSimple[] | null;
+    setCacheSheetInfo(data: ISheetInfoSimple[]): void;
 }
