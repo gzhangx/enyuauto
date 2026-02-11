@@ -1,6 +1,6 @@
 import type { ISheetInfoSimple } from '@gzhangx/googleapi/lib/googleApi';
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { ISheetInfoCache } from '../../shared/opsTypes';
+import type { IOpsConfig, ISheetInfoCache } from '../../shared/opsTypes';
 
 
 
@@ -11,6 +11,8 @@ interface AuthContextType {
   login: (token: string, expiresIn: number) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  opsConfig: IOpsConfig | null;
+  setOpsConfig: (config: IOpsConfig | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,6 +21,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [sheetInfoCached, setSheetInfoCached] = useState<ISheetInfoSimple[] | null>(null);
+  const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   // Load token from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem('google_token');
@@ -73,7 +76,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       token, expiresAt, login, logout, isAuthenticated, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
-      }
+      },
+      opsConfig, setOpsConfig,
     }}>
       {children}
     </AuthContext.Provider>

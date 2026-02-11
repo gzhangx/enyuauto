@@ -41,13 +41,12 @@ const useLogger = (displayDuration = 5000) => {
 };
 
 export const ProjectsPage = () => {
-  const { token, sheetInfoCache } = useAuth();  
+  const { token, sheetInfoCache, opsConfig, setOpsConfig } = useAuth();  
   const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
-  const [opsData, setOpsData] = useState<IOpsConfig | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, animationDuration } = useLogger(5000);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
@@ -74,13 +73,12 @@ export const ProjectsPage = () => {
   };
   async function fetchData() {
     console.log('useEffect run');
-    if (token) {
+    if (token && !!sheetOpsRef.current) {
       setIsLoading('Loading projects...');
-      if (!sheetOpsRef.current) {
-        sheetOpsRef.current = await getSheetOps({ token }, sheetInfoCache);
-      }
+      
+      sheetOpsRef.current = await getSheetOps({ token }, sheetInfoCache);
       getOpsAndMainList(sheetOpsRef.current, { getOperations: () => [], doLog }).then(res => {
-        setOpsData(res); // Save the complete response (including functions)
+        setOpsConfig(res); // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
           return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
@@ -95,7 +93,7 @@ export const ProjectsPage = () => {
         setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
       }).finally(() => {
         setIsLoading('');
-      });
+      });          
     }
   }
   useEffect(() => {
@@ -215,7 +213,7 @@ export const ProjectsPage = () => {
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>
-            {opsData?.groupAndMainProjectMapping.actions.map((action) => (
+            {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
               <th key={action} style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>
                 {action}
               </th>
@@ -229,7 +227,7 @@ export const ProjectsPage = () => {
               return <tr key={p.文章名+idx}>
                 <td><button className="btn btn-create" onClick={
                   async () => {
-                    if (opsData === null) {
+                    if (opsConfig === null) {
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
@@ -237,7 +235,7 @@ export const ProjectsPage = () => {
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {                        
-                        await processOperation(ops, freeCampOpsWithCache, opsData, p, {
+                        await processOperation(ops, freeCampOpsWithCache, opsConfig, p, {
                           getOperations: () => [], 
                           doLog: msg => {
                             console.log(msg);
@@ -262,13 +260,13 @@ export const ProjectsPage = () => {
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
-                {opsData?.groupAndMainProjectMapping.actions.map((action) => (
+                {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
                     {p[getTaskIdColumnName(action)] && p[getTaskIdColumnName(action)] !== 'done' && <button className="btn btn-delete" onClick={async () => {
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
                   //setResponseData(JSON.stringify(retData, null, 2));
-                  if (sheetOpsRef.current && opsData) {
-                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsData, p, action, { getOperations: () => [], doLog });
+                  if (sheetOpsRef.current && opsConfig) {
+                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
                   }
                     }}>Delete { p[getTaskIdColumnName(action)]}</button>}
                   </td>
