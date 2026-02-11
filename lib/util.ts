@@ -1,6 +1,6 @@
 import * as gs from '@gzhangx/googleapi';
 
-import type {LoginParams, LoginResponse, ActionTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/shared/freedcampTypes';
+import type {LoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps} from '../web/shared/freedcampTypes';
 
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {
@@ -56,7 +56,7 @@ ${json}${
         return res;
     }
 
-    async function doPostAttachment(taskId: string, params: ActionTaskParams): Promise<any> {
+    async function doPostAttachment(taskId: string, params: ProjectTaskParams): Promise<any> {
         return await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             ...params,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
@@ -64,7 +64,7 @@ ${json}${
         });
     }
 
-    async function createTask(projectAndGroup: ActionTaskParams, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ProjectTaskParams, title: string): Promise<CreateTaskResponse> {
         const res = await doPostMultiPart('/iapi/tasks',
             {
                 "title": title,

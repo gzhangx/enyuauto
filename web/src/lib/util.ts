@@ -1,5 +1,5 @@
 
-import type { ActionTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse } from '../../shared/freedcampTypes';
+import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { freedcampApi } from './api';
 
 
@@ -18,7 +18,7 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
 function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
     // Initialize session by logging in
 
-    async function doPostAttachment(taskId: string, params: ActionTaskParams): Promise<any> {
+    async function doPostAttachment(taskId: string, params: ProjectTaskParams): Promise<any> {
         const res = await freedcampApi({
             subAction: 'doPostAttachment',            
                 cookies: loginToken.Cookie,
@@ -30,7 +30,7 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
         return res;
     }
 
-    async function createTask(projectAndGroup: ActionTaskParams, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ProjectTaskParams, title: string): Promise<CreateTaskResponse> {
         const res = await freedcampApi<CreateTaskResponse>({
             subAction: 'createTask',
                 cookies: loginToken.Cookie,

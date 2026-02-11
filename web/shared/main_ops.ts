@@ -1,7 +1,7 @@
 
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from '../src/lib/types';
-import type { ActionTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
+import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 type DueDateKeys = `${ActionType} Due Date`;
@@ -260,7 +260,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     return configMap;
 }
 
-type IActionToProjectIdMapping  ={ [key in ActionType]: ActionTaskParams };
+type IActionToProjectIdMapping  ={ [key in ActionType]: ProjectTaskParams };
 // function getProjectGroupMapping(): IActionToProjectIdMapping {
 //     return {
 //         '校对': { "project_id": "3696514", "task_group_id": "6825082" },
@@ -414,7 +414,7 @@ export async function processOperation(
             taskIds.push(taskId);
             
             
-            const postParams: ActionTaskParams = {
+            const postParams: ProjectTaskParams = {
                 description: template1,
                 "priority":2,
             };

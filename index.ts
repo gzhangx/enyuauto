@@ -1,6 +1,6 @@
 import * as mainOps from './web/shared/main_ops';
 import * as util from './lib/util';
-import { ActionTaskParams, FreedCampProcessor, LoginResponse } from './web/shared/freedcampTypes';
+import { ProjectTaskParams, FreedCampProcessor, LoginResponse } from './web/shared/freedcampTypes';
 import * as secs from './enyu_secs.json';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
@@ -199,7 +199,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
             }),
           };
         }
-        const taskParams: ActionTaskParams = {
+        const taskParams: ProjectTaskParams = {
           project_id: projectId,
           priority: 2,
         };
@@ -244,7 +244,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
             }),
           };
         }
-        const attachParams: ActionTaskParams = {
+        const attachParams: ProjectTaskParams = {
           priority: 2,
         };
         if (params['description']) attachParams.description = params['description'];

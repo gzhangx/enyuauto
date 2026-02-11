@@ -7,7 +7,7 @@ export interface LoginResponse {
     Cookie: string;
 }
 
-export interface ActionTaskParams {
+export interface ProjectTaskParams {
     h_parent_id?: string;
     project_id?: string;
     //task_group_id: string;
@@ -30,8 +30,8 @@ export interface CreateTaskResponse {
 }
 
 export interface FreedCampProcessor {
-    doPostAttachment: (taskId: string, params: ActionTaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ActionTaskParams, title: string) => Promise<CreateTaskResponse>;
+    doPostAttachment: (taskId: string, params: ProjectTaskParams) => Promise<any>;
+    createTask: (projectAndGroup: ProjectTaskParams, title: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
 }
