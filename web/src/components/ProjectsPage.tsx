@@ -52,6 +52,8 @@ export const ProjectsPage = () => {
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+
+  const startupRunOnce = useRef(false);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
     getFreedCampToken: async (opsAndTemplates) => {
@@ -73,7 +75,7 @@ export const ProjectsPage = () => {
   };
   async function fetchData() {
     console.log('useEffect run');
-    if (token && !sheetOpsRef.current) {
+    if (token) {
       setIsLoading('Loading projects...');
       
       const ops = await getSheetOps({ token }, sheetInfoCache);
@@ -98,7 +100,10 @@ export const ProjectsPage = () => {
     }
   }
   useEffect(() => {
-    fetchData();
+    if (token && !startupRunOnce.current) {
+      startupRunOnce.current = true;
+      fetchData();
+    }
   },[token]);
 
   // Calculate animation speed based on number of messages
