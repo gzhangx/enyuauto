@@ -73,11 +73,11 @@ export const ProjectsPage = () => {
   };
   async function fetchData() {
     console.log('useEffect run');
-    if (token && !!sheetOpsRef.current) {
+    if (token && !sheetOpsRef.current) {
       setIsLoading('Loading projects...');
       
-      sheetOpsRef.current = await getSheetOps({ token }, sheetInfoCache);
-      getOpsAndMainList(sheetOpsRef.current, { getOperations: () => [], doLog }).then(res => {
+      const ops = await getSheetOps({ token }, sheetInfoCache);
+      await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(res => {
         setOpsConfig(res); // Save the complete response (including functions)
         //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
         const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
@@ -93,12 +93,13 @@ export const ProjectsPage = () => {
         setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
       }).finally(() => {
         setIsLoading('');
-      });          
+      });
+      sheetOpsRef.current = ops;
     }
   }
   useEffect(() => {
     fetchData();
-  },[token, doLog]);
+  },[token]);
 
   // Calculate animation speed based on number of messages
   if (isLoading) {
