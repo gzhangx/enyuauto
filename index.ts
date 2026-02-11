@@ -127,6 +127,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 
 // action: freedcamp
 // subAction: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment
+// getTasksForProjects: projectId, pageNumber
 // login: username, password
 // createTask: projectId, title, description?, assignedToId?, dueDate?, parentId?
 // deleteTask: taskId
@@ -140,7 +141,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     const subAction = params['subAction'];
     
     // For most actions, we need cookies (either from params or via login)
-    let processor: FreedCampProcessor | undefined;
+    let processor: FreedCampProcessor = null as unknown as FreedCampProcessor;
     if (subAction !== 'login') {
       let cookies: LoginResponse = {} as LoginResponse;
       
@@ -184,9 +185,11 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         result = sessionData;
         log.doLog('Retrieved session current data');
         break;
+      case 'getTasksForProjects':
+        result = await processor.getTasksForProjects(params['projectId'], parseInt(params['pageNumber'] || '1'));
+        break;
         
       case 'createTask':
-        if (!processor) throw new Error('Processor not initialized');
         const projectId = params['projectId'];
         const title = params['title'];
         if (!projectId || !title) {
@@ -214,7 +217,6 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         break;
         
       case 'deleteTask':
-        if (!processor) throw new Error('Processor not initialized');
         const taskId = params['taskId'];
         if (!taskId) {
           return {
@@ -232,7 +234,6 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         break;
         
       case 'doPostAttachment':
-        if (!processor) throw new Error('Processor not initialized');
         const attachTaskId = params['taskId'];
         if (!attachTaskId) {
           return {
