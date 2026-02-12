@@ -326,26 +326,51 @@ export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): Free
         getFreedCampProcessor,
     }
 }
-export async function processOperation(
-    ops: gs.gsAccount.IGetSheetOpsReturn,
-    freedCampOps: FreeCampAndUpdateOperations,    
-    opsAndTemplates: IOpsConfig,
-    operation: IOperationWithLineNumber,    
-    log: DebugLog,
-    debug_Prefix: string = ''
-): Promise<string[]> {
-    const { templates, editorInfoMap, groupAndMainProjectMapping } = opsAndTemplates;
-    const loginToken = await freedCampOps.getFreedCampToken(opsAndTemplates);
+
+export interface ICombinedOpsAndFreeCampData {
+    opsConfig: IOpsConfig;
+    userData: ICurrentSessionData;
+    userNameToInfoMap: { [key: string]: IUserInfo };
+    projectGroupMapping: IActionToProjectIdMapping;
+    loginToken: LoginResponse;
+}
+export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, freedCampOps: FreeCampAndUpdateOperations, log: DebugLog)
+:Promise<ICombinedOpsAndFreeCampData>
+{
+    const loginToken = await freedCampOps.getFreedCampToken(opsConfig);
     const pr = freedCampOps.getFreedCampProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
     
-    const taskIds = [];
     const userData = await pr.getSessionCurrentData();
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
         acc[user.full_name] = user;
         return acc;
     }, {} as { [key: string]: IUserInfo });
+    const projectGroupMapping = getActionToProjectIdMapping(userData, opsConfig.groupAndMainProjectMapping);
+
+    return {
+        loginToken,
+        opsConfig,
+        userData,
+        userNameToInfoMap,
+        projectGroupMapping,
+    }
+}
+
+export async function processOperation(
+    ops: gs.gsAccount.IGetSheetOpsReturn,
+    freedCampOps: FreeCampAndUpdateOperations,
+    combined: ICombinedOpsAndFreeCampData,    
+    operation: IOperationWithLineNumber,    
+    log: DebugLog,
+    debug_Prefix: string = ''
+): Promise<string[]> {
+    const { templates, editorInfoMap, groupAndMainProjectMapping } = combined.opsConfig;    
+    log.doLog('processOperation: got processor with login');
     
+    const taskIds = [];
+    
+    const pr = freedCampOps.getFreedCampProcessor(combined.loginToken);
     {
         const fileName = operation['文件'];
         const infos: OperationInfo = {
@@ -361,9 +386,8 @@ export async function processOperation(
         // Check if article is English-only (no Chinese characters)
         const isEnglishOnly = !/[\u4e00-\u9fff]/.test(infos.article);
         
-        //const projectGroupMapping = getProjectGroupMapping();
-        const projectGroupMapping = getActionToProjectIdMapping(userData, opsAndTemplates.groupAndMainProjectMapping);
-        for (const action of opsAndTemplates.groupAndMainProjectMapping.actions) {
+        //const projectGroupMapping = getProjectGroupMapping();        
+        for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
@@ -396,12 +420,12 @@ export async function processOperation(
             }
 
 
-            let projectGrpoup = projectGroupMapping[action];
+            let projectGrpoup = combined.projectGroupMapping[action];
             const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
                 const h_parent_id = getExistingTaskId(subTaskOf, operation);
-                projectGrpoup = { ...projectGroupMapping[subTaskOf] };
+                projectGrpoup = { ...combined.projectGroupMapping[subTaskOf] };
                 projectGrpoup.h_parent_id = h_parent_id;
                 projectGrpoup.description = template1;
                 taskTitle = action;
@@ -411,7 +435,7 @@ export async function processOperation(
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
             operation[getTaskIdColumnName(action)] = taskId;
-            await taskIdUpdater(ops, opsAndTemplates, action, operation, log);
+            await taskIdUpdater(ops, combined.opsConfig, action, operation, log);
             taskIds.push(taskId);
             
             
@@ -426,7 +450,7 @@ export async function processOperation(
                 postParams.due_date = due_date;
             }
             if (editor) {
-                const userInfo = userNameToInfoMap[editor];
+                const userInfo = combined.userNameToInfoMap[editor];
                 if (userInfo) {
                     //DEBUG don't assign it sends email
                     //postParams.assigned_to_id = userInfo.user_id;
@@ -493,7 +517,8 @@ export async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: F
         log.doLog('processOperation: no such line number ' + lineNumber);
         return undefined;
     }
-    const ids = await processOperation(ops, fops, opsAndTemplates, validOperation, log, prefix);
+    const combined = await combineOpsConfigWithFreedCampData(opsAndTemplates, fops, log);
+    const ids = await processOperation(ops, fops, combined, validOperation, log, prefix);
     return {
         ids, 
         ...opsAndTemplates,

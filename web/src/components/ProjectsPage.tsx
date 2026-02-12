@@ -4,7 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import {
   getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation,deleteItemActionTask,
   type FreeCampAndUpdateOperations,
-  loadMainData
+  loadMainData,
+  combineOpsConfigWithFreedCampData,
+  type DebugLog
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -294,14 +296,16 @@ export const ProjectsPage = () => {
                     setIsLoading('Creating project...');
                     try {
                       const ops = sheetOpsRef.current;
-                      if (ops) {                        
-                        await processOperation(ops, freeCampOpsWithCache, opsConfig, p, {
-                          getOperations: () => [], 
+                      if (ops) {
+                        const logs: DebugLog = {
+                          getOperations: () => [],
                           doLog: msg => {
                             console.log(msg);
                             setProgressText(msg);
                           }
-                         });
+                        };
+                        const combined = await combineOpsConfigWithFreedCampData(opsConfig, freeCampOpsWithCache, logs);
+                        await processOperation(ops, freeCampOpsWithCache, combined, p, logs);
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
