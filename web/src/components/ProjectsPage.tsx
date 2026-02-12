@@ -3,7 +3,8 @@ import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
   getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation,deleteItemActionTask,
-  type FreeCampAndUpdateOperations
+  type FreeCampAndUpdateOperations,
+  loadMainData
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -76,27 +77,39 @@ export const ProjectsPage = () => {
   async function fetchData() {
     console.log('useEffect run');
     if (token) {
-      setIsLoading('Loading projects...');
-      
       const ops = await getSheetOps({ token }, sheetInfoCache);
-      await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(res => {
-        setOpsConfig(res); // Save the complete response (including functions)
-        //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-        const list = res.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
-          return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
-            return acc || item[getTaskIdColumnName(action)] != 'done';
-          }, false) && item.文件.trim() !== '';
-        });
-        setProjectList(list);
-      }).catch(error => {
-        console.error('Error loading projects:', error);
-        setResponseData(`Error: ${error.message || String(error)}`);
-        doLog(`Error: ${error.message || String(error)}`);
-        setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
-      }).finally(() => {
+      if (opsConfig) {
+        setIsLoading('Loading projects only...');
+        const res = await loadMainData(ops);
+        prepareData(res, opsConfig);
         setIsLoading('');
-      });
+      } else {
+        setIsLoading('Loading projects and config...');
+      
+        
+        await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(res => {
+          setOpsConfig(res); // Save the complete response (including functions)
+          //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
+          prepareData(res, res);
+        }).catch(error => {
+          console.error('Error loading projects:', error);
+          setResponseData(`Error: ${error.message || String(error)}`);
+          doLog(`Error: ${error.message || String(error)}`);
+          setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
+        }).finally(() => {
+          setIsLoading('');
+        });
+      }
       sheetOpsRef.current = ops;
+    }
+
+    function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
+      const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
+        return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
+          return acc || item[getTaskIdColumnName(action)] != 'done';
+        }, false) && item.文件.trim() !== '';
+      });
+      setProjectList(list);
     }
   }
   useEffect(() => {
