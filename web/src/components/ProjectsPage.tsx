@@ -47,7 +47,7 @@ const useLogger = (displayDuration = 5000) => {
 };
 
 export const ProjectsPage = () => {
-  const { token, sheetInfoCache, opsConfig, setOpsConfig } = useAuth();  
+  const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
   const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
@@ -58,7 +58,7 @@ export const ProjectsPage = () => {
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
-  const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
+  
 
   const startupRunOnce = useRef(false);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
