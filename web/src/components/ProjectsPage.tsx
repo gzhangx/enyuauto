@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, use } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -82,16 +82,16 @@ export const ProjectsPage = () => {
       if (opsConfig) {
         setIsLoading('Loading projects only...');
         const res = await loadMainData(ops);
-        prepareData(res, opsConfig);
+        await prepareData(res, opsConfig);
         setIsLoading('');
       } else {
         setIsLoading('Loading projects and config...');
       
         
-        await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(res => {
+        await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-          prepareData(res, res);
+          await prepareData(res, res);
         }).catch(error => {
           console.error('Error loading projects:', error);
           setResponseData(`Error: ${error.message || String(error)}`);
@@ -104,12 +104,13 @@ export const ProjectsPage = () => {
       sheetOpsRef.current = ops;
     }
 
-    function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
+    async function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
       const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
         return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
           return acc || item[getTaskIdColumnName(action)] != 'done';
         }, false) && item.文件.trim() !== '';
       });
+      
       setProjectList(list);
     }
   }
@@ -118,7 +119,23 @@ export const ProjectsPage = () => {
       startupRunOnce.current = true;
       fetchData();
     }
-  },[token]);
+  }, [token]);
+  
+  useEffect(() => {
+    if (!opsConfig) return;
+    console.log('Checking for done sub-tasks to mark main tasks as done...');
+      opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
+        const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+        if (actionInfo && actionInfo.subTaskOf) {
+          const subTaskOfAction = actionInfo.subTaskOf;
+          projectList.forEach(item => {
+            if (item[getTaskIdColumnName(subTaskOfAction)] === 'done' && !item[getTaskIdColumnName(action)]) {
+              console.log(`EARNNN ${item.文件} ${item.文章名} ${action} as done for line ${item.itemPositionOnSheet} because ${subTaskOfAction} is done`);
+            }
+          });
+        }
+      });
+  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId]);
 
 
   const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
