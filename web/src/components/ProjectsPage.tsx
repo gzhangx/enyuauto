@@ -10,6 +10,7 @@ import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOpsConfig } from '../../shared/opsTypes';
+import type { ActionType } from '../lib/api';
 
 
 type LogMessage = {
@@ -118,6 +119,29 @@ export const ProjectsPage = () => {
       fetchData();
     }
   },[token]);
+
+
+  const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
+    const taskId = p[getTaskIdColumnName(action)];
+    
+    if (!taskId) {
+      return null;
+    }
+
+    if (taskId === 'done') {
+      return <span style={{ color: 'green', fontWeight: 'bold' }}>Done</span>;
+    }
+
+    return (
+      <button className="btn btn-delete" onClick={async () => {
+        //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
+        //setResponseData(JSON.stringify(retData, null, 2));
+        if (sheetOpsRef.current && opsConfig) {
+          await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
+        }
+      }}>Delete {p[getTaskIdColumnName(action)]}</button>
+    );
+  };
 
   // Calculate animation speed based on number of messages
   if (isLoading) {
@@ -281,13 +305,7 @@ export const ProjectsPage = () => {
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
-                    {p[getTaskIdColumnName(action)] && p[getTaskIdColumnName(action)] !== 'done' && <button className="btn btn-delete" onClick={async () => {
-                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-                  //setResponseData(JSON.stringify(retData, null, 2));
-                  if (sheetOpsRef.current && opsConfig) {
-                    await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
-                  }
-                    }}>Delete { p[getTaskIdColumnName(action)]}</button>}
+                    {renderActionCell(p, action)}
                   </td>
                 ))}
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>
