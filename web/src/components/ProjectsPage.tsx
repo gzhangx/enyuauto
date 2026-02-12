@@ -6,13 +6,15 @@ import {
   type FreeCampAndUpdateOperations,
   loadMainData,
   combineOpsConfigWithFreedCampData,
-  type DebugLog
+  type DebugLog,
+  type ICombinedOpsAndFreeCampData
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
+import { set } from '@gzhangx/googleapi/lib/util';
 
 
 type LogMessage = {
@@ -56,6 +58,7 @@ export const ProjectsPage = () => {
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+  const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
 
   const startupRunOnce = useRef(false);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
@@ -89,10 +92,12 @@ export const ProjectsPage = () => {
       } else {
         setIsLoading('Loading projects and config...');
       
-        
-        await getOpsAndMainList(ops, { getOperations: () => [], doLog }).then(async res => {
+        const logs = { getOperations: () => [], doLog }
+        await getOpsAndMainList(ops, logs).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
+          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logs);
+          setCombinedOpsAndData(combined);
           await prepareData(res, res);
         }).catch(error => {
           console.error('Error loading projects:', error);
@@ -304,8 +309,9 @@ export const ProjectsPage = () => {
                             setProgressText(msg);
                           }
                         };
-                        const combined = await combineOpsConfigWithFreedCampData(opsConfig, freeCampOpsWithCache, logs);
-                        await processOperation(ops, freeCampOpsWithCache, combined, p, logs);
+                        if (combinedOpsAndData) {
+                          await processOperation(ops, freeCampOpsWithCache, combinedOpsAndData, p, logs);
+                        }
                       }
                     } catch (error: any) {
                       console.error('Error creating project:', error);                                            
