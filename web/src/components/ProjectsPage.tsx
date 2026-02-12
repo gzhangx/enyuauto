@@ -142,7 +142,7 @@ export const ProjectsPage = () => {
           });
         }
       });
-  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId]);
+  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData]);
 
 
   const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
