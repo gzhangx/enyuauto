@@ -142,6 +142,7 @@ export const ProjectsPage = () => {
         };
       };
     } = {};
+    setIsLoading(prev => ({ ...prev, freeCampLoading: 'Checking for done sub-tasks to mark main tasks as done...' }));
     console.log('Checking for done sub-tasks to mark main tasks as done...');
       opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
         const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
@@ -172,6 +173,7 @@ export const ProjectsPage = () => {
       for (const action of opsConfig.groupAndMainProjectMapping.actions) {
         const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
         if (actionInfo) {
+          setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
           const prjs = await pr.getTasksForProjects(actionInfo.project_id, 1);
           for (const itm of projectList) {
             const freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
@@ -201,6 +203,7 @@ export const ProjectsPage = () => {
     if (updated) {
       setProjectList([...projectList]);
     }
+    setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));
   }
   useEffect(() => {    
     updateDoneParentIds();
