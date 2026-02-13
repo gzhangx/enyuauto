@@ -8,6 +8,7 @@ import {
   combineOpsConfigWithFreedCampData,
   type DebugLog,
   completeDateUpdater,
+  type ICombinedOpsAndFreeCampData,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -90,10 +91,11 @@ export const ProjectsPage = () => {
     console.log('useEffect run');
     if (token) {
       const ops = await getSheetOps({ token }, sheetInfoCache);
-      if (opsConfig) {
+      if (opsConfig &&combinedOpsAndData) {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
-        await prepareData(res, opsConfig);
+        updateDoneParentIds(combinedOpsAndData, res.operationList);
+        prepareData(res, opsConfig);
         setIsLoading(prev=>({ ...prev, listLoading: '' }));
       } else {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects and config...' }));
@@ -102,9 +104,23 @@ export const ProjectsPage = () => {
         await getOpsAndMainList(ops, logParam).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logParam);
+          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logParam);          
+
+          //--------------------------- get freecamp data        
+          const pr = freeCampOpsWithCache.getFreedCampProcessor(combined.loginToken);
+          for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+            const actionInfo = combined.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+            if (actionInfo) {
+              setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
+              const prjs = await pr.getTasksForProjects(actionInfo.project_id, 1);
+              combined.freedCampTasksByAction[action] = prjs;
+            }
+          }
           setCombinedOpsAndData(combined);
-          await prepareData(res, res);
+          updateDoneParentIds(combined, res.operationList);
+          setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));      
+          //---------------------------
+          prepareData(res, res);
         }).catch(error => {
           console.error('Error loading projects:', error);
           setResponseData(`Error: ${error.message || String(error)}`);
@@ -117,7 +133,7 @@ export const ProjectsPage = () => {
       sheetOpsRef.current = ops;
     }
 
-    async function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
+    function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
       const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
         return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
           return acc || item[getTaskIdColumnName(action)] != 'done';
@@ -134,8 +150,8 @@ export const ProjectsPage = () => {
     }
   }, [token]);
   
-  async function updateDoneParentIds() {
-    if (!opsConfig) return;
+  function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampData, projectList: IOperationWithLineNumberAndParentTaskId[]) {
+    const opsConfig = combinedOpsAndData.opsConfig;
     const actionToTitleToProjectAndTaskIdMap: {
       [action in ActionType]?: {
         [title: string]: {
@@ -145,7 +161,6 @@ export const ProjectsPage = () => {
         };
       };
     } = {};
-    setIsLoading(prev => ({ ...prev, freeCampLoading: 'Checking for done sub-tasks to mark main tasks as done...' }));
     console.log('Checking for done sub-tasks to mark main tasks as done...');
       opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
         const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
@@ -169,15 +184,15 @@ export const ProjectsPage = () => {
         }
       });
     
-    const loginToken = combinedOpsAndData?.loginToken;
     let updated = false;
-    if (loginToken) {
-      const pr = freeCampOpsWithCache.getFreedCampProcessor(loginToken);
+    if (combinedOpsAndData)
+    {
+      //const pr = freeCampOpsWithCache.getFreedCampProcessor(loginToken);
       for (const action of opsConfig.groupAndMainProjectMapping.actions) {
         const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
         if (actionInfo) {
-          setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
-          const prjs = await pr.getTasksForProjects(actionInfo.project_id, 1);
+          //setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
+          const prjs = combinedOpsAndData.freedCampTasksByAction[action];
           for (const itm of projectList) {
             const freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
             if (freedCampTsk) {
@@ -185,9 +200,9 @@ export const ProjectsPage = () => {
             }
           }
         }
-
-        //const subTaskWithParentDone = actionToTitleToProjectAndTaskIdMap[action];
       }
+
+        //const subTaskWithParentDone = actionToTitleToProjectAndTaskIdMap[action];      
       // for (const actionName of Object.keys(actionToTitleToProjectAndTaskIdMap)) {
       //   const cnt = actionToTitleToProjectAndTaskIdMap[actionName as ActionType] || {};
       //   for (const title of Object.keys(cnt)) {
@@ -204,13 +219,10 @@ export const ProjectsPage = () => {
       // }
     }
     if (updated) {
-      setProjectList([...projectList]);
+      //setProjectList([...projectList]);
     }
-    setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));
+    //setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));
   }
-  useEffect(() => {    
-    updateDoneParentIds();
-  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData, projectList.length]);
 
 
   const renderActionCell = (p: IOperationWithLineNumberAndParentTaskId, action: ActionType) => {

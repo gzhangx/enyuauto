@@ -1,7 +1,7 @@
 
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
-import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
+import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
@@ -345,6 +345,7 @@ export interface ICombinedOpsAndFreeCampData {
     userNameToInfoMap: { [key: string]: IUserInfo };
     projectGroupMapping: IActionToProjectIdMapping;
     loginToken: LoginResponse;
+    freedCampTasksByAction: { [key in ActionType]: IProjectTasksResult };
 }
 export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, freedCampOps: FreeCampAndUpdateOperations, log: DebugLog)
 :Promise<ICombinedOpsAndFreeCampData>
@@ -366,6 +367,7 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
         userData,
         userNameToInfoMap,
         projectGroupMapping,
+        freedCampTasksByAction: {} as { [key in ActionType]: IProjectTasksResult },
     }
 }
 
