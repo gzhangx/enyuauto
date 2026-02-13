@@ -29,6 +29,15 @@ export type OperationWithDueDates = Operation & {
 
 export type IOperationWithLineNumber = OperationWithDueDates & { itemPositionOnSheet: number; };
 
+export type ParentTaskIdKeys = `${ActionType} ParentTaskId`;
+export function getParentTaskIdColumnName(action: ActionType): ParentTaskIdKeys {
+    return `${action} ParentTaskId`;
+}
+// this is not on sheet, but used to store parent task id in memory in case parent task is done and we have to retrive parent task id
+export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
+      [k in ParentTaskIdKeys]?: string;
+};
+
 export interface OperationInfo {
     author: string;
     article: string;

@@ -7,12 +7,11 @@ import {
   loadMainData,
   combineOpsConfigWithFreedCampData,
   type DebugLog,
-  type ICombinedOpsAndFreeCampData
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
-import { getTaskIdColumnName, type IOperationWithLineNumber, type IOpsConfig } from '../../shared/opsTypes';
+import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
 
 
@@ -46,10 +45,6 @@ const useLogger = (displayDuration = 5000) => {
 };
 
 
-export type ParentTaskIdKeys = `${ActionType} ParentTaskId`;
-type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
-      [k in ParentTaskIdKeys]?: string;
-};
 export const ProjectsPage = () => {
   const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
