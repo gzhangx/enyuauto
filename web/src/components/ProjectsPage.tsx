@@ -186,7 +186,7 @@ export const ProjectsPage = () => {
   }
   useEffect(() => {    
     updateDoneParentIds();
-  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData, projectList]);
+  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData, projectList.length]);
 
 
   const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
