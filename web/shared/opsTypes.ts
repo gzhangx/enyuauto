@@ -3,6 +3,7 @@ import type { ActionType } from "./types";
 
 import * as gs from '@gzhangx/googleapi';
 export type DueDateKeys = `${ActionType} Due Date`;
+export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
 export interface Operation {
     '文件': string;
@@ -25,6 +26,8 @@ export type OperationWithDueDates = Operation & {
     [K in DueDateKeys]: string;    
 } & {
     [k in TaskIdKeys]: string;
+}& {
+    [k in CompleteDateKeys]: string;
 };
 
 export type IOperationWithLineNumber = OperationWithDueDates & { itemPositionOnSheet: number; };
