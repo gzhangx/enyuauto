@@ -69,7 +69,7 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
             projectId,
             pageNumber,
         });
-        return res as IProjectTasksResult;
+        return res.data as IProjectTasksResult;
     }
 
     return {

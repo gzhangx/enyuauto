@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback, use } from 'react'
+import { useEffect, useState, useRef, useCallback} from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -14,7 +14,6 @@ import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
-import { set } from '@gzhangx/googleapi/lib/util';
 
 
 type LogMessage = {
@@ -46,9 +45,14 @@ const useLogger = (displayDuration = 5000) => {
   return { logMessages, doLog, animationDuration };
 };
 
+
+export type ParentTaskIdKeys = `${ActionType} ParentTaskId`;
+type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
+      [k in ParentTaskIdKeys]?: string;
+};
 export const ProjectsPage = () => {
   const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
-  const [projectList, setProjectList] = useState<IOperationWithLineNumber[]>([]);
+  const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState('');
   const [progressText, setProgressText] = useState('');
@@ -128,8 +132,17 @@ export const ProjectsPage = () => {
     }
   }, [token]);
   
-  useEffect(() => {
+  async function updateDoneParentIds() {
     if (!opsConfig) return;
+    const actionToTitleToProjectAndTaskIdMap: {
+      [action in ActionType]?: {
+        [title: string]: {
+          projectId: string;
+          taskId: string;
+          task: IOperationWithLineNumberAndParentTaskId;
+        };
+      };
+    } = {};
     console.log('Checking for done sub-tasks to mark main tasks as done...');
       opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
         const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
@@ -138,11 +151,47 @@ export const ProjectsPage = () => {
           projectList.forEach(item => {
             if (item[getTaskIdColumnName(subTaskOfAction)] === 'done' && !item[getTaskIdColumnName(action)]) {
               console.log(`EARNNN ${item.文件} ${item.文章名} ${action} as done for line ${item.itemPositionOnSheet} because ${subTaskOfAction} is done`);
+              const prj = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[subTaskOfAction];
+              if (prj) {
+                console.log(`Debugrm parent project ${subTaskOfAction} project id ${prj.project_id} to check if all sub-tasks are done`);
+                if (!actionToTitleToProjectAndTaskIdMap[subTaskOfAction]) actionToTitleToProjectAndTaskIdMap[subTaskOfAction] = {};                
+                actionToTitleToProjectAndTaskIdMap[subTaskOfAction]![item.文件] = {
+                  projectId: prj.project_id,
+                  taskId: '',
+                  task: item,
+                };
+              }
             }
           });
         }
       });
-  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData]);
+    
+    const loginToken = combinedOpsAndData?.loginToken;
+    let updated = false;
+    if (loginToken) {
+      const pr = freeCampOpsWithCache.getFreedCampProcessor(loginToken);
+      for (const actionName of Object.keys(actionToTitleToProjectAndTaskIdMap)) {
+        const cnt = actionToTitleToProjectAndTaskIdMap[actionName as ActionType] || {};
+        for (const title of Object.keys(cnt)) {
+          const tskAndPrj = cnt[title];
+          const prjs = await pr.getTasksForProjects(tskAndPrj.projectId, 1);
+          const tsk = prjs.tasks.find(tsk => tsk.title === title);
+          if (tsk) {
+            tskAndPrj.taskId = tsk.id || '';
+            tskAndPrj.task[`${actionName as ActionType} ParentTaskId`] = tskAndPrj.taskId;
+            console.log('debugremove setting task id for', title, 'to', tsk.id);
+            updated = true;
+          }
+        }        
+      }
+    }
+    if (updated) {
+      setProjectList([...projectList]);
+    }
+  }
+  useEffect(() => {    
+    updateDoneParentIds();
+  }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData, projectList]);
 
 
   const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
