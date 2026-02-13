@@ -7,6 +7,7 @@ import {
   loadMainData,
   combineOpsConfigWithFreedCampData,
   type DebugLog,
+  completeDateUpdater,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -83,6 +84,8 @@ export const ProjectsPage = () => {
       return newToken;
     },    
   };
+
+  const logParam = { getOperations: () => [], doLog }
   async function fetchData() {
     console.log('useEffect run');
     if (token) {
@@ -95,11 +98,11 @@ export const ProjectsPage = () => {
       } else {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects and config...' }));
       
-        const logs = { getOperations: () => [], doLog }
-        await getOpsAndMainList(ops, logs).then(async res => {
+        
+        await getOpsAndMainList(ops, logParam).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logs);
+          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logParam);
           setCombinedOpsAndData(combined);
           await prepareData(res, res);
         }).catch(error => {
@@ -239,20 +242,59 @@ export const ProjectsPage = () => {
       return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>Done</span>;
     }
 
+    const hasCompletedDate = freedCampItem?.completed_ts;
+
     return (
-      <button 
-        className="btn btn-delete" 
-        title={tooltipText}
-        onClick={async () => {
-          //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-          //setResponseData(JSON.stringify(retData, null, 2));
-          if (sheetOpsRef.current && opsConfig) {
-            await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
-          }
-        }}
-      >
-        Delete {p[getTaskIdColumnName(action)]}
-      </button>
+      <>
+        <button 
+          className="btn btn-delete" 
+          title={tooltipText}
+          onClick={async () => {
+            //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
+            //setResponseData(JSON.stringify(retData, null, 2));
+            if (sheetOpsRef.current && opsConfig) {
+              await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
+            }
+          }}
+        >
+          Delete {p[getTaskIdColumnName(action)]}
+        </button>
+        {hasCompletedDate && (
+          <button
+            className="btn btn-create"
+            style={{ marginLeft: '5px' }}
+            title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
+            onClick={async () => {
+              if (sheetOpsRef.current && opsConfig) {
+                try {
+                  const completedDate = new Date(hasCompletedDate * 1000);
+                  const formattedDate = completedDate.toLocaleDateString();
+                  
+                  // Update the sheet with 'done' status
+                  await completeDateUpdater(
+                    sheetOpsRef.current,
+                    opsConfig,
+                    action,
+                    p,
+                    'done',
+                    logParam
+                  );
+                  
+                  doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
+                  
+                  // Refresh the data
+                  await fetchData();
+                } catch (error: any) {
+                  console.error('Error updating sheet:', error);
+                  setErrorDialog({ show: true, message: `Failed to update sheet:\n${error.message || String(error)}` });
+                }
+              }
+            }}
+          >
+            Mark Done
+          </button>
+        )}
+      </>
     );
   };
 
