@@ -216,7 +216,7 @@ export const ProjectsPage = () => {
   };
 
   // Calculate animation speed based on number of messages
-  if (isLoading.listLoading || isLoading.freeCampLoading) {
+  if (isLoading.listLoading || isLoading.freeCampLoading || isLoading.projectButtonAction) {
     return (
       <div style={{
         display: 'flex',
@@ -236,6 +236,7 @@ export const ProjectsPage = () => {
         }}></div>
         <h2 style={{ margin: 0, color: '#555' }}>{isLoading.listLoading}</h2>
         <h2 style={{ margin: 0, color: '#555' }}>{isLoading.freeCampLoading}</h2>
+        <h2 style={{ margin: 0, color: '#555' }}>{isLoading.projectButtonAction}</h2>
         {progressText && (
           <div style={{ 
             maxWidth: '600px', 
