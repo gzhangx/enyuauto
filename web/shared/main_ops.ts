@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
-import { getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -113,6 +113,16 @@ async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IO
     });
 }
 
+export async function completeDateUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) {
+    const lineNumber: number = item.itemPositionOnSheet;
+    const index = opsConfig.templates[key].completeDatePos;    
+    log.doLog(`update complete date: ${val} at line ${lineNumber} for action ${key}  `);
+    await ops.autoUpdateValues('main', [[val]], {
+        row: lineNumber,
+        col: index,
+    });
+}
+
 export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];
@@ -150,6 +160,7 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
                 template: templateChinese,
                 templateEnglish,
                 taskIdPos: -1, //headers.values[0].indexOf(templateName),
+                completeDatePos: -1,
                 //getExistingTaskId: (operation: OperationWithDueDates) => operation[getTaskIdColumnName(templateName as ActionType) as DueDateKeys]
             };
         }
@@ -162,8 +173,9 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
             if (item === getTaskIdColumnName(key)) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
                 templates[key].taskIdPos = index;
-                //await templates[key].taskIdUpdater('test' + key + "test");
-                break;
+                //await templates[key].taskIdUpdater('test' + key + "test");                
+            } else if (item === getCompleteDateColumnName(key)) {
+                templates[key].completeDatePos = index;
             }
         }        
     }

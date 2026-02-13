@@ -24,6 +24,10 @@ export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
     return `${action} TaskId`;
 }
 
+export function getCompleteDateColumnName(action: ActionType): CompleteDateKeys {
+    return `${action} Complete Date`;
+}
+
 export type OperationWithDueDates = Operation & {
     [K in DueDateKeys]: string;    
 } & {
@@ -60,6 +64,7 @@ export type Templates = {
         template: string;
         templateEnglish: string;
         taskIdPos: number;
+        completeDatePos: number;
         //taskIdLine: number;
         //taskIdUpdater: (newTaskId: string, lineNumber: number) => Promise<void>;
         //getExistingTaskId: (operation: OperationWithDueDates)=>string;
