@@ -169,20 +169,34 @@ export const ProjectsPage = () => {
     let updated = false;
     if (loginToken) {
       const pr = freeCampOpsWithCache.getFreedCampProcessor(loginToken);
-      for (const actionName of Object.keys(actionToTitleToProjectAndTaskIdMap)) {
-        const cnt = actionToTitleToProjectAndTaskIdMap[actionName as ActionType] || {};
-        for (const title of Object.keys(cnt)) {
-          const tskAndPrj = cnt[title];
-          const prjs = await pr.getTasksForProjects(tskAndPrj.projectId, 1);
-          const tsk = prjs.tasks.find(tsk => tsk.title === title);
-          if (tsk) {
-            tskAndPrj.taskId = tsk.id || '';
-            tskAndPrj.task[`${actionName as ActionType} ParentTaskId`] = tskAndPrj.taskId;
-            console.log('debugremove setting task id for', title, 'to', tsk.id);
-            updated = true;
+      for (const action of opsConfig.groupAndMainProjectMapping.actions) {
+        const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+        if (actionInfo) {
+          const prjs = await pr.getTasksForProjects(actionInfo.project_id, 1);
+          for (const itm of projectList) {
+            const freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
+            if (freedCampTsk) {
+              itm[`${action} FreeCamp Item`] = freedCampTsk;
+            }
           }
-        }        
+        }
+
+        //const subTaskWithParentDone = actionToTitleToProjectAndTaskIdMap[action];
       }
+      // for (const actionName of Object.keys(actionToTitleToProjectAndTaskIdMap)) {
+      //   const cnt = actionToTitleToProjectAndTaskIdMap[actionName as ActionType] || {};
+      //   for (const title of Object.keys(cnt)) {
+      //     const tskAndPrj = cnt[title];
+      //     const prjs = await pr.getTasksForProjects(tskAndPrj.projectId, 1);
+      //     const tsk = prjs.tasks.find(tsk => tsk.title === title);
+      //     if (tsk) {
+      //       tskAndPrj.taskId = tsk.id || '';
+      //       tskAndPrj.task[`${actionName as ActionType} ParentTaskId`] = tskAndPrj.taskId;
+      //       console.log('debugremove setting task id for', title, 'to', tsk.id);
+      //       updated = true;
+      //     }
+      //   }        
+      // }
     }
     if (updated) {
       setProjectList([...projectList]);

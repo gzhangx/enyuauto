@@ -2,10 +2,11 @@ import type { ISheetInfoSimple } from "@gzhangx/googleapi/lib/googleApi";
 import type { ActionType } from "./types";
 
 import * as gs from '@gzhangx/googleapi';
+import type { ProjectTaskParams } from "./freedcampTypes";
 export type DueDateKeys = `${ActionType} Due Date`;
 export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
-export type FreeCampCompleteDateKeys = `${ActionType} FreeCamp Complete Date`;
+export type FreeCampItemKeys = `${ActionType} FreeCamp Item`;
 export interface Operation {
     '文件': string;
     '作者': string;
@@ -41,7 +42,7 @@ export function getParentTaskIdColumnName(action: ActionType): ParentTaskIdKeys 
 export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
       [k in ParentTaskIdKeys]?: string;
 } & {
-    [k in FreeCampCompleteDateKeys]?: string;
+    [k in FreeCampItemKeys]?: ProjectTaskParams;
 };
 
 export interface OperationInfo {
