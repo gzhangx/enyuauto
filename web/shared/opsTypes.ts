@@ -5,6 +5,7 @@ import * as gs from '@gzhangx/googleapi';
 export type DueDateKeys = `${ActionType} Due Date`;
 export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
+export type FreeCampCompleteDateKeys = `${ActionType} FreeCamp Complete Date`;
 export interface Operation {
     '文件': string;
     '作者': string;
@@ -39,6 +40,8 @@ export function getParentTaskIdColumnName(action: ActionType): ParentTaskIdKeys 
 // this is not on sheet, but used to store parent task id in memory in case parent task is done and we have to retrive parent task id
 export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
       [k in ParentTaskIdKeys]?: string;
+} & {
+    [k in FreeCampCompleteDateKeys]?: string;
 };
 
 export interface OperationInfo {

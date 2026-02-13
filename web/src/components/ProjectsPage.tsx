@@ -49,7 +49,11 @@ export const ProjectsPage = () => {
   const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
-  const [isLoading, setIsLoading] = useState('');
+  const [isLoading, setIsLoading] = useState({
+    listLoading: '',
+    freeCampLoading: '',
+    projectButtonAction: '',
+  });
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -84,12 +88,12 @@ export const ProjectsPage = () => {
     if (token) {
       const ops = await getSheetOps({ token }, sheetInfoCache);
       if (opsConfig) {
-        setIsLoading('Loading projects only...');
+        setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
         await prepareData(res, opsConfig);
-        setIsLoading('');
+        setIsLoading(prev=>({ ...prev, listLoading: '' }));
       } else {
-        setIsLoading('Loading projects and config...');
+        setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects and config...' }));
       
         const logs = { getOperations: () => [], doLog }
         await getOpsAndMainList(ops, logs).then(async res => {
@@ -104,7 +108,7 @@ export const ProjectsPage = () => {
           doLog(`Error: ${error.message || String(error)}`);
           setErrorDialog({ show: true, message: `Failed to load projects:\n${error.message || String(error)}` });
         }).finally(() => {
-          setIsLoading('');
+          setIsLoading(prev => ({ ...prev, listLoading: '' }));
         });
       }
       sheetOpsRef.current = ops;
@@ -212,7 +216,7 @@ export const ProjectsPage = () => {
   };
 
   // Calculate animation speed based on number of messages
-  if (isLoading) {
+  if (isLoading.listLoading || isLoading.freeCampLoading) {
     return (
       <div style={{
         display: 'flex',
@@ -230,7 +234,8 @@ export const ProjectsPage = () => {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }}></div>
-        <h2 style={{ margin: 0, color: '#555' }}>{isLoading}</h2>
+        <h2 style={{ margin: 0, color: '#555' }}>{isLoading.listLoading}</h2>
+        <h2 style={{ margin: 0, color: '#555' }}>{isLoading.freeCampLoading}</h2>
         {progressText && (
           <div style={{ 
             maxWidth: '600px', 
@@ -342,7 +347,7 @@ export const ProjectsPage = () => {
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
-                    setIsLoading('Creating project...');
+                    setIsLoading(prev => ({ ...prev, projectButtonAction: 'Creating project...' }));
                     try {
                       const ops = sheetOpsRef.current;
                       if (ops) {
@@ -362,7 +367,7 @@ export const ProjectsPage = () => {
                       setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
                       return;
                     } finally {
-                      setIsLoading('');
+                      setIsLoading(prev => ({ ...prev, projectButtonAction: '' }));
                       setProgressText('');
                     }
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
