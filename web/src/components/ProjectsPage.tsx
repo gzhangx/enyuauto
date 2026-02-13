@@ -276,7 +276,7 @@ export const ProjectsPage = () => {
                     opsConfig,
                     action,
                     p,
-                    'done',
+                    formattedDate,
                     logParam
                   );
                   
