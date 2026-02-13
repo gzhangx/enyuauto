@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse } from './freedcampTypes';
-import { getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
+import { getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -361,7 +361,7 @@ export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
     freedCampOps: FreeCampAndUpdateOperations,
     combined: ICombinedOpsAndFreeCampData,    
-    operation: IOperationWithLineNumber,    
+    operation: IOperationWithLineNumberAndParentTaskId,    
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
@@ -424,7 +424,15 @@ export async function processOperation(
             const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
-                const h_parent_id = getExistingTaskId(subTaskOf, operation);
+                let h_parent_id = getExistingTaskId(subTaskOf, operation);
+                if (!h_parent_id || h_parent_id === 'done') {
+                    h_parent_id = operation[getParentTaskIdColumnName(subTaskOf)] as string;
+                    if (!h_parent_id) {
+                        log.doLog(`processOperation: Warning no parent task ID found for subtask action ${action} with parent action ${subTaskOf} for file ${fileName}`);
+                        throw new Error(`No parent task ID found for subtask action ${action} with parent action ${subTaskOf}`);
+                    }
+
+                }
                 projectGrpoup = { ...combined.projectGroupMapping[subTaskOf] };
                 projectGrpoup.h_parent_id = h_parent_id;
                 projectGrpoup.description = template1;

@@ -82,7 +82,7 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
 
 export interface IEditorInfoMap { [key: string]: IEditorInfo };
 export interface OperationAndTemplates {
-    validOperation: IOperationWithLineNumber;
+    validOperation: IOperationWithLineNumberAndParentTaskId;
     templates: Templates;
     ops: gs.gsAccount.IGetSheetOpsReturn;
     editorInfoMap: IEditorInfoMap;
@@ -99,7 +99,7 @@ export interface IEditorInfo {
 }
 
 export interface IOpsConfig {
-    operationList: IOperationWithLineNumber[];
+    operationList: IOperationWithLineNumberAndParentTaskId[];
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
