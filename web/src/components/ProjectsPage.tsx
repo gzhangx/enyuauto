@@ -210,25 +210,49 @@ export const ProjectsPage = () => {
   }, [opsConfig?.groupAndMainProjectMapping?.shortProjectNameToProjectId, combinedOpsAndData, projectList.length]);
 
 
-  const renderActionCell = (p: IOperationWithLineNumber, action: ActionType) => {
+  const renderActionCell = (p: IOperationWithLineNumberAndParentTaskId, action: ActionType) => {
     const taskId = p[getTaskIdColumnName(action)];
+    const freedCampItem = p[`${action} FreeCamp Item`];
+    
+    // Build tooltip text
+    let tooltipText = '';
+    if (freedCampItem) {
+      const parts: string[] = [];
+      
+      if (freedCampItem.completed_ts) {
+        const completedDate = new Date(freedCampItem.completed_ts * 1000);
+        parts.push(`Completed: ${completedDate.toLocaleString()}`);
+      }
+      
+      if (freedCampItem.status_title) {        
+        parts.push(`Status: ${freedCampItem.status_id}:${freedCampItem.status_title}`);
+      }
+      
+      tooltipText = parts.join('\n');
+    }
     
     if (!taskId) {
-      return null;
+      return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>NA</span>;
     }
 
     if (taskId === 'done') {
-      return <span style={{ color: 'green', fontWeight: 'bold' }}>Done</span>;
+      return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>Done</span>;
     }
 
     return (
-      <button className="btn btn-delete" onClick={async () => {
-        //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-        //setResponseData(JSON.stringify(retData, null, 2));
-        if (sheetOpsRef.current && opsConfig) {
-          await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
-        }
-      }}>Delete {p[getTaskIdColumnName(action)]}</button>
+      <button 
+        className="btn btn-delete" 
+        title={tooltipText}
+        onClick={async () => {
+          //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
+          //setResponseData(JSON.stringify(retData, null, 2));
+          if (sheetOpsRef.current && opsConfig) {
+            await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
+          }
+        }}
+      >
+        Delete {p[getTaskIdColumnName(action)]}
+      </button>
     );
   };
 
