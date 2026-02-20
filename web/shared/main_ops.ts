@@ -377,7 +377,8 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
 export function getOperationInfo(combined: ICombinedOpsAndFreeCampData,    
     operation: IOperationWithLineNumberAndParentTaskId, log: DebugLog,) {
     const article = operation['文章名'];
-    const infos: OperationInfo = {
+    const fileName = operation['文件'];
+    const infos: OperationInfo = {        
             author: operation['作者'],
             article,
             link: operation['文章链接'],
@@ -385,7 +386,7 @@ export function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
             category: operation['文章类别'],
             //校对: operation['校对'],
         editor: '',
-            isEnglishOnly: !/[\u4e00-\u9fff]/.test(article)?'Y':'N', // Check if article contains Chinese characters
+            isEnglishOnly: !/[\u4e00-\u9fff]/.test(fileName)?'Y':'N', // Check if article contains Chinese characters
         };
 
         // Check if article is English-only (no Chinese characters)
