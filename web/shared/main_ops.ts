@@ -262,7 +262,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2] as ActionType,
                 subTaskOfFromSheetConfig: row[3] ? row[3] as ActionType : undefined,
-                isTaskEnabledFromSheetConfig: row[4] === 'N' ? 'N' : '',
+                isTaskEnabledForEnglishFromSheetConfig: row[4] === 'N' ? 'N' : '',
             };
         }
     });
@@ -297,7 +297,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
                 project_id: proj.project_id,
                 subTaskOf: projectInfo.subTaskOfFromSheetConfig,
-                isTaskEnabled: projectInfo.isTaskEnabledFromSheetConfig !== 'N',
+                isTaskEnabledForEnglish: projectInfo.isTaskEnabledForEnglishFromSheetConfig !== 'N',
             };
         }
     });
@@ -405,8 +405,8 @@ export async function processOperation(
         //const projectGroupMapping = getProjectGroupMapping();        
         for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-            if (actionConfig.isTaskEnabled === false) {
-                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config`);
+            if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
+                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
                 continue;
             }
             const editor = operation[action];
