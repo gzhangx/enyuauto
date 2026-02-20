@@ -12,12 +12,11 @@ export function renderSyncActionCell(
 	const {
 		sheetOpsRef,
 		opsConfig,
-		freeCampOpsWithCache,
-		completeDateUpdater,
-		doLog,
+		//freeCampOpsWithCache,
+		//completeDateUpdater,
+		//doLog,
 		fetchData,
-		setErrorDialog,
-		logParam,
+		setErrorDialog,		
 	} = deps;
 
     if (!opsConfig) {
@@ -111,7 +110,7 @@ type RenderActionCellDeps = {
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
-	logParam: { doLog: (msg: string) => void };
+	//logParam: { doLog: (msg: string) => void };
 };
 
 export function renderActionCell(
@@ -128,7 +127,6 @@ export function renderActionCell(
 		doLog,
 		fetchData,
 		setErrorDialog,
-		logParam,
 	} = deps;
 
 	const taskId = p[getTaskIdColumnName(action)];
