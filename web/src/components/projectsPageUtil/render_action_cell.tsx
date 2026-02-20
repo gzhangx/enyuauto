@@ -1,5 +1,5 @@
 
-import type { DebugLog } from '../../../shared/main_ops';
+import type { DebugLog, ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React from 'react';
@@ -13,7 +13,7 @@ export function renderSyncActionCell(
 ) {
 	const {
 		sheetOpsRef,
-		opsConfig,
+		combined,
 		//freeCampOpsWithCache,
 		//completeDateUpdater,
 		//doLog,
@@ -21,18 +21,18 @@ export function renderSyncActionCell(
 		setErrorDialog,		
 	} = deps;
 
-    if (!opsConfig) {
+    if (!combined) {
         return <div>Waiting for Data</div>;
     }
 
-    const ready = sheetOpsRef.current && opsConfig;
+    const ready = sheetOpsRef.current && combined;
     let tooltipText = 'Exists in FreedCamp but not in sheet.';
     if (!ready) {
         tooltipText += ' Sheet operations not ready.!!!!!';
         return <div title={tooltipText}>Waiting for Data</div>;
     }
 	const parts: string[] = [];	
-    for (const action of opsConfig.groupAndMainProjectMapping.actions) {
+    for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         const freedCampItem = p[`${action} FreeCamp Item`];
         if (!freedCampItem) {
             parts.push(`Action ${action}: No FreedCamp item, skipped`);
@@ -49,10 +49,10 @@ export function renderSyncActionCell(
 		// collect the update info: sheet column index, line number, FreedCamp value
 		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
 			if (freedCampKey === 'assigned_to_id') {
-				opsConfig.editorInfoMap
+				//opsConfig.
 			}
 			// Find the column index in the sheet
-			const colIdx = opsConfig.headers.indexOf(sheetCol);
+			const colIdx = combined.opsConfig.headers.indexOf(sheetCol);
 			if (colIdx === -1) {
 				parts.push(`Column ${sheetCol} not found in sheet headers`);
 				return;
@@ -81,7 +81,7 @@ export function renderSyncActionCell(
 			style={{ marginLeft: '5px', background: '#ff9800', color: 'white' }}
 			title={tooltipText}
 			onClick={async () => {
-				if (sheetOpsRef.current && opsConfig) {
+				if (sheetOpsRef.current && combined) {
 					try {
 						// Here you would update the sheet to match FreedCamp item
 						// For example, set the cell to the FreedCamp ID or other info
@@ -108,7 +108,8 @@ export function renderSyncActionCell(
 
 type RenderActionCellDeps = {
 	sheetOpsRef: React.RefObject<any>;
-	opsConfig: IOpsConfig | null;
+	//opsConfig: IOpsConfig | null;
+	combined: ICombinedOpsAndFreeCampData | null;
 	freeCampOpsWithCache: any;
 	deleteItemActionTask: Function;
 	completeDateUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
@@ -125,7 +126,7 @@ export function renderActionCell(
 ) {
 	const {
 		sheetOpsRef,
-		opsConfig,
+		combined,
 		freeCampOpsWithCache,
 		deleteItemActionTask,
 		completeDateUpdater,
@@ -169,8 +170,8 @@ export function renderActionCell(
 				className="btn btn-delete"
 				title={tooltipText}
 				onClick={async () => {
-					if (sheetOpsRef.current && opsConfig) {
-						await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
+					if (sheetOpsRef.current && combined) {
+						await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, combined.opsConfig, p, action, { getOperations: () => [], doLog });
 					}
 				}}
 			>
@@ -182,13 +183,13 @@ export function renderActionCell(
 					style={{ marginLeft: '5px' }}
 					title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
 					onClick={async () => {
-						if (sheetOpsRef.current && opsConfig) {
+						if (sheetOpsRef.current && combined) {
 							try {
 								const completedDate = new Date(hasCompletedDate * 1000);
 								const formattedDate = completedDate.toLocaleDateString();
 								await completeDateUpdater(
 									sheetOpsRef.current,
-									opsConfig,
+									combined.opsConfig,
 									action,
 									p,
 									formattedDate,
