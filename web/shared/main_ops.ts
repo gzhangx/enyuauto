@@ -373,6 +373,35 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
     }
 }
 
+
+export function getOperationInfo(combined: ICombinedOpsAndFreeCampData,    
+    operation: IOperationWithLineNumberAndParentTaskId, log: DebugLog,) {
+    const article = operation['文章名'];
+    const infos: OperationInfo = {
+            author: operation['作者'],
+            article,
+            link: operation['文章链接'],
+            email: operation['作者电邮'],
+            category: operation['文章类别'],
+            //校对: operation['校对'],
+        editor: '',
+            isEnglishOnly: !/[\u4e00-\u9fff]/.test(article)?'Y':'N', // Check if article contains Chinese characters
+        };
+
+        // Check if article is English-only (no Chinese characters)
+    const groupAndMainProjectMapping = combined.opsConfig.groupAndMainProjectMapping;
+    for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+        const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+        if (actionConfig.isTaskEnabledForEnglish === false && infos.isEnglishOnly === 'Y') {
+            const fileName = operation['文件'];
+            log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
+            operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
+            continue;
+        }
+    }
+    
+    return infos;
+}
 export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
     freedCampOps: FreeCampAndUpdateOperations,
@@ -389,25 +418,17 @@ export async function processOperation(
     const pr = freedCampOps.getFreedCampProcessor(combined.loginToken);
     {
         const fileName = operation['文件'];
-        const infos: OperationInfo = {
-            author: operation['作者'],
-            article: operation['文章名'],
-            link: operation['文章链接'],
-            email: operation['作者电邮'],
-            category: operation['文章类别'],
-            //校对: operation['校对'],
-            editor: '',
-        } as OperationInfo;
+        const infos: OperationInfo = getOperationInfo(combined, operation, log);
 
         // Check if article is English-only (no Chinese characters)
-        const isEnglishOnly = !/[\u4e00-\u9fff]/.test(infos.article);
+        const isEnglishOnly = infos.isEnglishOnly === 'Y';
         
         //const projectGroupMapping = getProjectGroupMapping();        
         for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
             if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
-                operation[getTaskIdColumnName(action)] = 'NOEnglish';
+                operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
                 continue;
             }
             const editor = operation[action];

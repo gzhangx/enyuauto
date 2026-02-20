@@ -250,6 +250,9 @@ export const ProjectsPage = () => {
       return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>NA</span>;
     }
 
+    if (taskId === 'TaskIsEnglishAndIsDisabledForEnglish') {
+      return <span style={{ color: 'orange', fontWeight: 'bold' }} title={tooltipText}>No English</span>;
+    }
     if (taskId === 'done') {
       return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>Done</span>;
     }

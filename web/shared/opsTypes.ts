@@ -56,6 +56,7 @@ export interface OperationInfo {
     email: string;
     category: string;
     editor: string;
+    isEnglishOnly: 'Y' | 'N';
 }
 
 
