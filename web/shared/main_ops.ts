@@ -526,7 +526,6 @@ export async function processOperation(
 }
 
 export interface DebugLog {
-    getOperations: () => string[];
     doLog: (msg: string) => void;
 }
 

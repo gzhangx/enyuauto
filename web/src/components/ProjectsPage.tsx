@@ -382,7 +382,6 @@ export const ProjectsPage = () => {
                       const ops = sheetOpsRef.current;
                       if (ops) {
                         const logs: DebugLog = {
-                          getOperations: () => [],
                           doLog: msg => {
                             console.log(msg);
                             setProgressText(msg);

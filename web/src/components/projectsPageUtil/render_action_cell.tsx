@@ -1,7 +1,9 @@
 
-import { getTaskIdColumnName, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
+import type { DebugLog } from '../../../shared/main_ops';
+import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React from 'react';
+import * as gs from '@gzhangx/googleapi';
 
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
 export function renderSyncActionCell(
@@ -106,7 +108,7 @@ type RenderActionCellDeps = {
 	opsConfig: IOpsConfig | null;
 	freeCampOpsWithCache: any;
 	deleteItemActionTask: Function;
-	completeDateUpdater: Function;
+	completeDateUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
@@ -187,7 +189,7 @@ export function renderActionCell(
 									action,
 									p,
 									formattedDate,
-									logParam
+									{ doLog }
 								);
 								doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
 								await fetchData();
