@@ -297,7 +297,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
                 project_id: proj.project_id,
                 subTaskOf: projectInfo.subTaskOfFromSheetConfig,
-                isTaskEnabled: projectInfo.isTaskEnabledFromSheetConfig,
+                isTaskEnabled: projectInfo.isTaskEnabledFromSheetConfig !== 'N',
             };
         }
     });
@@ -404,6 +404,11 @@ export async function processOperation(
         
         //const projectGroupMapping = getProjectGroupMapping();        
         for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+            if (actionConfig.isTaskEnabled === false) {
+                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config`);
+                continue;
+            }
             const editor = operation[action];
             const editorLookup = editorInfoMap[editor];
             if (editorLookup) {
@@ -437,7 +442,7 @@ export async function processOperation(
 
 
             let projectGrpoup = combined.projectGroupMapping[action];
-            const subTaskOf = groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.subTaskOf;
+            const subTaskOf = actionConfig.subTaskOf;
             let taskTitle = `${debug_Prefix}${fileName}`
             if (subTaskOf) {
                 let h_parent_id = getExistingTaskId(subTaskOf, operation);
