@@ -280,7 +280,7 @@ export const ProjectsPage = () => {
 
   const actionCellDeps = {
     sheetOpsRef,
-    opsConfig,
+    combined: combinedOpsAndData,
     freeCampOpsWithCache,
     deleteItemActionTask,
     completeDateUpdater,

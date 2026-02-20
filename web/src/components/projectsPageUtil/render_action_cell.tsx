@@ -32,6 +32,7 @@ export function renderSyncActionCell(
         return <div title={tooltipText}>Waiting for Data</div>;
     }
 	const parts: string[] = [];	
+	const updateActions: (() => void)[] = [];
     for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         const freedCampItem = p[`${action} FreeCamp Item`];
         if (!freedCampItem) {
@@ -48,8 +49,31 @@ export function renderSyncActionCell(
 		// For each mapped column, if FreedCamp has data but sheet does not (or is different),
 		// collect the update info: sheet column index, line number, FreedCamp value
 		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
+			// Sheet value (sheetCol is a key in p)
+			const sheetVal = p[sheetCol as keyof typeof p];
+			// FreedCamp value
+			let fcVal = freedCampItem[freedCampKey] as string;
+			let compareValues: string[] = [];			
 			if (freedCampKey === 'assigned_to_id') {
-				//opsConfig.
+				const userInfo = combined.userIdToInfoMap[fcVal];
+				if (userInfo) {
+					fcVal = userInfo.full_name; // Replace ID with name for comparison and display
+				}
+				if (!fcVal) {
+					return;
+				}
+			} else {
+				//it is date
+				if (fcVal) {
+					const ts = Number(fcVal);
+					if (!Number.isNaN(ts)) {
+						const date = new Date(ts * 1000);
+						const yyyyMmDd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+						const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+						compareValues = [yyyyMmDd, mDyYyyy];
+						fcVal = yyyyMmDd;
+					}
+				}
 			}
 			// Find the column index in the sheet
 			const colIdx = combined.opsConfig.headers.indexOf(sheetCol);
@@ -57,15 +81,20 @@ export function renderSyncActionCell(
 				parts.push(`Column ${sheetCol} not found in sheet headers`);
 				return;
 			}
-			// Sheet value (sheetCol is a key in p)
-			const sheetVal = p[sheetCol as keyof typeof p];
-			// FreedCamp value
-			const fcVal = freedCampItem[freedCampKey];
+			
+			const sheetValStr = String(sheetVal);
+			
+			
 			// Only consider if FreedCamp has a value and it's different from sheet
-			if (fcVal !== undefined && fcVal !== null && String(fcVal) !== String(sheetVal)) {
+			const matchesSheet = compareValues.length > 0
+				? compareValues.includes(sheetValStr)
+				: String(fcVal) === sheetValStr;
+			if (fcVal !== undefined && fcVal !== null && !matchesSheet) {
+				const displayVal = compareValues.length > 0 ? `${compareValues[0]} / ${compareValues[1]}` : String(fcVal);
 				parts.push(
-					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${fcVal}" (was "${sheetVal}")`
+					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${displayVal}" (was "${sheetVal}")`
 				);
+				updateActions.push(() => { });
 			}
 		});
     }    
@@ -78,8 +107,9 @@ export function renderSyncActionCell(
 	return (
 		<button
 			className="btn btn-create"
-			style={{ marginLeft: '5px', background: '#ff9800', color: 'white' }}
+			style={{ marginLeft: '5px', background: updateActions.length === 0 ? '#9e9e9e' : '#ff9800', color: 'white' }}
 			title={tooltipText}
+			disabled={updateActions.length === 0}
 			onClick={async () => {
 				if (sheetOpsRef.current && combined) {
 					try {
@@ -100,7 +130,7 @@ export function renderSyncActionCell(
 				}
 			}}
 		>
-			{desc}
+			{desc} { updateActions.length}
 		</button>
 	);
 }
