@@ -150,7 +150,6 @@ export type RenderActionCellDeps = {
 	freeCampOpsWithCache: any;
 	deleteItemActionTask: Function;
 	completeDateUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
-	anyKeyUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
@@ -168,7 +167,6 @@ export function renderActionCell(
 		freeCampOpsWithCache,
 		deleteItemActionTask,
 		completeDateUpdater,
-		anyKeyUpdater,
 		doLog,
 		fetchData,
 		setErrorDialog,

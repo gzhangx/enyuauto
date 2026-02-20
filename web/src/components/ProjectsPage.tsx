@@ -8,7 +8,6 @@ import {
   combineOpsConfigWithFreedCampData,
   type DebugLog,
   completeDateUpdater,
-  anyKeyUpdater,
   type ICombinedOpsAndFreeCampData,
   getOperationInfo,
 } from '../../shared/main_ops';
@@ -285,7 +284,6 @@ export const ProjectsPage = () => {
     freeCampOpsWithCache,
     deleteItemActionTask,
     completeDateUpdater,
-    anyKeyUpdater,
     doLog,
     fetchData,
     setErrorDialog,
