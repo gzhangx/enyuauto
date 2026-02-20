@@ -111,7 +111,7 @@ type RenderActionCellDeps = {
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
-	logParam: any;
+	logParam: { doLog: (msg: string) => void };
 };
 
 export function renderActionCell(
