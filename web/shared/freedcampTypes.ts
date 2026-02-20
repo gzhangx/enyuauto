@@ -14,7 +14,7 @@ export interface ProjectTaskParams {
     //task_group_id: string;
     description?: string;
     assigned_to_id?: string;
-    due_date?: string;
+    due_ts?: number;
     title?: string;
     status?: number;
     status_id?: number;

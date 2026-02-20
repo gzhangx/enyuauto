@@ -499,7 +499,11 @@ export async function processOperation(
             const due_date = operation[dueDateKey];
 
             if (due_date) {
-                postParams.due_date = due_date;
+                // Convert due_date string to Unix timestamp (seconds)
+                const dueDateObj = new Date(due_date);
+                if (!isNaN(dueDateObj.getTime())) {
+                    postParams.due_ts = Math.floor(dueDateObj.getTime() / 1000);
+                } 
             }
             if (editor) {
                 const userInfo = combined.userNameToInfoMap[editor];

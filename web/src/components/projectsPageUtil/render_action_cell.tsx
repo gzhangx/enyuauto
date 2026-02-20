@@ -1,6 +1,85 @@
+
 import { getTaskIdColumnName, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React from 'react';
+
+// Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
+export function renderSyncActionCell(
+	p: IOperationWithLineNumberAndParentTaskId,
+    deps: RenderActionCellDeps,
+    desc: string,
+) {
+	const {
+		sheetOpsRef,
+		opsConfig,
+		freeCampOpsWithCache,
+		completeDateUpdater,
+		doLog,
+		fetchData,
+		setErrorDialog,
+		logParam,
+	} = deps;
+
+    if (!opsConfig) {
+        return <div>Waiting for Data</div>;
+    }
+
+    const ready = sheetOpsRef.current && opsConfig;
+    let tooltipText = 'Exists in FreedCamp but not in sheet.';
+    if (!ready) {
+        tooltipText += ' Sheet operations not ready.!!!!!';
+        return <div title={tooltipText}>Waiting for Data</div>;
+    }
+	const parts: string[] = [];	
+    for (const action of opsConfig.groupAndMainProjectMapping.actions) {
+        const freedCampItem = p[`${action} FreeCamp Item`];
+        if (!freedCampItem) {
+            parts.push(`Action ${action}: No FreedCamp item, skipped`);
+            continue;
+        }
+		// Map sheet columns to FreedCamp item keys
+		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
+			[action]: 'assigned_to_id',
+			[`${action} Due Date`]: 'due_ts',
+			[`${action} Complete Date`]: 'completed_ts',
+		};
+    }    
+
+	// Build tooltip text with FreedCamp info
+	
+	tooltipText += '\n' + parts.join('\n');
+
+	// Button to sync sheet with FreedCamp
+	return (
+		<button
+			className="btn btn-create"
+			style={{ marginLeft: '5px', background: '#ff9800', color: 'white' }}
+			title={tooltipText}
+			onClick={async () => {
+				if (sheetOpsRef.current && opsConfig) {
+					try {
+						// Here you would update the sheet to match FreedCamp item
+						// For example, set the cell to the FreedCamp ID or other info
+						// This is a placeholder for the actual update logic
+						// You may want to call a function similar to completeDateUpdater
+						// For now, just log and refresh
+						//doLog(`Syncing sheet for action ${action} with FreedCamp item for "${p.文件}"`);
+						// Example: update the sheet with the FreedCamp ID
+						// await updateSheetWithFreedCampId(sheetOpsRef.current, opsConfig, action, p, freedCampItem.id, logParam);
+						// For now, just refresh
+						await fetchData();
+					} catch (error: any) {
+						console.error('Error syncing sheet:', error);
+						setErrorDialog({ show: true, message: `Failed to sync sheet:\n${error.message || String(error)}` });
+					}
+				}
+			}}
+		>
+			Sync from FreedCamp
+		</button>
+	);
+}
+
 
 type RenderActionCellDeps = {
 	sheetOpsRef: React.RefObject<any>;
