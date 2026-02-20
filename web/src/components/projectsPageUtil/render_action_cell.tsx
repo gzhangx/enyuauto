@@ -42,7 +42,28 @@ export function renderSyncActionCell(
 			[action]: 'assigned_to_id',
 			[`${action} Due Date`]: 'due_ts',
 			[`${action} Complete Date`]: 'completed_ts',
-		};
+        };
+        
+		// For each mapped column, if FreedCamp has data but sheet does not (or is different),
+		// collect the update info: sheet column index, line number, FreedCamp value
+		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
+			// Find the column index in the sheet
+			const colIdx = opsConfig.headers.indexOf(sheetCol);
+			if (colIdx === -1) {
+				parts.push(`Column ${sheetCol} not found in sheet headers`);
+				return;
+			}
+			// Sheet value (sheetCol is a key in p)
+			const sheetVal = p[sheetCol as keyof typeof p];
+			// FreedCamp value
+			const fcVal = freedCampItem[freedCampKey];
+			// Only consider if FreedCamp has a value and it's different from sheet
+			if (fcVal !== undefined && fcVal !== null && String(fcVal) !== String(sheetVal)) {
+				parts.push(
+					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${fcVal}" (was "${sheetVal}")`
+				);
+			}
+		});
     }    
 
 	// Build tooltip text with FreedCamp info

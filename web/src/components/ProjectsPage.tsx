@@ -16,7 +16,7 @@ import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
-import { renderActionCell } from './projectsPageUtil/render_action_cell';
+import { renderActionCell, renderSyncActionCell } from './projectsPageUtil/render_action_cell';
 
 
 type LogMessage = {
@@ -278,6 +278,17 @@ export const ProjectsPage = () => {
     );
   }
 
+  const actionCellDeps = {
+    sheetOpsRef,
+    opsConfig,
+    freeCampOpsWithCache,
+    deleteItemActionTask,
+    completeDateUpdater,
+    doLog,
+    fetchData,
+    setErrorDialog,
+    logParam,
+  };
   return (
     <>
       <ErrorDialog 
@@ -400,20 +411,12 @@ export const ProjectsPage = () => {
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
-                    {renderActionCell(p, action, {
-                      sheetOpsRef,
-                      opsConfig,
-                      freeCampOpsWithCache,
-                      deleteItemActionTask,
-                      completeDateUpdater,
-                      doLog,
-                      fetchData,
-                      setErrorDialog,
-                      logParam,
-                    })}
+                    {renderActionCell(p, action, actionCellDeps)}
                   </td>
                 ))}
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>
+                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}
+                  { renderSyncActionCell(p, actionCellDeps, 'Sync from FreedCamp') }
+                </td>
               </tr>
             })
           }
