@@ -97,7 +97,7 @@ export function renderSyncActionCell(
 				}
 			}}
 		>
-			Sync from FreedCamp
+			{desc}
 		</button>
 	);
 }
