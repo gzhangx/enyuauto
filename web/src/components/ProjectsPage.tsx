@@ -9,6 +9,7 @@ import {
   type DebugLog,
   completeDateUpdater,
   type ICombinedOpsAndFreeCampData,
+  getOperationInfo,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -217,6 +218,10 @@ export const ProjectsPage = () => {
       //     }
       //   }        
       // }
+    }
+
+    for (const item of projectList) {
+      getOperationInfo(combinedOpsAndData, item, logParam);
     }
     if (updated) {
       //setProjectList([...projectList]);
