@@ -208,7 +208,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         };
         if (params['description']) taskParams.description = params['description'];
         if (params['assignedToId']) taskParams.assigned_to_id = params['assignedToId'];
-        if (params['dueDate']) taskParams.due_date = params['dueDate'];
+        if (params['dueDate']) taskParams.due_ts = params['dueDate'] as unknown as number;
         if (params['parentId']) taskParams.h_parent_id = params['parentId'];
         
         const createRes = await processor.createTask(taskParams, title);
@@ -250,7 +250,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         };
         if (params['description']) attachParams.description = params['description'];
         if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
-        if (params['dueDate']) attachParams.due_date = params['dueDate'];
+        if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;
         
         const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
         result = attachRes;

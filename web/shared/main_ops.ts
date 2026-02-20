@@ -93,7 +93,7 @@ const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 // }
 
 
-export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cache: ISheetInfoCache): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cache?: ISheetInfoCache): Promise<gs.gsAccount.IGetSheetOpsReturn> {
     const gsc = await gs.google.gsAccount.getClient(creds);
     const ops = await gsc.getSheetOps(mainSheetId, cache);
     return ops;
