@@ -407,6 +407,7 @@ export async function processOperation(
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
             if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
+                operation[getTaskIdColumnName(action)] = 'NOEnglish';
                 continue;
             }
             const editor = operation[action];
