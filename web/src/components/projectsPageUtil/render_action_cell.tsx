@@ -48,6 +48,9 @@ export function renderSyncActionCell(
 		// For each mapped column, if FreedCamp has data but sheet does not (or is different),
 		// collect the update info: sheet column index, line number, FreedCamp value
 		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
+			if (freedCampKey === 'assigned_to_id') {
+				opsConfig.editorInfoMap
+			}
 			// Find the column index in the sheet
 			const colIdx = opsConfig.headers.indexOf(sheetCol);
 			if (colIdx === -1) {

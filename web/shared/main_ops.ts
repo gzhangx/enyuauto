@@ -344,7 +344,8 @@ export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): Free
 export interface ICombinedOpsAndFreeCampData {
     opsConfig: IOpsConfig;
     userData: ICurrentSessionData;
-    userNameToInfoMap: { [key: string]: IUserInfo };
+    userNameToInfoMap: { [shortName: string]: IUserInfo };
+    userIdToInfoMap: { [userId: string]: IUserInfo };
     projectGroupMapping: IActionToProjectIdMapping;
     loginToken: LoginResponse;
     freedCampTasksByAction: { [key in ActionType]: IProjectTasksResult };
@@ -357,8 +358,10 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
     log.doLog('processOperation: got processor with login');
     
     const userData = await pr.getSessionCurrentData();
+    const userIdToInfoMap: { [userId: string]: IUserInfo } = {};
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
         acc[user.full_name] = user;
+        userIdToInfoMap[user.user_id] = user;
         return acc;
     }, {} as { [key: string]: IUserInfo });
     const projectGroupMapping = getActionToProjectIdMapping(userData, opsConfig.groupAndMainProjectMapping);
@@ -368,6 +371,7 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
         opsConfig,
         userData,
         userNameToInfoMap,
+        userIdToInfoMap,
         projectGroupMapping,
         freedCampTasksByAction: {} as { [key in ActionType]: IProjectTasksResult },
     }
