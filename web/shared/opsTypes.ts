@@ -81,13 +81,15 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
     taskLongToShortNameMapping: {
         [key: string]: {
             shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
-            subTaskOf?: ActionType;
+            subTaskOfFromSheetConfig?: ActionType;
+            isTaskEnabledFromSheetConfig?: '' | 'N';
         }; 
     };
     shortProjectNameToProjectId: { //populated later after we login to freedcamp
         [key in ActionType]: {
             project_id: string;
             subTaskOf?: ActionType;
+            isTaskEnabled?: '' | 'N';
         }; //'校对': { "project_id": "3696514" }
     }
 }

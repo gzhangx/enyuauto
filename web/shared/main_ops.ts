@@ -261,7 +261,8 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2] as ActionType,
-                subTaskOf: row[3] ? row[3] as ActionType : undefined,
+                subTaskOfFromSheetConfig: row[3] ? row[3] as ActionType : undefined,
+                isTaskEnabledFromSheetConfig: row[4] === 'N' ? 'N' : '',
             };
         }
     });
@@ -295,7 +296,8 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
                 project_id: proj.project_id,
-                subTaskOf: projectInfo.subTaskOf,
+                subTaskOf: projectInfo.subTaskOfFromSheetConfig,
+                isTaskEnabled: projectInfo.isTaskEnabledFromSheetConfig,
             };
         }
     });
