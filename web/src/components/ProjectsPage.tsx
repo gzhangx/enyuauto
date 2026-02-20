@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback} from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -16,6 +16,7 @@ import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
+import { renderActionCell } from './projectsPageUtil/render_action_cell';
 
 
 type LogMessage = {
@@ -230,93 +231,7 @@ export const ProjectsPage = () => {
   }
 
 
-  const renderActionCell = (p: IOperationWithLineNumberAndParentTaskId, action: ActionType) => {
-    const taskId = p[getTaskIdColumnName(action)];
-    const freedCampItem = p[`${action} FreeCamp Item`];
-    
-    // Build tooltip text
-    let tooltipText = '';
-    if (freedCampItem) {
-      const parts: string[] = [];
-      
-      if (freedCampItem.completed_ts) {
-        const completedDate = new Date(freedCampItem.completed_ts * 1000);
-        parts.push(`Completed: ${completedDate.toLocaleString()}`);
-      }
-      
-      if (freedCampItem.status_title) {        
-        parts.push(`Status: ${freedCampItem.status_id}:${freedCampItem.status_title}`);
-      }
-      
-      tooltipText = parts.join('\n');
-    }
-    
-    if (!taskId) {
-      return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>NA</span>;
-    }
-
-    if (taskId === 'TaskIsEnglishAndIsDisabledForEnglish') {
-      return <span style={{ color: 'orange', fontWeight: 'bold' }} title={tooltipText}>No English</span>;
-    }
-    if (taskId === 'done') {
-      return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>Done</span>;
-    }
-
-    const hasCompletedDate = freedCampItem?.completed_ts;
-
-    return (
-      <>
-        <button 
-          className="btn btn-delete" 
-          title={tooltipText}
-          onClick={async () => {
-            //const retData = await createOrDelProject(p.itemPositionOnSheet, 'del');
-            //setResponseData(JSON.stringify(retData, null, 2));
-            if (sheetOpsRef.current && opsConfig) {
-              await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, opsConfig, p, action, { getOperations: () => [], doLog });
-            }
-          }}
-        >
-          Delete {p[getTaskIdColumnName(action)]}
-        </button>
-        {hasCompletedDate && (
-          <button
-            className="btn btn-create"
-            style={{ marginLeft: '5px' }}
-            title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
-            onClick={async () => {
-              if (sheetOpsRef.current && opsConfig) {
-                try {
-                  const completedDate = new Date(hasCompletedDate * 1000);
-                  const formattedDate = completedDate.toLocaleDateString();
-                  
-                  // Update the sheet with 'done' status
-                  await completeDateUpdater(
-                    sheetOpsRef.current,
-                    opsConfig,
-                    action,
-                    p,
-                    formattedDate,
-                    logParam
-                  );
-                  
-                  doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
-                  
-                  // Refresh the data
-                  await fetchData();
-                } catch (error: any) {
-                  console.error('Error updating sheet:', error);
-                  setErrorDialog({ show: true, message: `Failed to update sheet:\n${error.message || String(error)}` });
-                }
-              }
-            }}
-          >
-            Mark Done
-          </button>
-        )}
-      </>
-    );
-  };
+  // ...function removed, now imported from render_action_cell.tsx
 
   // Calculate animation speed based on number of messages
   if (isLoading.listLoading || isLoading.freeCampLoading || isLoading.projectButtonAction) {
@@ -485,7 +400,17 @@ export const ProjectsPage = () => {
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
-                    {renderActionCell(p, action)}
+                    {renderActionCell(p, action, {
+                      sheetOpsRef,
+                      opsConfig,
+                      freeCampOpsWithCache,
+                      deleteItemActionTask,
+                      completeDateUpdater,
+                      doLog,
+                      fetchData,
+                      setErrorDialog,
+                      logParam,
+                    })}
                   </td>
                 ))}
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}</td>
