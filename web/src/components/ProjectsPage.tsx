@@ -8,6 +8,7 @@ import {
   combineOpsConfigWithFreedCampData,
   type DebugLog,
   completeDateUpdater,
+  anyKeyUpdater,
   type ICombinedOpsAndFreeCampData,
   getOperationInfo,
 } from '../../shared/main_ops';
@@ -16,7 +17,7 @@ import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
 import type { ActionType } from '../lib/api';
-import { renderActionCell, renderSyncActionCell } from './projectsPageUtil/render_action_cell';
+import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 
 
 type LogMessage = {
@@ -278,16 +279,16 @@ export const ProjectsPage = () => {
     );
   }
 
-  const actionCellDeps = {
+  const actionCellDeps: RenderActionCellDeps = {
     sheetOpsRef,
     combined: combinedOpsAndData,
     freeCampOpsWithCache,
     deleteItemActionTask,
     completeDateUpdater,
+    anyKeyUpdater,
     doLog,
     fetchData,
     setErrorDialog,
-    logParam,
   };
   return (
     <>

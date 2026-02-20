@@ -102,6 +102,23 @@ export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cach
 function getExistingTaskId(templateName: ActionType, operation: OperationWithDueDates) {
     return operation[getTaskIdColumnName(templateName)];
 }
+
+
+export async function anyKeyUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
+    const newValue: string = item[key as keyof typeof item] as string;
+    const lineNumber: number = item.itemPositionOnSheet;    
+    const index = opsConfig.headers.indexOf(key);
+    if (index <= 0) {
+        log.doLog(`update column ${key}: ${newValue } at line ${lineNumber} failed due to badk pos ${index}  `);
+        return;
+    }
+    log.doLog(`update column: ${newValue } at line ${lineNumber} for action ${key}  `);
+    await ops.autoUpdateValues('main', [[newValue]], {
+        row: lineNumber,
+        col: index,
+    });
+}
+
 async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
     const newTaskId: string = getExistingTaskId(key, item);
     const lineNumber: number = item.itemPositionOnSheet;

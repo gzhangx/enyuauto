@@ -1,5 +1,5 @@
 
-import type { DebugLog, ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
+import { anyKeyUpdater, type DebugLog, type ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React from 'react';
@@ -16,7 +16,7 @@ export function renderSyncActionCell(
 		combined,
 		//freeCampOpsWithCache,
 		//completeDateUpdater,
-		//doLog,
+		doLog,
 		fetchData,
 		setErrorDialog,		
 	} = deps;
@@ -32,7 +32,7 @@ export function renderSyncActionCell(
         return <div title={tooltipText}>Waiting for Data</div>;
     }
 	const parts: string[] = [];	
-	const updateActions: (() => void)[] = [];
+	const updateActions: (() => Promise<void>)[] = [];
     for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         const freedCampItem = p[`${action} FreeCamp Item`];
         if (!freedCampItem) {
@@ -56,10 +56,11 @@ export function renderSyncActionCell(
 			let compareValues: string[] = [];			
 			if (freedCampKey === 'assigned_to_id') {
 				const userInfo = combined.userIdToInfoMap[fcVal];
+				console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
 				if (userInfo) {
 					fcVal = userInfo.full_name; // Replace ID with name for comparison and display
 				}
-				if (!fcVal) {
+				if (!fcVal || fcVal === '0') {
 					return;
 				}
 			} else {
@@ -94,7 +95,10 @@ export function renderSyncActionCell(
 				parts.push(
 					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${displayVal}" (was "${sheetVal}")`
 				);
-				updateActions.push(() => { });
+				updateActions.push(async () => { 
+					p[sheetCol as ActionType] = fcVal; // Update local data immediately for better UX	
+					await anyKeyUpdater(sheetOpsRef.current, combined.opsConfig, sheetCol as ActionType, p, { doLog });
+				});
 			}
 		});
     }    
@@ -120,8 +124,11 @@ export function renderSyncActionCell(
 						// For now, just log and refresh
 						//doLog(`Syncing sheet for action ${action} with FreedCamp item for "${p.文件}"`);
 						// Example: update the sheet with the FreedCamp ID
-						// await updateSheetWithFreedCampId(sheetOpsRef.current, opsConfig, action, p, freedCampItem.id, logParam);
+						// await updateSheetWithFreedCampId(sheetOpsRef.current, opsConfig, action, p, freedCampItem.id, logParam);						
 						// For now, just refresh
+						for (const updateAction of updateActions) {
+							await updateAction();
+						}
 						await fetchData();
 					} catch (error: any) {
 						console.error('Error syncing sheet:', error);
@@ -136,13 +143,14 @@ export function renderSyncActionCell(
 }
 
 
-type RenderActionCellDeps = {
+export type RenderActionCellDeps = {
 	sheetOpsRef: React.RefObject<any>;
 	//opsConfig: IOpsConfig | null;
 	combined: ICombinedOpsAndFreeCampData | null;
 	freeCampOpsWithCache: any;
 	deleteItemActionTask: Function;
 	completeDateUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
+	anyKeyUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
@@ -160,6 +168,7 @@ export function renderActionCell(
 		freeCampOpsWithCache,
 		deleteItemActionTask,
 		completeDateUpdater,
+		anyKeyUpdater,
 		doLog,
 		fetchData,
 		setErrorDialog,
