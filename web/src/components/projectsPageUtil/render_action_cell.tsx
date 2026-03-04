@@ -146,8 +146,9 @@ export function renderActionCell(
 
 	const hasAssignedTo = freedCampItem?.assigned_to_id && freedCampItem?.assigned_to_id !== '0';
 
+	const freedCampTaskId = freedCampItem?.id;
 	if (!taskId && (!hasCompletedDate && !hasAssignedTo)) {
-		return <span style={{ color: 'orange' }} title={tooltipText}>NA</span>;
+		return <span style={{ color: 'orange' }} title={tooltipText}>NA { freedCampTaskId}</span>;
 	}
 	return (
 		<>
