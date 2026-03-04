@@ -3,7 +3,6 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
-import { act } from 'react';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
