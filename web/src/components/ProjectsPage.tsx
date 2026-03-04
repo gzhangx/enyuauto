@@ -7,15 +7,13 @@ import {
   loadMainData,
   combineOpsConfigWithFreedCampData,
   type DebugLog,
-  completeDateUpdater,
-  type ICombinedOpsAndFreeCampData,
-  getOperationInfo,
+  completeDateUpdater,  
+  updateDoneParentIds,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
-import type { ActionType } from '../lib/api';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 
 
@@ -96,7 +94,7 @@ export const ProjectsPage = () => {
       if (opsConfig &&combinedOpsAndData) {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
-        updateDoneParentIds(combinedOpsAndData, res.operationList);
+        updateDoneParentIds(combinedOpsAndData, res.operationList, logParam);
         prepareData(res, opsConfig);
         setIsLoading(prev=>({ ...prev, listLoading: '' }));
       } else {
@@ -119,7 +117,7 @@ export const ProjectsPage = () => {
             }
           }
           setCombinedOpsAndData(combined);
-          updateDoneParentIds(combined, res.operationList);
+          updateDoneParentIds(combined, res.operationList, logParam);
           setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));      
           //---------------------------
           prepareData(res, res);
@@ -152,83 +150,6 @@ export const ProjectsPage = () => {
     }
   }, [token]);
   
-  function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampData, projectList: IOperationWithLineNumberAndParentTaskId[]) {
-    const opsConfig = combinedOpsAndData.opsConfig;
-    const actionToTitleToProjectAndTaskIdMap: {
-      [action in ActionType]?: {
-        [title: string]: {
-          projectId: string;
-          taskId: string;
-          task: IOperationWithLineNumberAndParentTaskId;
-        };
-      };
-    } = {};
-    console.log('Checking for done sub-tasks to mark main tasks as done...');
-      opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
-        const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-        if (actionInfo && actionInfo.subTaskOf) {
-          const subTaskOfAction = actionInfo.subTaskOf;
-          projectList.forEach(item => {
-            if (item[getTaskIdColumnName(subTaskOfAction)] === 'done' && !item[getTaskIdColumnName(action)]) {
-              console.log(`EARNNN ${item.文件} ${item.文章名} ${action} as done for line ${item.itemPositionOnSheet} because ${subTaskOfAction} is done`);
-              const prj = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[subTaskOfAction];
-              if (prj) {
-                console.log(`Debugrm parent project ${subTaskOfAction} project id ${prj.project_id} to check if all sub-tasks are done`);
-                if (!actionToTitleToProjectAndTaskIdMap[subTaskOfAction]) actionToTitleToProjectAndTaskIdMap[subTaskOfAction] = {};                
-                actionToTitleToProjectAndTaskIdMap[subTaskOfAction]![item.文件] = {
-                  projectId: prj.project_id,
-                  taskId: '',
-                  task: item,
-                };
-              }
-            }
-          });
-        }
-      });
-    
-    let updated = false;
-    if (combinedOpsAndData)
-    {
-      //const pr = freeCampOpsWithCache.getFreedCampProcessor(loginToken);
-      for (const action of opsConfig.groupAndMainProjectMapping.actions) {
-        const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-        if (actionInfo) {
-          //setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
-          const prjs = combinedOpsAndData.freedCampTasksByAction[action];
-          for (const itm of projectList) {
-            const freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
-            if (freedCampTsk) {
-              itm[`${action} FreeCamp Item`] = freedCampTsk;
-            }
-          }
-        }
-      }
-
-        //const subTaskWithParentDone = actionToTitleToProjectAndTaskIdMap[action];      
-      // for (const actionName of Object.keys(actionToTitleToProjectAndTaskIdMap)) {
-      //   const cnt = actionToTitleToProjectAndTaskIdMap[actionName as ActionType] || {};
-      //   for (const title of Object.keys(cnt)) {
-      //     const tskAndPrj = cnt[title];
-      //     const prjs = await pr.getTasksForProjects(tskAndPrj.projectId, 1);
-      //     const tsk = prjs.tasks.find(tsk => tsk.title === title);
-      //     if (tsk) {
-      //       tskAndPrj.taskId = tsk.id || '';
-      //       tskAndPrj.task[`${actionName as ActionType} ParentTaskId`] = tskAndPrj.taskId;
-      //       console.log('debugremove setting task id for', title, 'to', tsk.id);
-      //       updated = true;
-      //     }
-      //   }        
-      // }
-    }
-
-    for (const item of projectList) {
-      getOperationInfo(combinedOpsAndData, item, logParam);
-    }
-    if (updated) {
-      //setProjectList([...projectList]);
-    }
-    //setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));
-  }
 
 
   // ...function removed, now imported from render_action_cell.tsx
