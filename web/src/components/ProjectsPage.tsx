@@ -22,10 +22,9 @@ import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } fro
 type LogMessage = {
   id: number;
   text: string;
-  timestamp: number;
 };
 
-const useLogger = (displayDuration = 5000) => {
+const useLogger = (displayDuration = 60000) => {
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const logIdCounterRef = useRef(0);
   
@@ -33,19 +32,19 @@ const useLogger = (displayDuration = 5000) => {
     console.log(msg);
     const newLog: LogMessage = {
       id: logIdCounterRef.current++,
-      text: msg,
-      timestamp: Date.now()
+      text: msg
     };
-    setLogMessages(prev => [...prev, newLog]);
-    
+    setLogMessages(prev => {
+      const next = [...prev, newLog];
+      return next.length > 50 ? next.slice(next.length - 50) : next;
+    });
+
     setTimeout(() => {
       setLogMessages(prev => prev.filter(log => log.id !== newLog.id));
     }, displayDuration);
   }, [displayDuration]);
 
-  const animationDuration = logMessages.length > 10 ? 0.3 : logMessages.length > 5 ? 0.5 : 1;
-
-  return { logMessages, doLog, animationDuration };
+  return { logMessages, doLog };
 };
 
 
@@ -61,7 +60,8 @@ export const ProjectsPage = () => {
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
-  const { logMessages, doLog, animationDuration } = useLogger(5000);
+  const { logMessages, doLog } = useLogger(60000);
+  const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
@@ -296,25 +296,52 @@ export const ProjectsPage = () => {
         onClose={() => setErrorDialog({ show: false, message: '' })}
       />
 
-      {/* Scrolling Log Display */}
+      <button
+        type="button"
+        aria-label={showLogPanel ? 'Hide logs' : 'Show logs'}
+        onClick={() => setShowLogPanel(prev => !prev)}
+        style={{
+          position: 'fixed',
+          top: '12px',
+          right: '12px',
+          width: '36px',
+          height: '36px',
+          borderRadius: '18px',
+          border: '1px solid #ddd',
+          backgroundColor: '#ffffff',
+          color: '#333',
+          fontSize: '12px',
+          fontWeight: 700,
+          cursor: 'pointer',
+          zIndex: 1200,
+          boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+        }}
+      >
+        {logMessages.length}
+      </button>
+
+      {showLogPanel && (
       <div style={{
         position: 'fixed',
-        right: '20px',
-        bottom: '20px',
-        width: '300px',
-        maxHeight: '80vh',
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        zIndex: 1000,
+        top: '56px',
+        right: '12px',
+        width: '340px',
+        height: '70vh',
+        backgroundColor: '#fff',
+        border: '1px solid #ddd',
+        borderRadius: '6px',
+        overflowY: 'auto',
+        zIndex: 1100,
         display: 'flex',
-        flexDirection: 'column-reverse',
-        gap: '8px'
+        flexDirection: 'column',
+        gap: '6px',
+        padding: '10px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
       }}>
-        {logMessages.map((log) => {
-          const age = Date.now() - log.timestamp;
-          const isFadingOut = age > 4500;
-          
-          return (
+        {logMessages.length === 0 ? (
+          <div style={{ color: '#777', fontSize: '12px' }}>No logs yet</div>
+        ) : (
+          [...logMessages].reverse().map((log) => (
             <div
               key={log.id}
               style={{
@@ -324,19 +351,16 @@ export const ProjectsPage = () => {
                 borderRadius: '4px',
                 fontSize: '12px',
                 wordWrap: 'break-word',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                animation: `slideInFromBottom ${animationDuration}s ease-out`,
-                opacity: isFadingOut ? 0 : 1,
-                transition: `opacity 0.5s ease-out`,
-                transformOrigin: 'bottom'
+                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
               }}
             >
               {log.text}
             </div>
-          );
-        })}
+          ))
+        )}
       </div>
-      
+      )}
+
       <style>{`
         @keyframes slideInFromBottom {
           from {
