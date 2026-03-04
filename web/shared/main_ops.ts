@@ -123,7 +123,10 @@ async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IO
     const newTaskId: string = getExistingTaskId(key, item);
     const lineNumber: number = item.itemPositionOnSheet;
     const index = opsConfig.templates[key].taskIdPos;    
-    log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} for action ${key}  `);
+    if (index <= 0) {
+        throw new Error(`update taskId: ${newTaskId} at line ${lineNumber} failed due to bad pos ${index} for action ${key}  `);
+    }
+    log.doLog(`update taskId: ${newTaskId} at line ${lineNumber} index ${index} for action ${key}  `);
     await ops.autoUpdateValues('main', [[newTaskId]], {
         row: lineNumber,
         col: index,
