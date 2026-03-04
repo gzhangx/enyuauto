@@ -148,7 +148,7 @@ export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
     const operationList: IOperationWithLineNumber[] = rawMainData.values.slice(1).map((row, index) => {
         const obj = {} as IOperationWithLineNumber;
         headers.forEach((header, colIndex) => {
-            obj[header as keyof OperationWithDueDates] = row[colIndex] || '';
+            obj[header as keyof OperationWithDueDates] = (row[colIndex] || '').trim();
         });
         obj.itemPositionOnSheet = index + 1;
         return obj;
@@ -277,16 +277,16 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     values.forEach(row => {
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = {
-                shortName: row[2] as ActionType,
-                subTaskOfFromSheetConfig: row[3] ? row[3] as ActionType : undefined,
-                isTaskEnabledForEnglishFromSheetConfig: row[4] === 'N' ? 'N' : '',
+                shortName: row[2].trim() as ActionType,
+                subTaskOfFromSheetConfig: row[3] ? row[3].trim() as ActionType : undefined,
+                isTaskEnabledForEnglishFromSheetConfig: row[4].trim() === 'N' ? 'N' : '',
             };
         }
     });
     const freedcampInfoRow = values.find(row => row[0] === 'freedcampInfo');
     if (freedcampInfoRow) {
-        configMap.freedcampInfo.username = freedcampInfoRow[1] || '';
-        configMap.freedcampInfo.password = freedcampInfoRow[2] || '';
+        configMap.freedcampInfo.username = (freedcampInfoRow[1] || '').trim();
+        configMap.freedcampInfo.password = (freedcampInfoRow[2] || '').trim();
     }
     return configMap;
 }

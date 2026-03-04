@@ -35,7 +35,10 @@ export function renderSyncActionCell(
 	const updateActions: (() => Promise<void>)[] = [];
     for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         const freedCampItem = p[`${action} FreeCamp Item`];
-        if (!freedCampItem) {
+		if (!freedCampItem) {
+			if (p.文件 === '2-18-26 Thanksgiving Testimony Elder Thomas Tioe, Running the Race I Never Chose') {
+				console.log(`No FreedCamp item for action ${action} in operation:`, p);
+			}
             parts.push(`Action ${action}: No FreedCamp item, skipped`);
             continue;
         }
