@@ -24,15 +24,19 @@ type LogMessage = {
 
 type UseLoggerResult = {
   logMessages: LogMessage[];
+  criticalError: { show: boolean; message: string };
+  closeCriticalError: () => void;
 } & DebugLog;
 
 const useLogger = (displayDuration = 60000): UseLoggerResult => {
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
+  const [criticalError, setCriticalError] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const logIdCounterRef = useRef(0);
   
   const doLog = useCallback<DebugLog['doLog']>((msg, critical = false) => {
     if (critical) {
       console.error(msg);
+      setCriticalError({ show: true, message: msg });
     } else {
       console.log(msg);
     }
@@ -50,7 +54,11 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
     }, displayDuration);
   }, [displayDuration]);
 
-  return { logMessages, doLog };
+  const closeCriticalError = useCallback(() => {
+    setCriticalError({ show: false, message: '' });
+  }, []);
+
+  return { logMessages, doLog, criticalError, closeCriticalError };
 };
 
 
@@ -66,7 +74,7 @@ export const ProjectsPage = () => {
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
-  const { logMessages, doLog } = useLogger(60000);
+  const { logMessages, doLog, criticalError, closeCriticalError } = useLogger(60000);
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   
@@ -223,6 +231,12 @@ export const ProjectsPage = () => {
         show={errorDialog.show}
         message={errorDialog.message}
         onClose={() => setErrorDialog({ show: false, message: '' })}
+      />
+
+      <ErrorDialog 
+        show={criticalError.show}
+        message={criticalError.message}
+        onClose={closeCriticalError}
       />
 
       <button
