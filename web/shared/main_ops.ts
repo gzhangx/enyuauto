@@ -427,7 +427,7 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
 
 
 
-function formatLocalDateYyyyMmDd(unixSeconds: number): string {
+export function formatLocalDateYyyyMmDd(unixSeconds: number): string {
 	const date = new Date(unixSeconds * 1000);
 	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
