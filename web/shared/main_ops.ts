@@ -449,7 +449,8 @@ function buildSyncUpdates(
 		}
 
 		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
-			[action]: 'assigned_to_id',
+            [action]: 'assigned_to_id',
+            [`${action} TaskId`]: 'id',
 			[`${action} Due Date`]: 'due_ts',
 			[`${action} Complete Date`]: 'completed_ts',
 		};
@@ -459,7 +460,7 @@ function buildSyncUpdates(
 			let fcVal = freedCampItem[freedCampKey] as string;
 			let compareValues: string[] = [];
 
-			if (freedCampKey === 'assigned_to_id') {
+			if (freedCampKey === 'assigned_to_id' || freedCampKey === 'id') {
 				const userInfo = combined.userIdToInfoMap[fcVal];
 				console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
 				if (userInfo) {
