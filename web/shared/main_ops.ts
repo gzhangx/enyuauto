@@ -279,7 +279,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2].trim() as ActionType,
                 subTaskOfFromSheetConfig: row[3] ? row[3].trim() as ActionType : undefined,
-                isTaskEnabledForEnglishFromSheetConfig: row[4].trim() === 'N' ? 'N' : '',
+                isTaskEnabledForEnglishFromSheetConfig: row[4]?.trim() === 'N' ? 'N' : '',
             };
         }
     });
