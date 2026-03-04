@@ -469,9 +469,18 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
           //setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
           const prjs = combinedOpsAndData.freedCampTasksByAction[action];
           for (const itm of projectList) {
-            const freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
+            let freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
             if (freedCampTsk) {
               itm[`${action} FreeCamp Item`] = freedCampTsk;
+            } else {
+                const freedCampTsks = prjs.tasks.filter(tsk => tsk.title?.includes(itm.文件));
+                if (freedCampTsks.length !== 0) {
+                    if (freedCampTsks.length > 1) {
+                        log.doLog(`Warning: multiple FreedCamp tasks found for ${itm.文件} in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
+                    } else {
+                        itm[`${action} FreeCamp Item`] = freedCampTsks[0];
+                    }
+                }
             }
           }
         }
@@ -626,7 +635,7 @@ export async function processOperation(
 }
 
 export interface DebugLog {
-    doLog: (msg: string) => void;
+    doLog: (msg: string, critical?: boolean) => void;
 }
 
 

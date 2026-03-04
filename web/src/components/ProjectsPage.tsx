@@ -22,12 +22,20 @@ type LogMessage = {
   text: string;
 };
 
-const useLogger = (displayDuration = 60000) => {
+type UseLoggerResult = {
+  logMessages: LogMessage[];
+} & DebugLog;
+
+const useLogger = (displayDuration = 60000): UseLoggerResult => {
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const logIdCounterRef = useRef(0);
   
-  const doLog = useCallback((msg: string) => {
-    console.log(msg);
+  const doLog = useCallback<DebugLog['doLog']>((msg, critical = false) => {
+    if (critical) {
+      console.error(msg);
+    } else {
+      console.log(msg);
+    }
     const newLog: LogMessage = {
       id: logIdCounterRef.current++,
       text: msg
