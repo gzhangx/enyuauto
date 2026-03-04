@@ -215,7 +215,7 @@ export function renderActionCell(
 	const hasAssignedTo = freedCampItem?.assigned_to_id && freedCampItem?.assigned_to_id !== '0';
 
 	if (!taskId && (!hasCompletedDate && !hasAssignedTo)) {
-		return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>NA</span>;
+		return <span style={{ color: 'orange' }} title={tooltipText}>NA</span>;
 	}
 	return (
 		<>
@@ -236,7 +236,7 @@ export function renderActionCell(
 			}
 			{
 				hasCompletedDate && (
-					`${formatLocalDateYyyyMmDd(hasCompletedDate)}`
+					<span style={{ color: 'green', fontWeight: 'bold' }}>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
 				)
 			// 	hasCompletedDate && (
 			// 	<button
