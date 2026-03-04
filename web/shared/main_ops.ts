@@ -591,7 +591,7 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
             publishCompleted = publishItem.completed_ts !== null && publishItem.completed_ts !== undefined;
         }
         const taskDone = item['校对 TaskId'] === 'done';
-        item.isFinished = (publishCompleted || taskDone) && item.syncFreeCampToSheetData !== undefined;
+        item.isFinished = (publishCompleted || taskDone) && !item.syncFreeCampToSheetData;
     }
     if (updated) {
       //setProjectList([...projectList]);
