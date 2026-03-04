@@ -3,6 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
+import { act } from 'react';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -448,6 +449,9 @@ function buildSyncUpdates(
 			continue;
 		}
 
+        if (action === '美编' && p.文件.includes('2026-2-1 宣教无国界 陈娇 三福培训分享- 2025年宣教之夜发言')) {
+            console.log('this is itt!!!!!!!!!!!!!!!!!!!!!!!!!! 2026-2-1 宣教无国界 陈娇 三福培训分享- 2025年宣教之夜发言')
+        }
 		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
             [action]: 'assigned_to_id',
             [`${action} TaskId`]: 'id',
@@ -460,25 +464,27 @@ function buildSyncUpdates(
 			let fcVal = freedCampItem[freedCampKey] as string;
 			let compareValues: string[] = [];
 
-			if (freedCampKey === 'assigned_to_id' || freedCampKey === 'id') {
-				const userInfo = combined.userIdToInfoMap[fcVal];
-				console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
-				if (userInfo) {
-					fcVal = userInfo.full_name;
-				}
-				if (!fcVal || fcVal === '0') {
-					return;
-				}
-			} else if (fcVal) {
-				const ts = Number(fcVal);
-				if (!Number.isNaN(ts)) {
-					const date = new Date(ts * 1000);
-					const yyyyMmDd = formatLocalDateYyyyMmDd(ts);
-					const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
-					compareValues = [yyyyMmDd, mDyYyyy];
-					fcVal = yyyyMmDd;
-				}
-			}
+            if (freedCampKey !== 'id') {
+                if (freedCampKey === 'assigned_to_id') {
+                    const userInfo = combined.userIdToInfoMap[fcVal];
+                    console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
+                    if (userInfo) {
+                        fcVal = userInfo.full_name;
+                    }
+                    if (!fcVal || fcVal === '0') {
+                        return;
+                    }
+                } else if (fcVal) {
+                    const ts = Number(fcVal);
+                    if (!Number.isNaN(ts)) {
+                        const date = new Date(ts * 1000);
+                        const yyyyMmDd = formatLocalDateYyyyMmDd(ts);
+                        const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+                        compareValues = [yyyyMmDd, mDyYyyy];
+                        fcVal = yyyyMmDd;
+                    }
+                }
+            }
 
 			const colIdx = combined.opsConfig.headers.indexOf(sheetCol);
 			if (colIdx === -1) {
