@@ -192,6 +192,9 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
         for (const key of groupAndMainProjectMapping.actions) {
             if (item === getTaskIdColumnName(key)) {
                 log.doLog(`getOpsAndLine: header found ${item} at index ${index}`);
+                if (!templates[key]) {
+                    throw new Error(`Template for action ${key} not found in templates sheet, but corresponding column ${item} found in main sheet headers. Please fix the templates sheet to include template for ${key}`);
+                }
                 templates[key].taskIdPos = index;
                 //await templates[key].taskIdUpdater('test' + key + "test");                
             } else if (item === getCompleteDateColumnName(key)) {
