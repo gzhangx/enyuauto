@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
-import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type OperationInfo, type OperationWithDueDates, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -425,6 +425,83 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
     return infos;
 }
 
+
+
+function formatLocalDateYyyyMmDd(unixSeconds: number): string {
+	const date = new Date(unixSeconds * 1000);
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function buildSyncUpdates(
+	p: IOperationWithLineNumberAndParentTaskId,
+	combined: ICombinedOpsAndFreeCampData,
+): ISyncFreeCampToSheetData | undefined {
+	const parts: string[] = [];
+	const updates: SyncUpdateItem[] = [];
+
+	for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+		const freedCampItem = p[`${action} FreeCamp Item`];
+		if (!freedCampItem) {
+			parts.push(`Action ${action}: No FreedCamp item, skipped`);
+			continue;
+		}
+
+		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
+			[action]: 'assigned_to_id',
+			[`${action} Due Date`]: 'due_ts',
+			[`${action} Complete Date`]: 'completed_ts',
+		};
+
+		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
+			const sheetVal = p[sheetCol as keyof typeof p];
+			let fcVal = freedCampItem[freedCampKey] as string;
+			let compareValues: string[] = [];
+
+			if (freedCampKey === 'assigned_to_id') {
+				const userInfo = combined.userIdToInfoMap[fcVal];
+				console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
+				if (userInfo) {
+					fcVal = userInfo.full_name;
+				}
+				if (!fcVal || fcVal === '0') {
+					return;
+				}
+			} else if (fcVal) {
+				const ts = Number(fcVal);
+				if (!Number.isNaN(ts)) {
+					const date = new Date(ts * 1000);
+					const yyyyMmDd = formatLocalDateYyyyMmDd(ts);
+					const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+					compareValues = [yyyyMmDd, mDyYyyy];
+					fcVal = yyyyMmDd;
+				}
+			}
+
+			const colIdx = combined.opsConfig.headers.indexOf(sheetCol);
+			if (colIdx === -1) {
+				parts.push(`Column ${sheetCol} not found in sheet headers`);
+				return;
+			}
+
+			const sheetValStr = String(sheetVal);
+			const matchesSheet = compareValues.length > 0
+				? compareValues.includes(sheetValStr)
+				: String(fcVal) === sheetValStr;
+
+			if (fcVal !== undefined && fcVal !== null && !matchesSheet) {
+				const displayVal = compareValues.length > 0 ? `${compareValues[0]} / ${compareValues[1]}` : String(fcVal);
+				parts.push(
+					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${displayVal}" (was "${sheetVal}")`
+				);
+				updates.push({ sheetCol, value: fcVal });
+			}
+		});
+	}
+
+    if (updates.length === 0) return undefined;
+	return { parts, updates };
+}
+
 export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampData, projectList: IOperationWithLineNumberAndParentTaskId[],log: DebugLog) {
     const opsConfig = combinedOpsAndData.opsConfig;
     const actionToTitleToProjectAndTaskIdMap: {
@@ -504,7 +581,9 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
     }
 
     for (const item of projectList) {
-      getOperationInfo(combinedOpsAndData, item, log);
+        getOperationInfo(combinedOpsAndData, item, log);
+        const syncFreeCompToSheetParts = buildSyncUpdates(item, combinedOpsAndData);
+        item.syncFreeCampToSheetData = syncFreeCompToSheetParts;
     }
     if (updated) {
       //setProjectList([...projectList]);

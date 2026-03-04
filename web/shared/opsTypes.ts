@@ -7,6 +7,16 @@ export type DueDateKeys = `${ActionType} Due Date`;
 export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
 export type FreeCampItemKeys = `${ActionType} FreeCamp Item`;
+export type SyncUpdateItem = {
+    sheetCol: string;
+    value: string;
+};
+
+export type ISyncFreeCampToSheetData = {
+    parts: string[];
+    updates: SyncUpdateItem[];
+};
+
 export interface Operation {
     '文件': string;
     '作者': string;
@@ -47,6 +57,8 @@ export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber &
       [k in ParentTaskIdKeys]?: string;
 } & {
     [k in FreeCampItemKeys]?: ProjectTaskParams;
+} & {
+    syncFreeCampToSheetData?: ISyncFreeCampToSheetData;
 };
 
 export interface OperationInfo {

@@ -5,10 +5,6 @@ import type { ActionType } from '../../lib/api';
 import React from 'react';
 import * as gs from '@gzhangx/googleapi';
 
-function formatLocalDateYyyyMmDd(unixSeconds: number): string {
-	const date = new Date(unixSeconds * 1000);
-	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
 
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
 export function renderSyncActionCell(
@@ -35,78 +31,13 @@ export function renderSyncActionCell(
     if (!ready) {
         tooltipText += ' Sheet operations not ready.!!!!!';
         return <div title={tooltipText}>Waiting for Data</div>;
-    }
-	const parts: string[] = [];	
-	const updateActions: (() => Promise<void>)[] = [];
-    for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
-        const freedCampItem = p[`${action} FreeCamp Item`];
-		if (!freedCampItem) {
-            parts.push(`Action ${action}: No FreedCamp item, skipped`);
-            continue;
-        }
-		// Map sheet columns to FreedCamp item keys
-		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
-			[action]: 'assigned_to_id',
-			[`${action} Due Date`]: 'due_ts',
-			[`${action} Complete Date`]: 'completed_ts',
-        };
-        
-		// For each mapped column, if FreedCamp has data but sheet does not (or is different),
-		// collect the update info: sheet column index, line number, FreedCamp value
-		Object.entries(columnMapping).forEach(([sheetCol, freedCampKey]) => {
-			// Sheet value (sheetCol is a key in p)
-			const sheetVal = p[sheetCol as keyof typeof p];
-			// FreedCamp value
-			let fcVal = freedCampItem[freedCampKey] as string;
-			let compareValues: string[] = [];			
-			if (freedCampKey === 'assigned_to_id') {
-				const userInfo = combined.userIdToInfoMap[fcVal];
-				console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
-				if (userInfo) {
-					fcVal = userInfo.full_name; // Replace ID with name for comparison and display
-				}
-				if (!fcVal || fcVal === '0') {
-					return;
-				}
-			} else {
-				//it is date
-				if (fcVal) {
-					const ts = Number(fcVal);
-					if (!Number.isNaN(ts)) {
-						const date = new Date(ts * 1000);
-						const yyyyMmDd = formatLocalDateYyyyMmDd(ts);
-						const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
-						compareValues = [yyyyMmDd, mDyYyyy];
-						fcVal = yyyyMmDd;
-					}
-				}
-			}
-			// Find the column index in the sheet
-			const colIdx = combined.opsConfig.headers.indexOf(sheetCol);
-			if (colIdx === -1) {
-				parts.push(`Column ${sheetCol} not found in sheet headers`);
-				return;
-			}
-			
-			const sheetValStr = String(sheetVal);
-			
-			
-			// Only consider if FreedCamp has a value and it's different from sheet
-			const matchesSheet = compareValues.length > 0
-				? compareValues.includes(sheetValStr)
-				: String(fcVal) === sheetValStr;
-			if (fcVal !== undefined && fcVal !== null && !matchesSheet) {
-				const displayVal = compareValues.length > 0 ? `${compareValues[0]} / ${compareValues[1]}` : String(fcVal);
-				parts.push(
-					`Action ${action}: SheetCol "${sheetCol}" (col ${colIdx + 1}, line ${p.itemPositionOnSheet}) will update to "${displayVal}" (was "${sheetVal}")`
-				);
-				updateActions.push(async () => { 
-					p[sheetCol as ActionType] = fcVal; // Update local data immediately for better UX	
-					await anyKeyUpdater(sheetOpsRef.current, combined.opsConfig, sheetCol as ActionType, p, { doLog });
-				});
-			}
-		});
-    }    
+	}
+	const syncData = p.syncFreeCampToSheetData;
+	if (!syncData) {
+		tooltipText += 'No data to sync.';
+		return <div title={tooltipText}></div>;
+	}
+	const { parts, updates } = syncData;
 
 	// Build tooltip text with FreedCamp info
 	
@@ -116,9 +47,9 @@ export function renderSyncActionCell(
 	return (
 		<button
 			className="btn btn-create"
-			style={{ marginLeft: '5px', background: updateActions.length === 0 ? '#9e9e9e' : '#ff9800', color: 'white' }}
+			style={{ marginLeft: '5px', background: updates.length === 0 ? '#9e9e9e' : '#ff9800', color: 'white' }}
 			title={tooltipText}
-			disabled={updateActions.length === 0}
+			disabled={updates.length === 0}
 			onClick={async () => {
 				if (sheetOpsRef.current && combined) {
 					try {
@@ -131,8 +62,9 @@ export function renderSyncActionCell(
 						// Example: update the sheet with the FreedCamp ID
 						// await updateSheetWithFreedCampId(sheetOpsRef.current, opsConfig, action, p, freedCampItem.id, logParam);						
 						// For now, just refresh
-						for (const updateAction of updateActions) {
-							await updateAction();
+						for (const update of updates) {
+							p[update.sheetCol as ActionType] = update.value;
+							await anyKeyUpdater(sheetOpsRef.current, combined.opsConfig, update.sheetCol as ActionType, p, { doLog });
 						}
 						await fetchData();
 					} catch (error: any) {
@@ -142,7 +74,7 @@ export function renderSyncActionCell(
 				}
 			}}
 		>
-			{desc} { updateActions.length}
+			{desc} { updates.length}
 		</button>
 	);
 }
