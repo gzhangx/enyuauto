@@ -205,6 +205,12 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
         }        
     }
 
+    for (const action of groupAndMainProjectMapping.actions) {
+        if (templates[action].taskIdPos === -1) {
+            throw new Error(`TaskId column for action ${action} not found in main sheet headers. Expected column name: '${getTaskIdColumnName(action)}'. Please check spelling or add to main sheet header.`);
+        }
+    }
+
     return { operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
 }
 
