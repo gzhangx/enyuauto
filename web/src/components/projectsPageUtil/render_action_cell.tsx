@@ -171,10 +171,10 @@ export function renderActionCell(
 		combined,
 		freeCampOpsWithCache,
 		deleteItemActionTask,
-		completeDateUpdater,
+		//completeDateUpdater,
 		doLog,
-		fetchData,
-		setErrorDialog,
+		//fetchData,
+		//setErrorDialog,
 	} = deps;
 
 	const taskId = p[getTaskIdColumnName(action)];
