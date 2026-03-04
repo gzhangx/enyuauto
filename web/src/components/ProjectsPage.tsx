@@ -151,9 +151,10 @@ export const ProjectsPage = () => {
 
     function prepareData(dataRes: { operationList: IOperationWithLineNumberAndParentTaskId[];}, res: IOpsConfig) {
       const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
-        return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
-          return acc || item[getTaskIdColumnName(action)] != 'done';
-        }, false) && item.文件.trim() !== '';
+        //return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
+        //  return acc || item[getTaskIdColumnName(action)] != 'done';
+        //}, false) && item.文件.trim() !== '';
+        return !item.isFinished;
       });
       
       setProjectList(list);
