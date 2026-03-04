@@ -341,7 +341,7 @@ export const ProjectsPage = () => {
           {
             projectList.map((p,idx) => {
               return <tr key={p.文章名+idx}>
-                <td><button className="btn btn-create" onClick={
+                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
                   async () => {
                     if (opsConfig === null) {
                       setResponseData('Operation data not loaded yet.');
@@ -372,7 +372,7 @@ export const ProjectsPage = () => {
                     //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
                     //setResponseData(JSON.stringify(retData, null, 2));
                   }
-                }>Create</button></td>
+                }>Create</button>}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
                   <a href={p.文件} target="_blank">{p.文件}</a>
                 </td>

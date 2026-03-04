@@ -59,6 +59,7 @@ export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber &
     [k in FreeCampItemKeys]?: ProjectTaskParams;
 } & {
     syncFreeCampToSheetData?: ISyncFreeCampToSheetData;
+    noNeedToCreate: boolean;  //if we alreadu published then we should not need to create any more
     isFinished: boolean;
 };
 

@@ -152,6 +152,7 @@ export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
         });
         obj.itemPositionOnSheet = index + 1;
         obj.isFinished = false;
+        obj.noNeedToCreate = false;
         return obj;
     });
     return { operationList, headers };
@@ -590,8 +591,9 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
         if (publishItem) {
             publishCompleted = publishItem.completed_ts !== null && publishItem.completed_ts !== undefined;
         }
-        const taskDone = item['校对 TaskId'] === 'done';
+        const taskDone = item['发布'] === 'done';
         item.isFinished = (publishCompleted || taskDone) && !item.syncFreeCampToSheetData;
+        item.noNeedToCreate = publishCompleted || taskDone;
     }
     if (updated) {
       //setProjectList([...projectList]);
