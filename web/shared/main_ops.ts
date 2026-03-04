@@ -145,12 +145,13 @@ export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
     const headers = rawMainData.values[0];
     //const operationListData = await ops.readDataByColumnName('main');
     //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
-    const operationList: IOperationWithLineNumber[] = rawMainData.values.slice(1).map((row, index) => {
-        const obj = {} as IOperationWithLineNumber;
+    const operationList: IOperationWithLineNumberAndParentTaskId[] = rawMainData.values.slice(1).map((row, index) => {
+        const obj = {} as IOperationWithLineNumberAndParentTaskId;
         headers.forEach((header, colIndex) => {
             obj[header as keyof OperationWithDueDates] = (row[colIndex] || '').trim();
         });
         obj.itemPositionOnSheet = index + 1;
+        obj.isFinished = false;
         return obj;
     });
     return { operationList, headers };
@@ -201,7 +202,7 @@ export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log
 }
 
 
-export function getOperationFromLineNumber(operationList: IOperationWithLineNumber[], lineNumber: number): IOperationWithLineNumber | undefined {
+export function getOperationFromLineNumber(operationList: IOperationWithLineNumberAndParentTaskId[], lineNumber: number): IOperationWithLineNumberAndParentTaskId | undefined {
     const operation = operationList[lineNumber - 2];
     return operation;
 }
@@ -584,6 +585,13 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
         getOperationInfo(combinedOpsAndData, item, log);
         const syncFreeCompToSheetParts = buildSyncUpdates(item, combinedOpsAndData);
         item.syncFreeCampToSheetData = syncFreeCompToSheetParts;
+        const publishItem = item[`发布 FreeCamp Item`];
+        let publishCompleted = false;
+        if (publishItem) {
+            publishCompleted = publishItem.completed_ts !== null && publishItem.completed_ts !== undefined;
+        }
+        const taskDone = item['校对 TaskId'] === 'done';
+        item.isFinished = (publishCompleted || taskDone) && item.syncFreeCampToSheetData !== undefined;
     }
     if (updated) {
       //setProjectList([...projectList]);

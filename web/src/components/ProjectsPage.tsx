@@ -149,7 +149,7 @@ export const ProjectsPage = () => {
       sheetOpsRef.current = ops;
     }
 
-    function prepareData(dataRes: { operationList: IOperationWithLineNumber[];}, res: IOpsConfig) {
+    function prepareData(dataRes: { operationList: IOperationWithLineNumberAndParentTaskId[];}, res: IOpsConfig) {
       const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
         return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
           return acc || item[getTaskIdColumnName(action)] != 'done';

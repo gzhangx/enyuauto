@@ -59,6 +59,7 @@ export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber &
     [k in FreeCampItemKeys]?: ProjectTaskParams;
 } & {
     syncFreeCampToSheetData?: ISyncFreeCampToSheetData;
+    isFinished: boolean;
 };
 
 export interface OperationInfo {
