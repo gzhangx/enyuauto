@@ -5,6 +5,11 @@ import type { ActionType } from '../../lib/api';
 import React from 'react';
 import * as gs from '@gzhangx/googleapi';
 
+function formatLocalDateYyyyMmDd(unixSeconds: number): string {
+	const date = new Date(unixSeconds * 1000);
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
 export function renderSyncActionCell(
 	p: IOperationWithLineNumberAndParentTaskId,
@@ -69,7 +74,7 @@ export function renderSyncActionCell(
 					const ts = Number(fcVal);
 					if (!Number.isNaN(ts)) {
 						const date = new Date(ts * 1000);
-						const yyyyMmDd = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+						const yyyyMmDd = formatLocalDateYyyyMmDd(ts);
 						const mDyYyyy = `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
 						compareValues = [yyyyMmDd, mDyYyyy];
 						fcVal = yyyyMmDd;
@@ -187,6 +192,8 @@ export function renderActionCell(
 			parts.push(`Status: ${freedCampItem.status_id}:${freedCampItem.status_title}`);
 		}
 		tooltipText = parts.join('\n');
+	} else {
+		tooltipText = 'No corresponding FreedCamp item found.';
 	}
 
 	if (!taskId) {
@@ -200,10 +207,15 @@ export function renderActionCell(
 	}
 
 	const hasCompletedDate = freedCampItem?.completed_ts;
+	if (hasCompletedDate) {
+		console.log(freedCampItem, 'debugremove freedCampItem is in render_action_cell.tsx')
+	}
+
+	const hasAssignedTo = freedCampItem?.assigned_to_id && freedCampItem?.assigned_to_id !== '0';
 
 	return (
 		<>
-			<button
+			{ !hasAssignedTo && !hasCompletedDate && <button
 				className="btn btn-delete"
 				title={tooltipText}
 				onClick={async () => {
@@ -214,36 +226,45 @@ export function renderActionCell(
 			>
 				Delete {p[getTaskIdColumnName(action)]}
 			</button>
-			{hasCompletedDate && (
-				<button
-					className="btn btn-create"
-					style={{ marginLeft: '5px' }}
-					title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
-					onClick={async () => {
-						if (sheetOpsRef.current && combined) {
-							try {
-								const completedDate = new Date(hasCompletedDate * 1000);
-								const formattedDate = completedDate.toLocaleDateString();
-								await completeDateUpdater(
-									sheetOpsRef.current,
-									combined.opsConfig,
-									action,
-									p,
-									formattedDate,
-									{ doLog }
-								);
-								doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
-								await fetchData();
-							} catch (error: any) {
-								console.error('Error updating sheet:', error);
-								setErrorDialog({ show: true, message: `Failed to update sheet:\n${error.message || String(error)}` });
-							}
-						}
-					}}
-				>
-					Mark Done
-				</button>
-			)}
+			}
+			{
+				hasAssignedTo && !hasCompletedDate && (freedCampItem.assigned_to_fullname)
+			}
+			{
+				hasCompletedDate && (
+					`${formatLocalDateYyyyMmDd(hasCompletedDate)}`
+				)
+			// 	hasCompletedDate && (
+			// 	<button
+			// 		className="btn btn-create"
+			// 		style={{ marginLeft: '5px' }}
+			// 		title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
+			// 		onClick={async () => {
+			// 			if (sheetOpsRef.current && combined) {
+			// 				try {
+			// 					const completedDate = new Date(hasCompletedDate * 1000);
+			// 					const formattedDate = completedDate.toLocaleDateString();
+			// 					await completeDateUpdater(
+			// 						sheetOpsRef.current,
+			// 						combined.opsConfig,
+			// 						action,
+			// 						p,
+			// 						formattedDate,
+			// 						{ doLog }
+			// 					);
+			// 					doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
+			// 					await fetchData();
+			// 				} catch (error: any) {
+			// 					console.error('Error updating sheet:', error);
+			// 					setErrorDialog({ show: true, message: `Failed to update sheet:\n${error.message || String(error)}` });
+			// 				}
+			// 			}
+			// 		}}
+			// 	>
+			// 		Mark Done
+			// 	</button>
+			// )
+				}
 		</>
 	);
 }
