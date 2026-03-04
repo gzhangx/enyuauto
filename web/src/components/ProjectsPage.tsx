@@ -341,7 +341,7 @@ export const ProjectsPage = () => {
           {
             projectList.map((p,idx) => {
               return <tr key={p.文章名+idx}>
-                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
+                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
                   async () => {
                     if (opsConfig === null) {
                       setResponseData('Operation data not loaded yet.');
