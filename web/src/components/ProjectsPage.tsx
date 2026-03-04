@@ -13,7 +13,7 @@ import {
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
-import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../shared/opsTypes';
+import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 
 
@@ -111,7 +111,7 @@ export const ProjectsPage = () => {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
         updateDoneParentIds(combinedOpsAndData, res.operationList, logParam);
-        prepareData(res, opsConfig);
+        prepareData(res);
         setIsLoading(prev=>({ ...prev, listLoading: '' }));
       } else {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects and config...' }));
@@ -136,7 +136,7 @@ export const ProjectsPage = () => {
           updateDoneParentIds(combined, res.operationList, logParam);
           setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));      
           //---------------------------
-          prepareData(res, res);
+          prepareData(res);
         }).catch(error => {
           console.error('Error loading projects:', error);
           setResponseData(`Error: ${error.message || String(error)}`);
@@ -149,7 +149,7 @@ export const ProjectsPage = () => {
       sheetOpsRef.current = ops;
     }
 
-    function prepareData(dataRes: { operationList: IOperationWithLineNumberAndParentTaskId[];}, res: IOpsConfig) {
+    function prepareData(dataRes: { operationList: IOperationWithLineNumberAndParentTaskId[];}) {
       const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
         //return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
         //  return acc || item[getTaskIdColumnName(action)] != 'done';
@@ -318,11 +318,14 @@ export const ProjectsPage = () => {
         }
       `}</style>
 
-      <h1>Enyu Site</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
+        <h1 style={{ margin: 0 }}>Enyu Site</h1>
+        <button className="btn btn-create" onClick={fetchData}>Reload</button>
+      </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
           <tr>
-            <th><button className="btn btn-create" onClick={fetchData}>Reload</button></th>
+            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>Action</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
             <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>
