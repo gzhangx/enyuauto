@@ -64,6 +64,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 export const ProjectsPage = () => {
   const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
+  const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
   const [isLoading, setIsLoading] = useState({
@@ -77,6 +78,7 @@ export const ProjectsPage = () => {
   const { logMessages, doLog, criticalError, closeCriticalError } = useLogger(60000);
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
+  const [showAllProjects, setShowAllProjects] = useState(false);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
   
@@ -150,16 +152,21 @@ export const ProjectsPage = () => {
     }
 
     function prepareData(dataRes: { operationList: IOperationWithLineNumberAndParentTaskId[];}) {
-      const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 })).filter(item => {
-        //return res.groupAndMainProjectMapping.actions.reduce((acc, action) => {
-        //  return acc || item[getTaskIdColumnName(action)] != 'done';
-        //}, false) && item.文件.trim() !== '';
-        return !item.isFinished;
-      });
-      
-      setProjectList(list);
+      const list = dataRes.operationList.map((item, index) => ({ ...item, line: index + 2 }));
+      setFullProjectList(list);
     }
   }
+
+  useEffect(() => {
+    const filtered = fullProjectList.filter((item) => {
+      if (showAllProjects) {
+        return true;
+      }
+      return !item.isFinished;
+    });
+    setProjectList(filtered);
+  }, [fullProjectList, showAllProjects]);
+
   useEffect(() => {
     if (token && !startupRunOnce.current) {
       startupRunOnce.current = true;
@@ -321,6 +328,14 @@ export const ProjectsPage = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
         <button className="btn btn-create" onClick={fetchData}>Reload</button>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
+          <input
+            type="checkbox"
+            checked={showAllProjects}
+            onChange={(e) => setShowAllProjects(e.target.checked)}
+          />
+          Show all
+        </label>
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
