@@ -105,11 +105,11 @@ export const ProjectsPage = () => {
   };
 
   const logParam = { getOperations: () => [], doLog }
-  async function fetchData() {
+  async function fetchData(fullReload = false) {
     console.log('useEffect run');
     if (token) {
       const ops = await getSheetOps({ token }, sheetInfoCache);
-      if (opsConfig &&combinedOpsAndData) {
+      if (opsConfig &&combinedOpsAndData && !fullReload) {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
         updateDoneParentIds(combinedOpsAndData, res.operationList, logParam);
@@ -338,7 +338,8 @@ export const ProjectsPage = () => {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
-        <button className="btn btn-create" onClick={fetchData}>Reload</button>
+        <button className="btn btn-create" onClick={() => fetchData(false)}>Reload</button>
+        <button className="btn btn-create" onClick={()=>fetchData(true)}>Reload All</button>
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
           <input
             type="checkbox"
