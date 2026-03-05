@@ -460,9 +460,6 @@ function buildSyncUpdates(
 			continue;
 		}
 
-        if (action === '美编' && p.文件.includes('2026-2-1 宣教无国界 陈娇 三福培训分享- 2025年宣教之夜发言')) {
-            console.log('this is itt!!!!!!!!!!!!!!!!!!!!!!!!!! 2026-2-1 宣教无国界 陈娇 三福培训分享- 2025年宣教之夜发言')
-        }
 		const columnMapping: { [sheetCol: string]: keyof typeof freedCampItem } = {
             [action]: 'assigned_to_id',
             [`${action} TaskId`]: 'id',
