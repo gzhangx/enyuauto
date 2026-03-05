@@ -233,6 +233,17 @@ export const ProjectsPage = () => {
     fetchData,
     setErrorDialog,
   };
+
+  const stickyHeaderCellStyle = {
+    border: '1px solid #ddd',
+    padding: '12px',
+    textAlign: 'left' as const,
+    position: 'sticky' as const,
+    top: 0,
+    zIndex: 900,
+    backgroundColor: '#fff'
+  };
+
   return (
     <>
       <ErrorDialog 
@@ -340,16 +351,16 @@ export const ProjectsPage = () => {
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
           <tr>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>Action</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文件</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>文章名</th>
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>作者</th>
+            <th style={stickyHeaderCellStyle}>Action</th>
+            <th style={stickyHeaderCellStyle}>文件</th>
+            <th style={stickyHeaderCellStyle}>文章名</th>
+            <th style={stickyHeaderCellStyle}>作者</th>
             {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
-              <th key={action} style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>
+              <th key={action} style={stickyHeaderCellStyle}>
                 {action}
               </th>
             ))}
-            <th style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'left' }}>Line</th>
+            <th style={stickyHeaderCellStyle}>Line</th>
           </tr>
         </thead>
         <tbody>
