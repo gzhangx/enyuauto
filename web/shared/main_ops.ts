@@ -654,6 +654,8 @@ export async function processOperation(
                 } else {
                     infos['editor'] = `${prettyName}${editorLookup.title}`;
                 }
+            } else {
+                infos["editor"] = 'EDITOR NOTSET'; //clear editor
             }
             const curTemplateActionInfo = templates[action];
             const existingTaskId = getExistingTaskId(action, operation);
