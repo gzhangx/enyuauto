@@ -673,10 +673,10 @@ export async function processOperation(
             
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category']) {
                 if (replaceItem === 'article' && link) continue;
-                template1 = template1.replace(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
+                template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
             if (link) {
-                template1 = template1.replace('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
+                template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
 
 
