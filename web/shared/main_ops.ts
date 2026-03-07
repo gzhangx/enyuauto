@@ -412,7 +412,7 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
 function getOperationInfo(combined: ICombinedOpsAndFreeCampData,    
     operation: IOperationWithLineNumberAndParentTaskId, log: DebugLog,) {
     const article = operation['文章名'];
-    const fileName = operation['文件'];
+    //const fileName = operation['文件'];
     const infos: OperationInfo = {        
             author: operation['作者'],
             article,
@@ -420,15 +420,19 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
             email: operation['作者电邮'],
             category: operation['文章类别'],
             //校对: operation['校对'],
-        editor: '',
-            isEnglishOnly: !/[\u4e00-\u9fff]/.test(fileName)?'Y':'N', // Check if article contains Chinese characters
+            editor: '',            
+            //isEnglishOnly: !/[\u4e00-\u9fff]/.test(fileName)?'Y':'N', // Check if article contains Chinese characters
         };
 
         // Check if article is English-only (no Chinese characters)
     const groupAndMainProjectMapping = combined.opsConfig.groupAndMainProjectMapping;
     for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-        if (actionConfig.isTaskEnabledForEnglish === false && infos.isEnglishOnly === 'Y') {
+        const editor = operation[action];
+        const editorLookup = combined.opsConfig.editorInfoMap[editor];
+
+        const isEnglishOnly =isEditorEnglish(editorLookup);
+        if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
             const fileName = operation['文件'];
             log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
             operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
@@ -615,6 +619,29 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
     }
     //setIsLoading(prev => ({ ...prev, freeCampLoading: '' }));
 }
+
+function getEditorNameForAction(
+    editor: string,
+    combined: ICombinedOpsAndFreeCampData,
+): string {
+    //const editor = operation[action];
+    const editorLookup = combined.opsConfig.editorInfoMap[editor];
+    if (!editorLookup) {
+        return '';
+    }
+
+    const prettyName = editorLookup.print_name || editorLookup.shortName;
+    const isEnglishOnly = isEditorEnglish(editorLookup);
+    return isEnglishOnly
+        ? `${editorLookup.title} ${prettyName}`
+        : `${prettyName}${editorLookup.title}`;
+}
+
+function isEditorEnglish(editorLookup: IEditorInfo): boolean {
+    if (!editorLookup) return false;
+    const normalizedTitle = editorLookup.title.toLowerCase();
+    return normalizedTitle === 'brother' || normalizedTitle === 'sister';
+}
   
 export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
@@ -624,7 +651,7 @@ export async function processOperation(
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
-    const { templates, editorInfoMap, groupAndMainProjectMapping } = combined.opsConfig;    
+    const { templates, groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
     
     const taskIds = [];
@@ -634,29 +661,20 @@ export async function processOperation(
         const fileName = operation['文件'];
         const infos: OperationInfo = getOperationInfo(combined, operation, log);
 
-        // Check if article is English-only (no Chinese characters)
-        const isEnglishOnly = infos.isEnglishOnly === 'Y';
+        // Check if article is English-only (no Chinese characters)        
         
         //const projectGroupMapping = getProjectGroupMapping();        
         for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
-            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-            if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
+            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];           
+            const editor = operation[action];
+            const editorLookup = combined.opsConfig.editorInfoMap[editor];
+            const isEnglishOnly = isEditorEnglish(editorLookup);
+             if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
                 operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
                 continue;
             }
-            const editor = operation[action];
-            const editorLookup = editorInfoMap[editor];
-            if (editorLookup) {
-                const prettyName = editorLookup.print_name || editorLookup.shortName; 
-                if (isEnglishOnly) {
-                    infos['editor'] = `${editorLookup.title} ${prettyName}`;
-                } else {
-                    infos['editor'] = `${prettyName}${editorLookup.title}`;
-                }
-            } else {
-                infos["editor"] = 'EDITOR NOTSET'; //clear editor
-            }
+            infos.editor = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
 
             const AIActionName = `${action} AI` as ActionType;
             const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';

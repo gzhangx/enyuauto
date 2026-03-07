@@ -73,7 +73,6 @@ export interface OperationInfo {
     email: string;
     category: string;
     editor: string;
-    isEnglishOnly: 'Y' | 'N';
 }
 
 
@@ -123,7 +122,7 @@ export interface OperationAndTemplates {
 
 
 export interface IEditorInfo {
-    title: string;
+    title: string;   //if title is brother then it is english
     shortName: string;
     email: string;
     task: string;
