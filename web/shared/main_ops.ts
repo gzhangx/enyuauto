@@ -657,7 +657,14 @@ export async function processOperation(
             } else {
                 infos["editor"] = 'EDITOR NOTSET'; //clear editor
             }
-            const curTemplateActionInfo = templates[action];
+
+            const AIActionName = `${action} AI` as ActionType;
+            const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
+            const regularAction = templates[action];            
+            const curTemplateActionInfo = isAIAction ? templates[AIActionName] || templates[action] : regularAction;
+            if (isAIAction && curTemplateActionInfo === regularAction) {
+                log.doLog(`processOperation: AI action ${AIActionName} is enabled for file ${fileName} but template for it is not found, falling back to regular action ${action} template`, true);
+            }
             const existingTaskId = getExistingTaskId(action, operation);
             if (existingTaskId) {
                 log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);

@@ -7,6 +7,7 @@ export type DueDateKeys = `${ActionType} Due Date`;
 export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
 export type FreeCampItemKeys = `${ActionType} FreeCamp Item`;
+export type AITemplateActionKeys = `${ActionType} AI`;
 export type SyncUpdateItem = {
     sheetCol: string;
     value: string;
@@ -54,9 +55,11 @@ export function getParentTaskIdColumnName(action: ActionType): ParentTaskIdKeys 
 }
 // this is not on sheet, but used to store parent task id in memory in case parent task is done and we have to retrive parent task id
 export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber & {
-      [k in ParentTaskIdKeys]?: string;
+    [k in ParentTaskIdKeys]?: string;
 } & {
     [k in FreeCampItemKeys]?: ProjectTaskParams;
+} & {
+    [k in AITemplateActionKeys]?: string;
 } & {
     syncFreeCampToSheetData?: ISyncFreeCampToSheetData;
     noNeedToCreate: boolean;  //if we alreadu published then we should not need to create any more
@@ -75,7 +78,7 @@ export interface OperationInfo {
 
 
 export type Templates = {
-    [K in ActionType]: {
+    [K in ActionType | AITemplateActionKeys]: {
         template: string;
         templateEnglish: string;
         taskIdPos: number;
