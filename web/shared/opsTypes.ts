@@ -29,6 +29,7 @@ export interface Operation {
     '美编': string;
     '发布': string;
     '二校': string;
+    mainFolder: string;
 }
 
 export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
@@ -72,6 +73,7 @@ export interface OperationInfo {
     link: string;
     email: string;
     category: string;
+    mainFolder: string;
     editor: string;
 }
 
