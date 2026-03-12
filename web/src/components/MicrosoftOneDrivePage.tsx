@@ -9,6 +9,14 @@ type DriveItem = {
   folder?: { childCount: number };
   file?: { mimeType: string };
   lastModifiedDateTime?: string;
+  parentReference?: {
+    driveId?: string;
+    id?: string;
+    path?: string;
+    name: string;
+    siteId: string;
+    driveType: string; //'documentLibrary' | 'personal' | 'business' | 'unknownFutureValue';
+  }
 };
 
 function encodeSharingUrl(url: string): string {
