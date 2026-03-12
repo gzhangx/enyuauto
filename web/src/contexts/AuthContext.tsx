@@ -2,18 +2,23 @@ import type { ISheetInfoSimple } from '@gzhangx/googleapi/lib/googleApi';
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import type { IOpsConfig, ISheetInfoCache } from '../../shared/opsTypes';
 import type { ICombinedOpsAndFreeCampData } from '../../shared/main_ops';
+import type { AccountInfo } from '@azure/msal-browser';
+import { msalInstance, msalReady } from '../lib/msalInstance';
 
-
+const GRAPH_SCOPES = ['Files.Read', 'User.Read'];
 
 interface AuthContextType {
   token: string | null;
   msToken: string | null;
+  msAccount: AccountInfo | null;
   sheetInfoCache: ISheetInfoCache;
   expiresAt: number | null;
   login: (token: string, expiresIn: number) => void;
   msLogin: (token: string, expiresAt: number) => void;
+  msLoginRedirect: () => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isMsAuthenticated: boolean;
   opsConfig: IOpsConfig | null;
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
@@ -25,11 +30,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [msToken, setMsToken] = useState<string | null>(null);
+  const [msAccount, setMsAccount] = useState<AccountInfo | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [sheetInfoCached, setSheetInfoCached] = useState<ISheetInfoSimple[] | null>(null);
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
-  // Load token from localStorage on mount
+
+  // Load token from localStorage on mount, then handle MSAL redirect/silent refresh
   useEffect(() => {
     const savedToken = localStorage.getItem('google_token');
     const savedExpiresAt = localStorage.getItem('google_token_expires_at');
@@ -55,6 +62,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         localStorage.removeItem('ms_token_expires_at');
       }
     }
+
+    // Handle MSAL redirect result or silent refresh
+    msalReady.then(redirectResult => {
+      if (redirectResult?.accessToken) {
+        const expiresAt = redirectResult.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
+        setMsAccount(redirectResult.account);
+        setMsToken(redirectResult.accessToken);
+        localStorage.setItem('ms_token', redirectResult.accessToken);
+        localStorage.setItem('ms_token_expires_at', expiresAt.toString());
+      } else {
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+          msalInstance
+            .acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] })
+            .then(result => {
+              if (result?.accessToken) {
+                const expiresAt = result.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
+                setMsAccount(accounts[0]);
+                setMsToken(result.accessToken);
+                localStorage.setItem('ms_token', result.accessToken);
+                localStorage.setItem('ms_token_expires_at', expiresAt.toString());
+              }
+            })
+            .catch(() => {/* Silent refresh failed – user must log in manually */});
+        }
+      }
+    });
   }, []);
 
   // Auto-logout when token expires
@@ -84,21 +118,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('ms_token_expires_at', newExpiresAt.toString());
   };
 
+  const msLoginRedirect = () => {
+    msalReady
+      .then(() => msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }))
+      .catch(console.error);
+  };
+
   const logout = () => {
     setToken(null);
     setMsToken(null);
+    setMsAccount(null);
     setExpiresAt(null);
     localStorage.removeItem('google_token');
     localStorage.removeItem('google_token_expires_at');
     localStorage.removeItem('ms_token');
     localStorage.removeItem('ms_token_expires_at');
+
+    // Sign out from Microsoft
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      msalReady
+        .then(() => msalInstance.logoutRedirect({ account: accounts[0] }))
+        .catch(console.error);
+    }
   };
 
   const isAuthenticated = token !== null && expiresAt !== null && Date.now() < expiresAt;
+  const isMsAuthenticated = msToken !== null;
 
   return (
     <AuthContext.Provider value={{
-      token, msToken, expiresAt, login, msLogin, logout, isAuthenticated, sheetInfoCache: {
+      token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, logout,
+      isAuthenticated, isMsAuthenticated, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
       },

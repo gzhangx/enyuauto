@@ -1,9 +1,5 @@
-import { useState, useEffect } from 'react';
-import type { AccountInfo } from '@azure/msal-browser';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { msalInstance, msalReady } from '../lib/msalInstance';
-
-const GRAPH_SCOPES = ['Files.Read', 'User.Read'];
 
 type DriveItem = {
   id: string;
@@ -52,57 +48,21 @@ const btnStyle = (color: string): React.CSSProperties => ({
 });
 
 export const MicrosoftOneDrivePage = () => {
-  const { msLogin } = useAuth();
-  const [account, setAccount] = useState<AccountInfo | null>(null);
-  const [msToken, setLocalMsToken] = useState<string>('');
+  const { msToken, msAccount, msLoginRedirect } = useAuth();
   const [folderInput, setFolderInput] = useState('');
   const [files, setFiles] = useState<DriveItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // On mount: consume redirect result OR silently refresh a cached session
-  useEffect(() => {
-    msalReady.then(redirectResult => {
-      if (redirectResult?.accessToken) {
-        // Returned from Microsoft redirect with a fresh token
-        const expiresAt = redirectResult.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
-        setAccount(redirectResult.account);
-        setLocalMsToken(redirectResult.accessToken);
-        msLogin(redirectResult.accessToken, expiresAt);
-      } else {
-        // No redirect result - try silent refresh for a previously signed-in user
-        const accounts = msalInstance.getAllAccounts();
-        if (accounts.length > 0) {
-          msalInstance
-            .acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] })
-            .then(result => {
-              if (result?.accessToken) {
-                const expiresAt = result.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
-                setAccount(accounts[0]);
-                setLocalMsToken(result.accessToken);
-                msLogin(result.accessToken, expiresAt);
-              }
-            })
-            .catch(() => {
-              // Silent refresh failed - show the login button
-            });
-        }
-      }
-    });
-  }, []);
+  // (This is now handled centrally by AuthContext)
 
   const handleLogin = () => {
-    // Redirect the entire main window to Microsoft login - no popup at all
-    msalReady
-      .then(() => msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }))
-      .catch((err: any) => {
-        console.error('Microsoft redirect failed', err);
-        setError(err.message || 'Microsoft login failed. Please try again.');
-      });
+    msLoginRedirect();
   };
 
   const handleListFiles = async () => {
-    if (!msToken || !account) return;
+    if (!msToken || !msAccount) return;
     setLoading(true);
     setError('');
     setFiles(null);
@@ -116,7 +76,7 @@ export const MicrosoftOneDrivePage = () => {
     }
   };
 
-  if (!account || !msToken) {
+  if (!msAccount || !msToken) {
     return (
       <div style={{
         display: 'flex',
