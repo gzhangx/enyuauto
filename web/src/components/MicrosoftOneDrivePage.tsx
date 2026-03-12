@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import type { AuthenticationResult } from '@azure/msal-browser';
+import { useState, useEffect } from 'react';
+import type { AccountInfo } from '@azure/msal-browser';
 import { useAuth } from '../contexts/AuthContext';
-import { msalInstance, msalReady, clearMsalInteractionLock } from '../lib/msalInstance';
+import { msalInstance, msalReady } from '../lib/msalInstance';
+
+const GRAPH_SCOPES = ['Files.Read', 'User.Read'];
 
 type DriveItem = {
   id: string;
@@ -13,7 +15,6 @@ type DriveItem = {
   lastModifiedDateTime?: string;
 };
 
-/** Encode a OneDrive sharing URL for use with the Graph shares API */
 function encodeSharingUrl(url: string): string {
   const b64 = btoa(url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   return 'u!' + b64;
@@ -22,28 +23,20 @@ function encodeSharingUrl(url: string): string {
 async function fetchChildren(token: string, input: string): Promise<DriveItem[]> {
   const trimmed = input.trim().replace(/\/?$/, '');
   let url: string;
-
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-    // OneDrive / SharePoint sharing link
     const encoded = encodeSharingUrl(trimmed);
     url = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children`;
   } else if (trimmed === '') {
     url = 'https://graph.microsoft.com/v1.0/me/drive/root/children';
   } else {
-    // Treat as a folder path relative to root, e.g.  "Documents/MyFolder"
     const path = trimmed.replace(/^\/+/, '');
     url = `https://graph.microsoft.com/v1.0/me/drive/root:/${encodeURIComponent(path)}:/children`;
   }
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error?.message || res.statusText);
   }
-
   const data = await res.json();
   return data.value as DriveItem[];
 }
@@ -59,32 +52,57 @@ const btnStyle = (color: string): React.CSSProperties => ({
 });
 
 export const MicrosoftOneDrivePage = () => {
-  const { msToken, msLogin } = useAuth();
+  const { msLogin } = useAuth();
+  const [account, setAccount] = useState<AccountInfo | null>(null);
+  const [msToken, setLocalMsToken] = useState<string>('');
   const [folderInput, setFolderInput] = useState('');
   const [files, setFiles] = useState<DriveItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleLogin = async () => {
-    setError('');
-    try {
-      await msalReady;
-      clearMsalInteractionLock();
-      const result: AuthenticationResult = await msalInstance.loginPopup({
-        scopes: ['Files.Read', 'User.Read'],
+  // On mount: consume redirect result OR silently refresh a cached session
+  useEffect(() => {
+    msalReady.then(redirectResult => {
+      if (redirectResult?.accessToken) {
+        // Returned from Microsoft redirect with a fresh token
+        const expiresAt = redirectResult.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
+        setAccount(redirectResult.account);
+        setLocalMsToken(redirectResult.accessToken);
+        msLogin(redirectResult.accessToken, expiresAt);
+      } else {
+        // No redirect result - try silent refresh for a previously signed-in user
+        const accounts = msalInstance.getAllAccounts();
+        if (accounts.length > 0) {
+          msalInstance
+            .acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] })
+            .then(result => {
+              if (result?.accessToken) {
+                const expiresAt = result.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
+                setAccount(accounts[0]);
+                setLocalMsToken(result.accessToken);
+                msLogin(result.accessToken, expiresAt);
+              }
+            })
+            .catch(() => {
+              // Silent refresh failed - show the login button
+            });
+        }
+      }
+    });
+  }, []);
+
+  const handleLogin = () => {
+    // Redirect the entire main window to Microsoft login - no popup at all
+    msalReady
+      .then(() => msalInstance.loginRedirect({ scopes: GRAPH_SCOPES }))
+      .catch((err: any) => {
+        console.error('Microsoft redirect failed', err);
+        setError(err.message || 'Microsoft login failed. Please try again.');
       });
-      const expiresAt = result.expiresOn
-        ? result.expiresOn.getTime()
-        : Date.now() + 3600 * 1000;
-      msLogin(result.accessToken, expiresAt);
-    } catch (err: any) {
-      console.error('Microsoft login failed', err);
-      setError(err.message || 'Microsoft login failed. Please try again.');
-    }
   };
 
   const handleListFiles = async () => {
-    if (!msToken) return;
+    if (!msToken || !account) return;
     setLoading(true);
     setError('');
     setFiles(null);
@@ -98,7 +116,7 @@ export const MicrosoftOneDrivePage = () => {
     }
   };
 
-  if (!msToken) {
+  if (!account || !msToken) {
     return (
       <div style={{
         display: 'flex',
@@ -153,7 +171,7 @@ export const MicrosoftOneDrivePage = () => {
           }}
         />
         <button onClick={handleListFiles} disabled={loading} style={btnStyle('#0078d4')}>
-          {loading ? 'Loading…' : 'List Files'}
+          {loading ? 'Loading\u2026' : 'List Files'}
         </button>
       </div>
 
@@ -189,7 +207,7 @@ export const MicrosoftOneDrivePage = () => {
                       : item.name}
                   </td>
                   <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
-                    {item.folder ? '📁 Folder' : (item.file?.mimeType ?? 'File')}
+                    {item.folder ? '\U0001f4c1 Folder' : (item.file?.mimeType ?? 'File')}
                   </td>
                   <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
                     {item.size != null
@@ -198,12 +216,12 @@ export const MicrosoftOneDrivePage = () => {
                         : item.size < 1024 * 1024
                           ? `${(item.size / 1024).toFixed(1)} KB`
                           : `${(item.size / (1024 * 1024)).toFixed(1)} MB`
-                      : '—'}
+                      : '\u2014'}
                   </td>
                   <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
                     {item.lastModifiedDateTime
                       ? new Date(item.lastModifiedDateTime).toLocaleString()
-                      : '—'}
+                      : '\u2014'}
                   </td>
                 </tr>
               ))}
