@@ -86,7 +86,7 @@ export const ProjectsPage = () => {
   
 
   const startupRunOnce = useRef(false);
-  const { msToken, msAccount, msLoginRedirect } = useAuth();
+  const { msToken, msAccount, msLoginRedirect, msLogout } = useAuth();
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
     getFreedCampToken: async (opsAndTemplates) => {
@@ -343,6 +343,16 @@ export const ProjectsPage = () => {
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
         <button className="btn btn-create" onClick={() => fetchData(false)}>Reload</button>
         <button className="btn btn-create" onClick={()=>fetchData(true)}>Reload All</button>
+        {msAccount && (
+          <button className="btn btn-create" onClick={msLogout} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
+            MS Logout ({msAccount.username})
+          </button>
+        )}
+        {!msAccount && (
+          <button className="btn btn-create" onClick={msLoginRedirect} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
+            MS Login
+          </button>
+        )}
         <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px' }}>
           <input
             type="checkbox"

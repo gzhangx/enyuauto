@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (token: string, expiresIn: number) => void;
   msLogin: (token: string, expiresAt: number) => void;
   msLoginRedirect: () => void;
+  msLogout: () => void;
   logout: () => void;
   isAuthenticated: boolean;
   isMsAuthenticated: boolean;
@@ -124,6 +125,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .catch(console.error);
   };
 
+  const msLogout = () => {
+    setMsToken(null);
+    setMsAccount(null);
+    localStorage.removeItem('ms_token');
+    localStorage.removeItem('ms_token_expires_at');
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length > 0) {
+      msalReady
+        .then(() => msalInstance.logoutRedirect({ account: accounts[0] }))
+        .catch(console.error);
+    }
+  };
+
   const logout = () => {
     setToken(null);
     setMsToken(null);
@@ -148,7 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, logout,
+      token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, msLogout, logout,
       isAuthenticated, isMsAuthenticated, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
