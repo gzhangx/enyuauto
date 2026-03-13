@@ -9,7 +9,7 @@ import { MicrosoftOneDrivePage } from './components/MicrosoftOneDrivePage';
 type View = 'projects' | 'sheets' | 'onedrive';
 
 const AppContent = () => {
-  const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect } = useAuth();
+  const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect, msAccount } = useAuth();
   const [currentView, setCurrentView] = useState<View>('projects');
 
   if (!isAuthenticated && currentView !== 'onedrive') {
@@ -75,6 +75,12 @@ const AppContent = () => {
           OneDrive
         </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {isMsAuthenticated && msAccount && (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', marginRight: '0.5rem' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#212529' }}>{msAccount.name}</span>
+              <span style={{ fontSize: '0.75rem', color: '#6c757d' }}>{msAccount.username}</span>
+            </div>
+          )}
           {!isMsAuthenticated && (
             <button
               onClick={msLoginRedirect}
