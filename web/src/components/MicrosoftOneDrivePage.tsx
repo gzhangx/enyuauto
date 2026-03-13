@@ -91,17 +91,6 @@ async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1')
   const readHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (sessionId) readHeaders['workbook-session-id'] = sessionId;
 
-  // Convert column number to Excel column letter (1→A, 26→Z, 27→AA, ...)
-  function colToLetter(n: number): string {
-    let s = '';
-    while (n > 0) {
-      const r = (n - 1) % 26;
-      s = String.fromCharCode(65 + r) + s;
-      n = Math.floor((n - 1) / 26);
-    }
-    return s;
-  }
-
   // Step 0: fetch only row 1 (up to column AZ) to detect actual column count
   const usedRangeRes = await fetch(
     `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,

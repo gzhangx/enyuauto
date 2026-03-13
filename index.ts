@@ -27,7 +27,6 @@ const headers = {
 export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
   const operations: string[] = [];
   const log: mainOps.DebugLog = {     
-    getOperations: () => operations,
     doLog: (msg: string) => {     
       operations.push(msg);
       console.log(msg);
@@ -281,7 +280,6 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       body: JSON.stringify({
         message: 'Freedcamp action failed',
         error: error instanceof Error ? error.message : String(error),
-        log: log.getOperations(),
       }),
     };
   }
