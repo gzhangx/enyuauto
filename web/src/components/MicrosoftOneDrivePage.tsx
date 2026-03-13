@@ -45,15 +45,31 @@ export async function fetchOneDriveChildren(token: string, input: string): Promi
   return data.value as DriveItem[];
 }
 
-async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1'): Promise<string[][]> {
+async function resolveToWorkbookBaseUrl(token: string, input: string): Promise<string> {
   const trimmed = input.trim();
-  let baseUrl: string;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    // Resolve sharing URL → get driveId + itemId, then use /drives/{driveId}/items/{itemId}
     const encoded = encodeSharingUrl(trimmed);
-    baseUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`;
+    const res = await fetch(
+      `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem?$select=id,parentReference`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body?.error?.message || res.statusText);
+    }
+    const item = await res.json();
+    const driveId = item.parentReference?.driveId;
+    const itemId = item.id;
+    if (!driveId || !itemId) throw new Error('Could not resolve driveId/itemId from sharing link');
+    return `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}`;
   } else {
-    baseUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${trimmed}`;
+    return `https://graph.microsoft.com/v1.0/me/drive/items/${trimmed}`;
   }
+}
+
+async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1'): Promise<string[][]> {
+  const baseUrl = await resolveToWorkbookBaseUrl(token, input);
   const res = await fetch(
     `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
     { headers: { Authorization: `Bearer ${token}` } }
