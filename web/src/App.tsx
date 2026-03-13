@@ -12,8 +12,8 @@ const AppContent = () => {
   const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect } = useAuth();
   const [currentView, setCurrentView] = useState<View>('projects');
 
-  if (!isAuthenticated) {
-    return <LoginPage />;
+  if (!isAuthenticated && currentView !== 'onedrive') {
+    return <LoginPage onGoToOneDrive={isMsAuthenticated ? () => setCurrentView('onedrive') : undefined} />;
   }
 
   return (
