@@ -45,6 +45,27 @@ export async function fetchOneDriveChildren(token: string, input: string): Promi
   return data.value as DriveItem[];
 }
 
+async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1'): Promise<string[][]> {
+  const trimmed = input.trim();
+  let baseUrl: string;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    const encoded = encodeSharingUrl(trimmed);
+    baseUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem`;
+  } else {
+    baseUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${trimmed}`;
+  }
+  const res = await fetch(
+    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.error?.message || res.statusText);
+  }
+  const data = await res.json();
+  return data.values as string[][];
+}
+
 const btnStyle = (color: string): React.CSSProperties => ({
   padding: '0.5rem 1.25rem',
   backgroundColor: color,
@@ -61,6 +82,11 @@ export const MicrosoftOneDrivePage = () => {
   const [files, setFiles] = useState<DriveItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [xlsxInput, setXlsxInput] = useState('');
+  const [xlsxSheetName, setXlsxSheetName] = useState('Sheet1');
+  const [xlsxData, setXlsxData] = useState<string[][] | null>(null);
+  const [xlsxLoading, setXlsxLoading] = useState(false);
+  const [xlsxError, setXlsxError] = useState('');
 
   // On mount: consume redirect result OR silently refresh a cached session
   // (This is now handled centrally by AuthContext)
@@ -82,6 +108,21 @@ export const MicrosoftOneDrivePage = () => {
       setError(err.message || String(err));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReadXlsx = async () => {
+    if (!msToken || !xlsxInput.trim()) return;
+    setXlsxLoading(true);
+    setXlsxError('');
+    setXlsxData(null);
+    try {
+      const rows = await readXlsxSheet(msToken, xlsxInput, xlsxSheetName || 'Sheet1');
+      setXlsxData(rows);
+    } catch (err: any) {
+      setXlsxError(err.message || String(err));
+    } finally {
+      setXlsxLoading(false);
     }
   };
 
@@ -149,55 +190,62 @@ export const MicrosoftOneDrivePage = () => {
       )}
 
       {files !== null && (
-        files.length === 0 ? (
-          <p style={{ color: '#777' }}>No files found in this folder.</p>
+        // folder listing table below
+        <></>
+      )}
+
+      <hr style={{ margin: '1.5rem 0', borderColor: '#ddd' }} />
+      <h3 style={{ marginBottom: '0.75rem' }}>Read Excel Sheet</h3>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+        <input
+          type="text"
+          value={xlsxInput}
+          onChange={e => setXlsxInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleReadXlsx()}
+          placeholder="Paste a OneDrive xlsx link or item ID"
+          style={{ flex: 3, minWidth: '220px', padding: '0.5rem 0.75rem', fontSize: '0.95rem', border: '1px solid #ccc', borderRadius: '4px' }}
+        />
+        <input
+          type="text"
+          value={xlsxSheetName}
+          onChange={e => setXlsxSheetName(e.target.value)}
+          placeholder="Sheet name (default: Sheet1)"
+          style={{ flex: 1, minWidth: '140px', padding: '0.5rem 0.75rem', fontSize: '0.95rem', border: '1px solid #ccc', borderRadius: '4px' }}
+        />
+        <button onClick={handleReadXlsx} disabled={xlsxLoading} style={btnStyle('#107c41')}>
+          {xlsxLoading ? 'Loading…' : 'Read Sheet'}
+        </button>
+      </div>
+      {xlsxError && <p style={{ color: '#dc3545', marginBottom: '1rem' }}>{xlsxError}</p>}
+      {xlsxData !== null && (
+        xlsxData.length === 0 ? (
+          <p style={{ color: '#777' }}>Sheet is empty.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['Name', 'Type', 'Size', 'Last Modified'].map(h => (
-                  <th key={h} style={{
-                    border: '1px solid #ddd',
-                    padding: '10px 12px',
-                    textAlign: 'left',
-                    backgroundColor: '#f8f9fa',
-                    position: 'sticky',
-                    top: 0,
-                  }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {files.map(item => (
-                <tr key={item.id}>
-                  <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
-                    {item.webUrl
-                      ? <a href={item.webUrl} target="_blank" rel="noreferrer">{item.name}</a>
-                      : item.name}
-                  </td>
-                  <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
-                    {item.folder ? '\U0001f4c1 Folder' : (item.file?.mimeType ?? 'File')}
-                  </td>
-                  <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
-                    {item.size != null
-                      ? item.size < 1024
-                        ? `${item.size} B`
-                        : item.size < 1024 * 1024
-                          ? `${(item.size / 1024).toFixed(1)} KB`
-                          : `${(item.size / (1024 * 1024)).toFixed(1)} MB`
-                      : '\u2014'}
-                  </td>
-                  <td style={{ border: '1px solid #ddd', padding: '10px 12px' }}>
-                    {item.lastModifiedDateTime
-                      ? new Date(item.lastModifiedDateTime).toLocaleString()
-                      : '\u2014'}
-                  </td>
+          <div style={{ overflowX: 'auto', marginTop: '0.75rem' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr>
+                  {xlsxData[0].map((cell, ci) => (
+                    <th key={ci} style={{ border: '1px solid #ddd', padding: '8px 10px', backgroundColor: '#f8f9fa', textAlign: 'left', position: 'sticky', top: 0 }}>
+                      {cell}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {xlsxData.slice(1).map((row, ri) => (
+                  <tr key={ri}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} style={{ border: '1px solid #ddd', padding: '8px 10px' }}>{cell}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )
       )}
+
     </div>
   );
 };
