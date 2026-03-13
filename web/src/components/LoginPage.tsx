@@ -2,7 +2,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) => {
-  const { login, msLoginRedirect, isMsAuthenticated, msLogout } = useAuth();
+  const { login, msLoginRedirect, isMsAuthenticated, msLogout, msAccount } = useAuth();
 
   const googleLogin = useGoogleLogin({
     onSuccess: (tokenResponse) => {
@@ -76,6 +76,12 @@ export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) =
       </button>
       {isMsAuthenticated && (
         <>
+          {msAccount && (
+            <div style={{ textAlign: 'center', lineHeight: '1.4' }}>
+              <div style={{ fontWeight: 600, fontSize: '1rem', color: '#212529' }}>{msAccount.name}</div>
+              <div style={{ fontSize: '0.85rem', color: '#6c757d' }}>{msAccount.username}</div>
+            </div>
+          )}
           <button
             onClick={onGoToOneDrive}
             style={{
