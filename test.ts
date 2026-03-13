@@ -21,7 +21,6 @@ async function test() {
 
     const operations: string[] = [];
     const log: mainOps.DebugLog = { 
-        getOperations: () => operations,
         doLog: (msg: string) => {
           operations.push(msg);
           console.log(msg);
@@ -39,7 +38,6 @@ async function test() {
               const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
               sres.push(rr || '');
             }
-    console.log('Log:', log.getOperations());
 }
 
 
