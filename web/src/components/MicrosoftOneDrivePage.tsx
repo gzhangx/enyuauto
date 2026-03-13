@@ -91,8 +91,41 @@ async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1')
   const readHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
   if (sessionId) readHeaders['workbook-session-id'] = sessionId;
 
+  // Convert column number to Excel column letter (1→A, 26→Z, 27→AA, ...)
+  function colToLetter(n: number): string {
+    let s = '';
+    while (n > 0) {
+      const r = (n - 1) % 26;
+      s = String.fromCharCode(65 + r) + s;
+      n = Math.floor((n - 1) / 26);
+    }
+    return s;
+  }
+
+  // Step 1: fetch only row 1 (up to column AZ) to detect actual column count
+  const headerRes = await fetch(
+    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range(address='${encodeURIComponent('A1:AZ1')}')`,
+    { headers: readHeaders }
+  );
+  if (!headerRes.ok) {
+    const body = await headerRes.json().catch(() => ({}));
+    throw new Error(body?.error?.message || headerRes.statusText);
+  }
+  const headerData = await headerRes.json();
+  const headerRow: string[] = (headerData.values?.[0] ?? []) as string[];
+  // Find the last non-empty column
+  let lastColIndex = headerRow.length - 1;
+  while (lastColIndex >= 0 && (headerRow[lastColIndex] === null || headerRow[lastColIndex] === '')) {
+    lastColIndex--;
+  }
+  if (lastColIndex < 0) return [];
+  const lastColLetter = colToLetter(lastColIndex + 1);
+
+  // Step 2: fetch full data up to a safe row limit, then trim trailing empty rows
+  const MAX_ROWS = 5000;
+  const resolvedAddress = `A1:${lastColLetter}${MAX_ROWS}`;
   const res = await fetch(
-    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range`,
+    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range(address='${encodeURIComponent(resolvedAddress)}')`,
     { headers: readHeaders }
   );
   if (!res.ok) {
@@ -109,7 +142,10 @@ async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1')
     }).catch(() => {});
   }
 
-  return (data.values ?? []) as string[][];
+  const values: string[][] = (data.values ?? []) as string[][];
+  // Trim trailing empty rows
+  const lastNonEmpty = values.reduceRight((acc, row, i) => acc !== -1 ? acc : row.some(c => c !== null && c !== '') ? i : -1, -1);
+  return lastNonEmpty === -1 ? [] : values.slice(0, lastNonEmpty + 1);
 }
 
 const btnStyle = (color: string): React.CSSProperties => ({
