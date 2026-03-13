@@ -11,25 +11,17 @@ Resources:
   EnyuAutoFunction:
     Type: AWS::Serverless::Function
     Properties:
+      FunctionName: enyu_auto
       CodeUri: ./
       Handler: dist/index.handler
       Runtime: nodejs20.x
       Architectures:
         - x86_64
-      Events:
-        ApiEvent:
-          Type: Api
-          Properties:
-            Path: /process
-            Method: get
       Environment:
         Variables:
           NODE_ENV: production
 
 Outputs:
-  EnyuAutoApi:
-    Description: "API Gateway endpoint URL"
-    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/process/"
   EnyuAutoFunction:
     Description: "Lambda Function ARN"
     Value: !GetAtt EnyuAutoFunction.Arn

@@ -1,58 +1,9 @@
 import * as gs from '@gzhangx/googleapi';
-import * as secs from '../enyu_secs.json';
 
-interface LoginParams {
-    username?: string;
-    password?: string;
-}
+import type {LoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps, IProjectTasksResult} from '../web/shared/freedcampTypes';
 
-interface LoginResponse {
-    headers: {
-        'set-cookie': string[];
-    };
-}
-
-interface ProjectAndGroup {
-    project_id: string;
-    task_group_id: string;
-}
-
-interface CreateTaskResponse {
-    result: any;
-    id: number;
-}
-
-export interface TaskParams {
-    description: string;
-    assigned_to_id?: string;
-    due_date?: string;
-}
-interface Processor {
-    cookies: string[];
-    doPostAttachment: (taskId: number, params: TaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ProjectAndGroup, title: string) => Promise<CreateTaskResponse>;
-    deleteTask: (taskId: string | number) => Promise<any>;
-    getSessionCurrentData(): Promise<ICurrentSessionData>;
-}
-
-export interface IUserInfo {
-    user_id: string;
-    full_name: string;
-    email: string;
-}
-
-interface ICurrentSessionData {
-    data: {
-        users: IUserInfo[];
-    }
-}
 
 async function login({ username, password }: LoginParams): Promise<LoginResponse> {
-    if (!username || !password) {
-        const auth = secs.auth;
-        username = auth.username;
-        password = auth.password;
-    }
     const auth = {
         is_ajax1: true,
         time_on_page1: 5,
@@ -73,12 +24,17 @@ async function login({ username, password }: LoginParams): Promise<LoginResponse
         },
     });
 
-    return res as LoginResponse;
+    const rsp = res as {
+        headers: {
+            'set-cookie': string[];
+        };
+    };
+    return { Cookie: rsp.headers['set-cookie'].join('; ') };
 }
 
-async function getProcessor(): Promise<Processor> {
-    const loginRes = await login({});
-    const cookies = loginRes.headers['set-cookie'];
+function getProcessor(loginResponse: LoginResponse): FreedCampProcessor {
+    //const loginRes = await login({});
+    //const cookies = loginRes.headers['set-cookie'];
 
     async function doPostMultiPart(path: string, json: string | object): Promise<any> {
         if (typeof json !== 'string') {
@@ -93,22 +49,22 @@ ${json}${
             url: `https://freedcamp.com${path}`,
             data,
             headers: {
-                Cookie: cookies.join('; '),                
+                Cookie: loginResponse.Cookie,                
                 'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
             },
         });
         return res;
     }
 
-    async function doPostAttachment(taskId: number, params: TaskParams): Promise<any> {
-        await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
+    async function doPostAttachment(taskId: string, params: ProjectTaskParams): Promise<any> {
+        return await doPostMultiPart(`/iapi/tasks/${taskId}`, { 
             ...params,
             "conditions": { "filter": {}, "order": {}, "substring": "", "f_use_and": "0" }, 
             "time_on_page": 37378 
         });
     }
 
-    async function createTask(projectAndGroup: ProjectAndGroup, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ProjectTaskParams, title: string): Promise<CreateTaskResponse> {
         const res = await doPostMultiPart('/iapi/tasks',
             {
                 "title": title,
@@ -130,10 +86,10 @@ ${json}${
             method: 'DELETE',
             url: `https://freedcamp.com${path}`,
             headers: {
-                Cookie: cookies.join('; '),
+                Cookie: loginResponse.Cookie,
             },
         });
-        return res;
+        return res.data;
     }
 
     async function doGetAction(path: string): Promise<any> {
@@ -141,10 +97,10 @@ ${json}${
             method: 'GET',
             url: `https://freedcamp.com${path}`,
             headers: {
-                Cookie: cookies.join('; '),
+                Cookie: loginResponse.Cookie,
             },
         });
-        return res;
+        return res.data;
     };
 
     async function deleteTask(taskId: string | number): Promise<any> {
@@ -154,25 +110,26 @@ ${json}${
 
     async function getSessionCurrentData(): Promise<ICurrentSessionData> {
         const res = await doGetAction('/iapi/sessions/current');
-        return res.data as ICurrentSessionData;
+        return res as ICurrentSessionData;
+    }
+
+    async function getTasksForProjects(projectId: string, pageNumber: number = 1): Promise<IProjectTasksResult> {
+        const res = await doGetAction(`/iapi/tasks?project_id=${
+            projectId
+        }&page_num=${pageNumber}&filter={}&order={}&substring=""&f_use_and=0&f_react_app=1&f_include_tr_data=1&f_include_tags=0&f_include_ms_data=true&group_mode=lists&group_mode_tpl_id=`);
+        return res as IProjectTasksResult;
     }
 
     return {
-        cookies,
         doPostAttachment,
         createTask,
         deleteTask,
         getSessionCurrentData,
+        getTasksForProjects,
     };
 }
 
-export {
+export const freedCampOps: FreedCampOps = {
     login,
     getProcessor,
-    secs,
-    LoginParams,
-    LoginResponse,
-    ProjectAndGroup,
-    CreateTaskResponse,
-    Processor,
-};
+}

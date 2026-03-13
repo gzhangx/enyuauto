@@ -17,10 +17,14 @@
     "sourceMap": true
   },
   "include": [
-    "**/*.ts"
+    "*.ts",
+    "lib/**/*.ts",
+    "scripts/**/*.ts",
+    "web/shared/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "web/src"
   ]
 }

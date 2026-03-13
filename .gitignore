@@ -5,3 +5,6 @@ enyu_secs.json
 .vscode
 temp
 dist
+.aws-sam
+web/dist
+web/node_modules
