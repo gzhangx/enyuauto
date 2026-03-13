@@ -102,37 +102,17 @@ async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1')
     return s;
   }
 
-  // Step 1: fetch only row 1 (up to column AZ) to detect actual column count
-  const headerRes = await fetch(
-    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range(address='${encodeURIComponent('A1:AZ1')}')`,
+  // Step 0: fetch only row 1 (up to column AZ) to detect actual column count
+  const usedRangeRes = await fetch(
+    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
     { headers: readHeaders }
   );
-  if (!headerRes.ok) {
-    const body = await headerRes.json().catch(() => ({}));
-    throw new Error(body?.error?.message || headerRes.statusText);
+  if (!usedRangeRes.ok) {
+    const body = await usedRangeRes.json().catch(() => ({}));
+    throw new Error(body?.error?.message || usedRangeRes.statusText);
   }
-  const headerData = await headerRes.json();
-  const headerRow: string[] = (headerData.values?.[0] ?? []) as string[];
-  // Find the last non-empty column
-  let lastColIndex = headerRow.length - 1;
-  while (lastColIndex >= 0 && (headerRow[lastColIndex] === null || headerRow[lastColIndex] === '')) {
-    lastColIndex--;
-  }
-  if (lastColIndex < 0) return [];
-  const lastColLetter = colToLetter(lastColIndex + 1);
 
-  // Step 2: fetch full data up to a safe row limit, then trim trailing empty rows
-  const MAX_ROWS = 5000;
-  const resolvedAddress = `A1:${lastColLetter}${MAX_ROWS}`;
-  const res = await fetch(
-    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range(address='${encodeURIComponent(resolvedAddress)}')`,
-    { headers: readHeaders }
-  );
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.error?.message || res.statusText);
-  }
-  const data = await res.json();
+  const data = await usedRangeRes.json();
 
   // Close session (fire and forget)
   if (sessionId) {
