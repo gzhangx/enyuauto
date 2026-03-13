@@ -389,7 +389,11 @@ export const ProjectsPage = () => {
                         };
                         if (combinedOpsAndData) {
                           let oneDriveFolders: IOneDriveDirInfo[] = [];
-                          if (msToken) {
+                          if (p.mainFolder) {
+                            if (!msToken) {
+                              setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
+                              return;
+                            }
                             console.log('debugremove sending main folder', p.mainFolder)
                             oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
                           }
