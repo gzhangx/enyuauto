@@ -9,12 +9,14 @@ import {
   type DebugLog,
   completeDateUpdater,  
   updateDoneParentIds,
+  type IOneDriveDirInfo,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
 import type { LoginResponse } from '../../shared/freedcampTypes';
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
+import { fetchOneDriveChildren } from './MicrosoftOneDrivePage';
 
 
 type LogMessage = {
@@ -84,6 +86,7 @@ export const ProjectsPage = () => {
   
 
   const startupRunOnce = useRef(false);
+  const { msToken, msAccount, msLoginRedirect } = useAuth();
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
     getFreedCampToken: async (opsAndTemplates) => {
@@ -385,7 +388,12 @@ export const ProjectsPage = () => {
                           }
                         };
                         if (combinedOpsAndData) {
-                          await processOperation(ops, freeCampOpsWithCache, combinedOpsAndData, p, logs);
+                          let oneDriveFolders: IOneDriveDirInfo[] = [];
+                          if (msToken) {
+                            console.log('debugremove sending main folder', p.mainFolder)
+                            oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
+                          }
+                          await processOperation(ops, freeCampOpsWithCache, combinedOpsAndData, p, oneDriveFolders, logs);
                         }
                       }
                     } catch (error: any) {

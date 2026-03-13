@@ -5,7 +5,7 @@ type DriveItem = {
   id: string;
   name: string;
   size?: number;
-  webUrl?: string;
+  webUrl: string;
   folder?: { childCount: number };
   file?: { mimeType: string };
   lastModifiedDateTime?: string;
@@ -24,7 +24,7 @@ function encodeSharingUrl(url: string): string {
   return 'u!' + b64;
 }
 
-async function fetchChildren(token: string, input: string): Promise<DriveItem[]> {
+export async function fetchOneDriveChildren(token: string, input: string): Promise<DriveItem[]> {
   const trimmed = input.trim().replace(/\/?$/, '');
   let url: string;
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -75,7 +75,8 @@ export const MicrosoftOneDrivePage = () => {
     setError('');
     setFiles(null);
     try {
-      const items = await fetchChildren(msToken, folderInput);
+      console.log('debugremove sending main folder', folderInput)
+      const items = await fetchOneDriveChildren(msToken, folderInput);
       setFiles(items);
     } catch (err: any) {
       setError(err.message || String(err));

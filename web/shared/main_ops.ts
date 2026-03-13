@@ -643,12 +643,17 @@ function isEditorEnglish(editorLookup: IEditorInfo): boolean {
     const normalizedTitle = editorLookup.title.toLowerCase();
     return normalizedTitle === 'brother' || normalizedTitle === 'sister';
 }
-  
+
+export interface IOneDriveDirInfo {
+    name: string;
+    webUrl: string;
+}
 export async function processOperation(
     ops: gs.gsAccount.IGetSheetOpsReturn,
     freedCampOps: FreeCampAndUpdateOperations,
     combined: ICombinedOpsAndFreeCampData,    
     operation: IOperationWithLineNumberAndParentTaskId,    
+    oneDriveDirInfos: IOneDriveDirInfo[],
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
@@ -696,6 +701,14 @@ export async function processOperation(
             } 
             const link = action === '校对' ? infos.link : undefined;            
             
+            // if oneDriveDirInfos exists, find all matches in template that matches  {media_link:XXXX}, and if XXXX matches any of the oneDriveDirInfos.name, replace {media_link:XXXX} 
+            // with the corresponding oneDriveDirInfos.webUrl
+            if (oneDriveDirInfos && oneDriveDirInfos.length > 0) {
+                template1 = template1.replace(/\{media_link:([^}]+)\}/g, (match, name) => {
+                    const found = oneDriveDirInfos.find(info => info.name === name);
+                    return found ? found.webUrl : match;
+                });
+            }
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
@@ -814,7 +827,7 @@ export async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: F
         return undefined;
     }
     const combined = await combineOpsConfigWithFreedCampData(opsAndTemplates, fops, log);
-    const ids = await processOperation(ops, fops, combined, validOperation, log, prefix);
+    const ids = await processOperation(ops, fops, combined, validOperation, [], log, prefix);
     return {
         ids, 
         ...opsAndTemplates,
