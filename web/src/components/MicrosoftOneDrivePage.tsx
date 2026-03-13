@@ -70,16 +70,46 @@ async function resolveToWorkbookBaseUrl(token: string, input: string): Promise<s
 
 async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1'): Promise<string[][]> {
   const baseUrl = await resolveToWorkbookBaseUrl(token, input);
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+  // Create a read-only workbook session (required for AAD/SharePoint files)
+  let sessionId: string | null = null;
+  try {
+    const sessionRes = await fetch(`${baseUrl}/workbook/createSession`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ persistChanges: false }),
+    });
+    if (sessionRes.ok) {
+      const sessionData = await sessionRes.json();
+      sessionId = sessionData.id ?? null;
+    }
+  } catch {
+    // If session creation fails, try without session
+  }
+
+  const readHeaders: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (sessionId) readHeaders['workbook-session-id'] = sessionId;
+
   const res = await fetch(
-    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
-    { headers: { Authorization: `Bearer ${token}` } }
+    `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/range`,
+    { headers: readHeaders }
   );
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body?.error?.message || res.statusText);
   }
   const data = await res.json();
-  return data.values as string[][];
+
+  // Close session (fire and forget)
+  if (sessionId) {
+    fetch(`${baseUrl}/workbook/closeSession`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'workbook-session-id': sessionId },
+    }).catch(() => {});
+  }
+
+  return (data.values ?? []) as string[][];
 }
 
 const btnStyle = (color: string): React.CSSProperties => ({
