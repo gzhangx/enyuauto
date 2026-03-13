@@ -129,7 +129,7 @@ const btnStyle = (color: string): React.CSSProperties => ({
 
 export const MicrosoftOneDrivePage = () => {
   const { msToken, msAccount, msLoginRedirect } = useAuth();
-  const [folderInput, setFolderInput] = useState('');
+  const [folderInput, setFolderInput] = useState('https://acccnusa.sharepoint.com/sites/enyueditors/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2Fenyueditors%2FShared%20Documents%2FGeneral%2FEnYu%202026%2F2026%2D03%2F6%5F%E5%AE%A3%E6%95%99%E6%97%A0%E5%9B%BD%E7%95%8C%202026%2D3%2D1%20Pauline%20Sattles%20Feb%202026%20newsletter%20Joy&viewid=8059c88a%2D1194%2D4065%2Db31a%2D3749f1c293f2');
   const [files, setFiles] = useState<DriveItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
