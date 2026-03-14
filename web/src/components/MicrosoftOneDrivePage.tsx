@@ -154,6 +154,7 @@ export const MicrosoftOneDrivePage = () => {
     try {
       console.log('debugremove sending main folder', folderInput)
       const items = await fetchOneDriveChildren(msToken, folderInput);
+      console.log('debugremove received items', items)
       setFiles(items);
     } catch (err: any) {
       setError(err.message || String(err));
