@@ -170,7 +170,10 @@ export function renderActionCell(
 			}
 			{
 				hasCompletedDate && (
-					<span style={{ color: 'green', fontWeight: 'bold' }}>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
+					<span style={{ color: 'green', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+						{freedCampItem.assigned_to_fullname && <span>{freedCampItem.assigned_to_fullname}</span>}
+						<span>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
+					</span>
 				)
 			// 	hasCompletedDate && (
 			// 	<button
