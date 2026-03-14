@@ -5,7 +5,7 @@ import type { ICombinedOpsAndFreeCampData } from '../../shared/main_ops';
 import type { AccountInfo } from '@azure/msal-browser';
 import { msalInstance, msalReady } from '../lib/msalInstance';
 
-const GRAPH_SCOPES = ['Files.Read', 'User.Read'];
+const GRAPH_SCOPES = ['Files.ReadWrite', 'User.Read'];
 
 interface AuthContextType {
   token: string | null;

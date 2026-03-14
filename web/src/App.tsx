@@ -5,8 +5,9 @@ import { LoginPage } from './components/LoginPage';
 import { GoogleSheetsPage } from './components/GoogleSheetsPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { MicrosoftOneDrivePage } from './components/MicrosoftOneDrivePage';
+import { TransfersPage } from './components/TransfersPage';
 
-type View = 'projects' | 'sheets' | 'onedrive';
+type View = 'projects' | 'sheets' | 'onedrive' | 'transfers';
 
 const AppContent = () => {
   const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect, msAccount } = useAuth();
@@ -74,6 +75,19 @@ const AppContent = () => {
           </svg>
           OneDrive
         </button>
+        <button
+          onClick={() => setCurrentView('transfers')}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: currentView === 'transfers' ? '#107c41' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          Transfers
+        </button>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {isMsAuthenticated && msAccount && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', marginRight: '0.5rem' }}>
@@ -124,6 +138,7 @@ const AppContent = () => {
       {currentView === 'projects' && <ProjectsPage />}
       {currentView === 'sheets' && <GoogleSheetsPage />}
       {currentView === 'onedrive' && <MicrosoftOneDrivePage />}
+      {currentView === 'transfers' && <TransfersPage />}
     </>
   );
 };
