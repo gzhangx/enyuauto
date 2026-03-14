@@ -2,7 +2,7 @@
 import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
-import React from 'react';
+import React, { type JSX } from 'react';
 import * as gs from '@gzhangx/googleapi';
 
 
@@ -108,6 +108,7 @@ export function renderActionCell(
 		doLog,
 		//fetchData,
 		//setErrorDialog,
+		daysShowAlertAfterComplete,
 	} = deps;
 
 	const taskId = p[getTaskIdColumnName(action)];
@@ -151,6 +152,18 @@ export function renderActionCell(
 	if (!taskId && (!hasCompletedDate && !hasAssignedTo)) {
 		return <span style={{ color: 'orange' }} title={tooltipText}>NA { freedCampTaskId}</span>;
 	}
+	let dateEditorDsp: JSX.Element | null = null;
+	if (hasCompletedDate) {
+		const isRecent = daysShowAlertAfterComplete > 0 &&
+			hasCompletedDate * 1000 >= Date.now() - daysShowAlertAfterComplete * 24 * 60 * 60 * 1000;
+		const color = isRecent ? 'red' : 'green';
+		dateEditorDsp = (
+			<span style={{ color, fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+				{freedCampItem.assigned_to_fullname && <span>{freedCampItem.assigned_to_fullname}</span>}
+				<span>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
+			</span>
+		);
+	}
 	return (
 		<>
 			{ !hasAssignedTo && !hasCompletedDate && <button
@@ -169,43 +182,8 @@ export function renderActionCell(
 				hasAssignedTo && !hasCompletedDate && (freedCampItem.assigned_to_fullname)
 			}
 			{
-				hasCompletedDate && (
-					<span style={{ color: 'green', fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-						{freedCampItem.assigned_to_fullname && <span>{freedCampItem.assigned_to_fullname}</span>}
-						<span>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
-					</span>
-				)
-			// 	hasCompletedDate && (
-			// 	<button
-			// 		className="btn btn-create"
-			// 		style={{ marginLeft: '5px' }}
-			// 		title={`Mark as done with completion date: ${new Date(hasCompletedDate * 1000).toLocaleString()}`}
-			// 		onClick={async () => {
-			// 			if (sheetOpsRef.current && combined) {
-			// 				try {
-			// 					const completedDate = new Date(hasCompletedDate * 1000);
-			// 					const formattedDate = completedDate.toLocaleDateString();
-			// 					await completeDateUpdater(
-			// 						sheetOpsRef.current,
-			// 						combined.opsConfig,
-			// 						action,
-			// 						p,
-			// 						formattedDate,
-			// 						{ doLog }
-			// 					);
-			// 					doLog(`Marked ${action} as done for "${p.文件}" (completed: ${formattedDate})`);
-			// 					await fetchData();
-			// 				} catch (error: any) {
-			// 					console.error('Error updating sheet:', error);
-			// 					setErrorDialog({ show: true, message: `Failed to update sheet:\n${error.message || String(error)}` });
-			// 				}
-			// 			}
-			// 		}}
-			// 	>
-			// 		Mark Done
-			// 	</button>
-			// )
-				}
+				dateEditorDsp
+			}			
 		</>
 	);
 }
