@@ -146,20 +146,23 @@ export const MicrosoftOneDrivePage = () => {
     msLoginRedirect();
   };
 
-  const handleListFiles = async () => {
+  const handleListFilesFor = async (input: string) => {
     if (!msToken || !msAccount) return;
     setLoading(true);
     setError('');
     setFiles(null);
     try {
-      console.log('debugremove sending main folder', folderInput)
-      const items = await fetchOneDriveChildren(msToken, folderInput);      
+      const items = await fetchOneDriveChildren(msToken, input);
       setFiles(items);
     } catch (err: any) {
       setError(err.message || String(err));
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleListFiles = async () => {
+    handleListFilesFor(folderInput);
   };
 
   const handleReadXlsx = async () => {
@@ -233,6 +236,13 @@ export const MicrosoftOneDrivePage = () => {
         />
         <button onClick={handleListFiles} disabled={loading} style={btnStyle('#0078d4')}>
           {loading ? 'Loading\u2026' : 'List Files'}
+        </button>
+        <button
+          onClick={() => { setFolderInput(''); handleListFilesFor(''); }}
+          disabled={loading}
+          style={btnStyle('#6c757d')}
+        >
+          My Root
         </button>
       </div>
 
