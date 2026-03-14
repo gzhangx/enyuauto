@@ -153,8 +153,7 @@ export const MicrosoftOneDrivePage = () => {
     setFiles(null);
     try {
       console.log('debugremove sending main folder', folderInput)
-      const items = await fetchOneDriveChildren(msToken, folderInput);
-      console.log('debugremove received items', items)
+      const items = await fetchOneDriveChildren(msToken, folderInput);      
       setFiles(items);
     } catch (err: any) {
       setError(err.message || String(err));
@@ -242,8 +241,39 @@ export const MicrosoftOneDrivePage = () => {
       )}
 
       {files !== null && (
-        // folder listing table below
-        <></>
+        files.length === 0 ? (
+          <p style={{ color: '#777' }}>No files found.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+              <thead>
+                <tr>
+                  {['Name', 'Type', 'Size', 'Last Modified'].map(h => (
+                    <th key={h} style={{ border: '1px solid #ddd', padding: '8px 10px', backgroundColor: '#f8f9fa', textAlign: 'left', position: 'sticky', top: 0 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {files.map(item => (
+                  <tr key={item.id}>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
+                      <a href={item.webUrl} target="_blank" rel="noreferrer">{item.name}</a>
+                    </td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
+                      {item.folder ? 'Folder' : (item.file?.mimeType ?? 'File')}
+                    </td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
+                      {item.size != null ? `${(item.size / 1024).toFixed(1)} KB` : '—'}
+                    </td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
+                      {item.lastModifiedDateTime ? new Date(item.lastModifiedDateTime).toLocaleString() : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       <hr style={{ margin: '1.5rem 0', borderColor: '#ddd' }} />
