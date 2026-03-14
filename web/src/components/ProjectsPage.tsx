@@ -81,7 +81,7 @@ export const ProjectsPage = () => {
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
-  const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(0);
+  const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(3);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
   
