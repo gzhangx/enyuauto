@@ -158,9 +158,11 @@ export function renderActionCell(
 			hasCompletedDate * 1000 >= Date.now() - daysShowAlertAfterComplete * 24 * 60 * 60 * 1000;
 		const color = isRecent ? 'red' : 'green';
 		dateEditorDsp = (
-			<span style={{ color, fontWeight: 'bold', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-				{freedCampItem.assigned_to_fullname && <span>{freedCampItem.assigned_to_fullname}</span>}
-				<span>{formatLocalDateYyyyMmDd(hasCompletedDate)}</span>
+			<span
+				style={{ color, fontWeight: 'bold' }}
+				title={freedCampItem.assigned_to_fullname || undefined}
+			>
+				{formatLocalDateYyyyMmDd(hasCompletedDate)}
 			</span>
 		);
 	}
