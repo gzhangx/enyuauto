@@ -91,6 +91,7 @@ export type RenderActionCellDeps = {
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
 	//logParam: { doLog: (msg: string) => void };
+	daysShowAlertAfterComplete: number;
 };
 
 export function renderActionCell(

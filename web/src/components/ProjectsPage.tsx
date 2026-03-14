@@ -81,6 +81,7 @@ export const ProjectsPage = () => {
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(0);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
   
@@ -235,6 +236,7 @@ export const ProjectsPage = () => {
     doLog,
     fetchData,
     setErrorDialog,
+    daysShowAlertAfterComplete,
   };
 
   const stickyHeaderCellStyle = {
@@ -361,6 +363,18 @@ export const ProjectsPage = () => {
           />
           Show all
         </label>
+        <input
+          type="number"
+          min={0}
+          max={10}
+          placeholder="days"
+          value={daysShowAlertAfterComplete}
+          onChange={(e) => {
+            const v = parseInt(e.target.value, 10);
+            if (!isNaN(v) && v >= 0 && v <= 10) setDaysShowAlertAfterComplete(v);
+          }}
+          style={{ width: '60px', fontSize: '14px', padding: '2px 6px' }}
+        />
       </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
         <thead>
