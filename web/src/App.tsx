@@ -149,7 +149,7 @@ const AppContent = () => {
         </div>
       </nav>
       
-      {currentView === 'projects' && <ProjectsPage />}
+      {currentView === 'projects' && <ProjectsPage onNavigateToFreedCamp={() => setCurrentView('freedcamp')} />}
       {currentView === 'sheets' && <GoogleSheetsPage />}
       {currentView === 'onedrive' && <MicrosoftOneDrivePage />}
       {currentView === 'transfers' && <TransfersPage />}

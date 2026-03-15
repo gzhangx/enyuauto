@@ -64,7 +64,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 };
 
 
-export const ProjectsPage = () => {
+export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?: () => void }) => {
   const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
@@ -172,6 +172,12 @@ export const ProjectsPage = () => {
   }, [fullProjectList, showAllProjects]);
 
   useEffect(() => {
+    if (!freedCampCredentials && onNavigateToFreedCamp) {
+      onNavigateToFreedCamp();
+    }
+  }, [freedCampCredentials]);
+
+  useEffect(() => {
     if (token && !startupRunOnce.current && freedCampCredentials) {
       startupRunOnce.current = true;
       fetchData(freedCampCredentials);
@@ -250,7 +256,19 @@ export const ProjectsPage = () => {
   };
 
   if (!freedCampCredentials) {
-    return <div>Please login to freed camp first</div>
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: '1rem' }}>
+        <p style={{ color: '#555' }}>FreedCamp credentials not loaded. Please set them first.</p>
+        {onNavigateToFreedCamp && (
+          <button
+            onClick={onNavigateToFreedCamp}
+            style={{ padding: '0.5rem 1.25rem', backgroundColor: '#e65100', color: 'white', border: 'none', borderRadius: '4px', fontSize: '0.95rem', cursor: 'pointer' }}
+          >
+            Go to FreedCamp Login
+          </button>
+        )}
+      </div>
+    );
   }
   return (
     <>
