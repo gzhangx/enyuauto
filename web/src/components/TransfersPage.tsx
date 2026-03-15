@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { MS_MAIN_EXCEL_FILE_NAME } from '../lib/freedCampCredentials';
 
 const GOOGLE_SHEET_ID = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
-const EXCEL_FILE_NAME = 'enystatus.xlsx';
+
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 // ---- Minimal ZIP / XLSX builder ----
@@ -149,12 +150,12 @@ async function findOrCreateExcelFile(msToken: string, log: (s: string) => void):
   const authHeaders = { Authorization: `Bearer ${msToken}` };
 
   const findRes = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/root:/${EXCEL_FILE_NAME}`,
+    `https://graph.microsoft.com/v1.0/me/drive/root:/${MS_MAIN_EXCEL_FILE_NAME}`,
     { headers: authHeaders }
   );
   if (findRes.ok) {
     const item = await findRes.json();
-    log(`Found existing file: ${EXCEL_FILE_NAME} (id: ${item.id})`);
+    log(`Found existing file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${item.id})`);
     return item.id as string;
   }
   if (findRes.status !== 404) {
@@ -162,10 +163,10 @@ async function findOrCreateExcelFile(msToken: string, log: (s: string) => void):
     throw new Error(body?.error?.message || findRes.statusText);
   }
 
-  log(`File not found, creating ${EXCEL_FILE_NAME}…`);
+  log(`File not found, creating ${MS_MAIN_EXCEL_FILE_NAME}…`);
   const minimalXlsx = buildMinimalXlsx();
   const createRes = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/root:/${EXCEL_FILE_NAME}:/content`,
+    `https://graph.microsoft.com/v1.0/me/drive/root:/${MS_MAIN_EXCEL_FILE_NAME}:/content`,
     { method: 'PUT', headers: { ...authHeaders, 'Content-Type': EXCEL_CONTENT_TYPE }, body: minimalXlsx.buffer as ArrayBuffer }
   );
   if (!createRes.ok) {
@@ -173,7 +174,7 @@ async function findOrCreateExcelFile(msToken: string, log: (s: string) => void):
     throw new Error(body?.error?.message || createRes.statusText);
   }
   const created = await createRes.json();
-  log(`Created file: ${EXCEL_FILE_NAME} (id: ${created.id})`);
+  log(`Created file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${created.id})`);
   return created.id as string;
 }
 
@@ -349,7 +350,7 @@ export const TransfersPage = () => {
     <div style={{ padding: '1.5rem', maxWidth: '800px', margin: '0 auto' }}>
       <h2 style={{ marginBottom: '0.5rem' }}>Transfers</h2>
       <p style={{ color: '#555', marginBottom: '1.5rem', fontSize: '0.95rem' }}>
-        Copies all sheets from the main Google Sheet into <strong>{EXCEL_FILE_NAME}</strong> in your OneDrive root.
+        Copies all sheets from the main Google Sheet into <strong>{MS_MAIN_EXCEL_FILE_NAME}</strong> in your OneDrive root.
         The file is created automatically if it does not exist.
       </p>
 

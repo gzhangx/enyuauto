@@ -2,6 +2,8 @@ export const SECS_FILE_NAME = 'enyu_secs.xlsx';
 export const FREED_CAMP_SHEET = 'freedCamp';
 export const LOGIN_CFG_KEY = 'freedCamp_login_cfg';
 
+export const MS_MAIN_EXCEL_FILE_NAME = 'enystatus.xlsx';
+
 export interface FreedCampCredentials {
   username: string;
   password: string;

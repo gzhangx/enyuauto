@@ -3,6 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
+import { MS_MAIN_EXCEL_FILE_NAME } from '../src/lib/freedCampCredentials';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -113,17 +114,38 @@ function _toExcelCol(n: number): string {
     return result;
 }
 
+
 /**
  * Create an ISheetDataOps backed by a Microsoft Excel workbook via Graph API.
+ * The workbook is resolved by looking up MS_MAIN_EXCEL_FILE_NAME in the user's
+ * OneDrive root directory. The item ID is cached after the first lookup.
  * @param msToken  A valid MS Graph bearer token with Files.ReadWrite scope.
- * @param driveItemId  The OneDrive item ID of the .xlsx file.
  */
-export function createMsExcelDataOps(msToken: string, driveItemId: string): ISheetDataOps {
-    const baseUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${driveItemId}`;
+export function createMsExcelDataOps(msToken: string): ISheetDataOps {
+    const driveRoot = `https://graph.microsoft.com/v1.0/me/drive`;
     const jsonHeaders = () => ({ Authorization: `Bearer ${msToken}`, 'Content-Type': 'application/json' });
+
+    let cachedItemId: string | null = null;
+
+    async function getBaseUrl(): Promise<string> {
+        if (!cachedItemId) {
+            const res = await fetch(
+                `${driveRoot}/root:/${encodeURIComponent(MS_MAIN_EXCEL_FILE_NAME)}`,
+                { headers: jsonHeaders() }
+            );
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error((body as any)?.error?.message || res.statusText);
+            }
+            const data = await res.json();
+            cachedItemId = data.id as string;
+        }
+        return `${driveRoot}/items/${cachedItemId}`;
+    }
 
     return {
         async readData(sheetName: string) {
+            const baseUrl = await getBaseUrl();
             const res = await fetch(
                 `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
                 { headers: jsonHeaders() }
@@ -136,6 +158,7 @@ export function createMsExcelDataOps(msToken: string, driveItemId: string): IShe
             return { values: (data.values ?? []) as string[][] };
         },
         async autoUpdateValues(sheetName: string, values: string[][], pos: { row: number; col: number }) {
+            const baseUrl = await getBaseUrl();
             // pos.row is 1-indexed data row (header=0), pos.col is 0-indexed
             const physicalRow = pos.row + 1; // spreadsheet row: header at 1, first data at 2
             const startCol = _toExcelCol(pos.col + 1);
