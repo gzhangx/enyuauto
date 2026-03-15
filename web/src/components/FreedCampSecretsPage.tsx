@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const SECS_FILE_NAME = 'enyu_secs.xlsx';
 const SHEET_NAME = 'freedCamp';
-const LOGIN_CFG_KEY = 'login_cfg';
+const LOGIN_CFG_KEY = 'freedCamp_login_cfg';
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 // ---- Minimal XLSX builder (same CRC32/ZIP helpers as TransfersPage) ----
