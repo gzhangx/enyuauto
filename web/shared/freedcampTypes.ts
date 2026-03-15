@@ -1,4 +1,4 @@
-export interface LoginParams {
+export interface FreedCampLoginParams {
     username: string;
     password: string;
 }
@@ -61,7 +61,7 @@ export interface ICurrentSessionData {
 
 
 export interface FreedCampOps {
-    login: (prm: LoginParams) => Promise<LoginResponse>;
+    login: (prm: FreedCampLoginParams) => Promise<LoginResponse>;
     getProcessor: (loginResponse: LoginResponse) => FreedCampProcessor;
 }
 

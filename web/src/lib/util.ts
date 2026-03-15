@@ -1,11 +1,11 @@
 
-import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, LoginParams, LoginResponse, IProjectTasksResult } from '../../shared/freedcampTypes';
+import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, FreedCampLoginParams, LoginResponse, IProjectTasksResult } from '../../shared/freedcampTypes';
 import { freedcampApi } from './api';
 
 
 
 
-async function login({ username, password }: LoginParams): Promise<LoginResponse> {    
+async function login({ username, password }: FreedCampLoginParams): Promise<LoginResponse> {    
     const res = await freedcampApi({
         subAction: 'login',
             username: username || '',

@@ -1,7 +1,7 @@
 
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
-import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
+import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
@@ -321,10 +321,6 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
 
 function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjectLongToShortNameMapping {
     const configMap: IGroupAndMainProjectLongToShortNameMapping = {
-        freedcampInfo: {
-            username: '',
-            password: '',
-        },
         groupName: '',
         actions: [],
         taskLongToShortNameMapping: {},
@@ -352,11 +348,6 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             };
         }
     });
-    const freedcampInfoRow = values.find(row => row[0] === 'freedcampInfo');
-    if (freedcampInfoRow) {
-        configMap.freedcampInfo.username = (freedcampInfoRow[1] || '').trim();
-        configMap.freedcampInfo.password = (freedcampInfoRow[2] || '').trim();
-    }
     return configMap;
 }
 
@@ -408,13 +399,13 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 }
 
 export interface FreeCampAndUpdateOperations {
-    getFreedCampToken: (opsAndTemplates: IOpsConfig) => Promise<LoginResponse>;
+    getFreedCampToken: (loginParams: FreedCampLoginParams) => Promise<LoginResponse>;
     getFreedCampProcessor: (loginToken: LoginResponse) => FreedCampProcessor;
 }
 
 export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): FreeCampAndUpdateOperations {
-    async function getFreedCampToken(opsAndTemplates: IOpsConfig) {
-        const loginToken = await freedCampOps.login(opsAndTemplates.groupAndMainProjectMapping.freedcampInfo);
+    async function getFreedCampToken(loginParams: FreedCampLoginParams) {
+        const loginToken = await freedCampOps.login(loginParams);
         return loginToken;
     }
     function getFreedCampProcessor(loginToken: LoginResponse) {
@@ -436,10 +427,10 @@ export interface ICombinedOpsAndFreeCampData {
     loginToken: LoginResponse;
     freedCampTasksByAction: { [key in ActionType]: IProjectTasksResult };
 }
-export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, freedCampOps: FreeCampAndUpdateOperations, log: DebugLog)
+export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, freedCampOps: FreeCampAndUpdateOperations, freedCampLoginParams: FreedCampLoginParams, log: DebugLog)
 :Promise<ICombinedOpsAndFreeCampData>
 {
-    const loginToken = await freedCampOps.getFreedCampToken(opsConfig);
+    const loginToken = await freedCampOps.getFreedCampToken(freedCampLoginParams);
     const pr = freedCampOps.getFreedCampProcessor(loginToken);
     log.doLog('processOperation: got processor with login');
     
@@ -840,13 +831,14 @@ export interface DebugLog {
 
 
 export async function deleteItemActionTask( ops: ISheetDataOps,
-    freedCampOps: FreeCampAndUpdateOperations,    
+    freedCampOps: FreeCampAndUpdateOperations, 
+    freedCampLoginParams: FreedCampLoginParams,
     opsAndTemplates: IOpsConfig,
     operation: IOperationWithLineNumber,    
     action: ActionType,
     log: DebugLog,) {
     
-    const loginToken = await freedCampOps.getFreedCampToken(opsAndTemplates);
+    const loginToken = await freedCampOps.getFreedCampToken(freedCampLoginParams);
     const pr = freedCampOps.getFreedCampProcessor(loginToken);
     const existingTaskId = getExistingTaskId(action, operation);
     if (existingTaskId) {
@@ -869,7 +861,7 @@ export async function deleteItemActionTask( ops: ISheetDataOps,
 }
 
 
-export async function main(ops: ISheetDataOps, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
+export async function main(ops: ISheetDataOps, freedCampOps: FreedCampOps, freedCampLoginParams: FreedCampLoginParams, lineNumber: number, log: DebugLog, opStr?: string) {
     const opsAndTemplates = await getOpsAndMainList(ops, log);
     if (!opsAndTemplates) {        
         return undefined;
@@ -881,7 +873,7 @@ export async function main(ops: ISheetDataOps, freedCampOps: FreedCampOps, lineN
         log.doLog('processOperation: no such line number ' + lineNumber);
         return undefined;
     }
-    const combined = await combineOpsConfigWithFreedCampData(opsAndTemplates, fops, log);
+    const combined = await combineOpsConfigWithFreedCampData(opsAndTemplates, fops, freedCampLoginParams, log);
     const ids = await processOperation(ops, fops, combined, validOperation, [], log, prefix);
     return {
         ids, 

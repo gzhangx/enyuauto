@@ -101,10 +101,6 @@ export type Templates = {
 };
 
 export interface IGroupAndMainProjectLongToShortNameMapping {
-    freedcampInfo: {
-        username: string;
-        password: string;
-    };
     groupName: string; //EnYu_2026
     actions: ActionType[];
     taskLongToShortNameMapping: {

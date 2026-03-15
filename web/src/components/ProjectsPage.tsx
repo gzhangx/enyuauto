@@ -13,7 +13,7 @@ import {
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
-import type { LoginResponse } from '../../shared/freedcampTypes';
+import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 import { fetchOneDriveChildren } from './MicrosoftOneDrivePage';
@@ -109,7 +109,7 @@ export const ProjectsPage = () => {
   };
 
   const logParam = { getOperations: () => [], doLog }
-  async function fetchData(fullReload = false) {
+  async function fetchData(freedCampCredentials: FreedCampLoginParams, fullReload = false) {
     console.log('useEffect run');
     if (token) {
       const ops = await getSheetOps({ token }, sheetInfoCache);
@@ -126,7 +126,7 @@ export const ProjectsPage = () => {
         await getOpsAndMainList(ops, logParam).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, logParam);          
+          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, freedCampCredentials, logParam);          
 
           //--------------------------- get freecamp data        
           const pr = freeCampOpsWithCache.getFreedCampProcessor(combined.loginToken);
@@ -172,9 +172,9 @@ export const ProjectsPage = () => {
   }, [fullProjectList, showAllProjects]);
 
   useEffect(() => {
-    if (token && !startupRunOnce.current) {
+    if (token && !startupRunOnce.current && freedCampCredentials) {
       startupRunOnce.current = true;
-      fetchData();
+      fetchData(freedCampCredentials);
     }
   }, [token]);
   
@@ -249,6 +249,9 @@ export const ProjectsPage = () => {
     backgroundColor: '#fff'
   };
 
+  if (!freedCampCredentials) {
+    return <div>Please login to freed camp first</div>
+  }
   return (
     <>
       <ErrorDialog 
@@ -343,8 +346,8 @@ export const ProjectsPage = () => {
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
-        <button className="btn btn-create" onClick={() => fetchData(false)}>Reload</button>
-        <button className="btn btn-create" onClick={()=>fetchData(true)}>Reload All</button>
+        <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
+        <button className="btn btn-create" onClick={()=>fetchData(freedCampCredentials, true)}>Reload All</button>
         {msAccount && (
           <button className="btn btn-create" onClick={msLogout} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
             MS Logout ({msAccount.username})
@@ -447,7 +450,7 @@ export const ProjectsPage = () => {
                   </td>
                 ))}
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}
-                  { renderSyncActionCell(p, actionCellDeps, 'Sync from FreedCamp') }
+                  { renderSyncActionCell(p, freedCampCredentials, actionCellDeps, 'Sync from FreedCamp') }
                 </td>
               </tr>
             })

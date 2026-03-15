@@ -1,4 +1,5 @@
 
+import type { FreedCampLoginParams } from '../../../shared/freedcampTypes';
 import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
@@ -8,6 +9,7 @@ import React, { type JSX } from 'react';
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
 export function renderSyncActionCell(
 	p: IOperationWithLineNumberAndParentTaskId,
+	freedCampLoginParams: FreedCampLoginParams,
     deps: RenderActionCellDeps,
     desc: string,
 ) {
@@ -65,7 +67,7 @@ export function renderSyncActionCell(
 							p[update.sheetCol as ActionType] = update.value;
 							await anyKeyUpdater(sheetOpsRef.current, combined.opsConfig, update.sheetCol as ActionType, p, { doLog });
 						}
-						await fetchData();
+						await fetchData(freedCampLoginParams);
 					} catch (error: any) {
 						console.error('Error syncing sheet:', error);
 						setErrorDialog({ show: true, message: `Failed to sync sheet:\n${error.message || String(error)}` });
@@ -87,7 +89,7 @@ export type RenderActionCellDeps = {
 	deleteItemActionTask: Function;
 	completeDateUpdater: (ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
-	fetchData: () => Promise<void>;
+	fetchData: (freedCampCredentials: FreedCampLoginParams) => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
 	//logParam: { doLog: (msg: string) => void };
 	daysShowAlertAfterComplete: number;
