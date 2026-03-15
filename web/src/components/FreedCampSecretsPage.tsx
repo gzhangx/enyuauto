@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { FREED_CAMP_SHEET, LOGIN_CFG_KEY } from '../lib/freedCampCredentials';
 
 const SECS_FILE_NAME = 'enyu_secs.xlsx';
-const SHEET_NAME = 'freedCamp';
-const LOGIN_CFG_KEY = 'freedCamp_login_cfg';
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 // ---- Minimal XLSX builder (same CRC32/ZIP helpers as TransfersPage) ----
@@ -74,7 +73,7 @@ async function findOrCreateSecsFile(msToken: string): Promise<string> {
   if (findRes.ok) return (await findRes.json()).id as string;
   if (findRes.status !== 404) throw new Error((await findRes.json().catch(() => ({}))).error?.message || findRes.statusText);
 
-  const bytes = buildMinimalXlsx(SHEET_NAME);
+  const bytes = buildMinimalXlsx(FREED_CAMP_SHEET);
   const createRes = await fetch(
     `https://graph.microsoft.com/v1.0/me/drive/root:/${SECS_FILE_NAME}:/content`,
     { method: 'PUT', headers: { ...auth, 'Content-Type': EXCEL_CONTENT_TYPE }, body: bytes.buffer as ArrayBuffer }
@@ -91,17 +90,17 @@ async function readCredentials(msToken: string): Promise<{ username: string; pas
   const wsListRes = await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets`, { headers: auth });
   if (wsListRes.ok) {
     const sheets: { name: string }[] = (await wsListRes.json()).value;
-    if (!sheets.find(s => s.name === SHEET_NAME)) {
+    if (!sheets.find(s => s.name === FREED_CAMP_SHEET)) {
       await fetch(`https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets/add`, {
         method: 'POST',
         headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: SHEET_NAME }),
+        body: JSON.stringify({ name: FREED_CAMP_SHEET }),
       });
     }
   }
 
   const rangeRes = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(SHEET_NAME)}')/usedRange`,
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(FREED_CAMP_SHEET)}')/usedRange`,
     { headers: auth }
   );
   if (!rangeRes.ok) return null;
@@ -117,7 +116,7 @@ async function saveCredentials(msToken: string, username: string, password: stri
 
   // Read existing rows so we can find/replace the login_cfg row
   const rangeRes = await fetch(
-    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(SHEET_NAME)}')/usedRange`,
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(FREED_CAMP_SHEET)}')/usedRange`,
     { headers: { Authorization: `Bearer ${msToken}` } }
   );
   let rows: string[][] = [];
@@ -131,7 +130,7 @@ async function saveCredentials(msToken: string, username: string, password: stri
     const writeRow = rows.length + 1;
     const address = `A${writeRow}:C${writeRow}`;
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(SHEET_NAME)}')/range(address='${address}')`,
+      `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(FREED_CAMP_SHEET)}')/range(address='${address}')`,
       { method: 'PATCH', headers: auth, body: JSON.stringify({ values: [newRow] }) }
     );
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.statusText);
@@ -140,7 +139,7 @@ async function saveCredentials(msToken: string, username: string, password: stri
     const writeRow = rowIdx + 1;
     const address = `A${writeRow}:C${writeRow}`;
     const res = await fetch(
-      `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(SHEET_NAME)}')/range(address='${address}')`,
+      `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/workbook/worksheets('${encodeURIComponent(FREED_CAMP_SHEET)}')/range(address='${address}')`,
       { method: 'PATCH', headers: auth, body: JSON.stringify({ values: [newRow] }) }
     );
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.statusText);
@@ -196,7 +195,7 @@ export const FreedCampSecretsPage = () => {
         setFreedCampCredentials(creds);
         setStatus('Loaded successfully.');
       } else {
-        setStatus(`No "${LOGIN_CFG_KEY}" row found in ${SECS_FILE_NAME} → ${SHEET_NAME}. Fill in and Save.`);
+        setStatus(`No "${LOGIN_CFG_KEY}" row found in ${SECS_FILE_NAME} → ${FREED_CAMP_SHEET}. Fill in and Save.`);
       }
     } catch (e: any) {
       setError(e.message || String(e));
@@ -234,7 +233,7 @@ export const FreedCampSecretsPage = () => {
     <div style={{ padding: '1.5rem', maxWidth: '600px', margin: '0 auto' }}>
       <h2 style={{ marginBottom: '0.25rem' }}>FreedCamp Login Info</h2>
       <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-        Stored in <strong>{SECS_FILE_NAME}</strong> → sheet <strong>{SHEET_NAME}</strong> on your OneDrive root.
+        Stored in <strong>{SECS_FILE_NAME}</strong> → sheet <strong>{FREED_CAMP_SHEET}</strong> on your OneDrive root.
         The file and sheet are created automatically if they do not exist.
       </p>
 
