@@ -7,6 +7,10 @@ import { msalInstance, msalReady } from '../lib/msalInstance';
 
 const GRAPH_SCOPES = ['Files.ReadWrite', 'User.Read'];
 
+export interface IFreedCampCredentials {
+  username: string;
+  password: string;
+}
 interface AuthContextType {
   token: string | null;
   msToken: string | null;
@@ -24,8 +28,8 @@ interface AuthContextType {
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
   setCombinedOpsAndData: (data: ICombinedOpsAndFreeCampData | null) => void;
-  freedCampCredentials: { username: string; password: string } | null;
-  setFreedCampCredentials: (creds: { username: string; password: string } | null) => void;
+  freedCampCredentials: IFreedCampCredentials | null;
+  setFreedCampCredentials: (creds: IFreedCampCredentials | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
