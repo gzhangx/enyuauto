@@ -1,6 +1,6 @@
 
 import type { FreedCampLoginParams } from '../../../shared/freedcampTypes';
-import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
+import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React, { type JSX } from 'react';
@@ -86,7 +86,8 @@ export type RenderActionCellDeps = {
 	//opsConfig: IOpsConfig | null;
 	combined: ICombinedOpsAndFreeCampData | null;
 	freeCampOpsWithCache: any;
-	deleteItemActionTask: Function;
+	freedCampLoginParams: FreedCampLoginParams;
+	deleteItemActionTask: typeof deleteItemActionTask;
 	completeDateUpdater: (ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
 	fetchData: (freedCampCredentials: FreedCampLoginParams) => Promise<void>;
@@ -105,6 +106,7 @@ export function renderActionCell(
 		combined,
 		freeCampOpsWithCache,
 		deleteItemActionTask,
+		freedCampLoginParams,
 		//completeDateUpdater,
 		doLog,
 		//fetchData,
@@ -174,7 +176,7 @@ export function renderActionCell(
 				title={tooltipText}
 				onClick={async () => {
 					if (sheetOpsRef.current && combined) {
-						await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, combined.opsConfig, p, action, { getOperations: () => [], doLog });
+							await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, freedCampLoginParams, combined.opsConfig, p, action, { doLog });
 					}
 				}}
 			>

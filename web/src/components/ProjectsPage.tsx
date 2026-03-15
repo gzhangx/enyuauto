@@ -237,6 +237,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     sheetOpsRef,
     combined: combinedOpsAndData,
     freeCampOpsWithCache,
+    freedCampLoginParams: freedCampCredentials!,
     deleteItemActionTask,
     completeDateUpdater,
     doLog,
