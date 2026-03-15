@@ -2,7 +2,7 @@ import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 
 export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) => {
-  const { login, msLoginRedirect, isMsAuthenticated, msLogout, msAccount } = useAuth();
+  const { login, msLoginRedirect, isMsAuthenticated, msLogout, msAccount, useMsOps, setUseMsOps } = useAuth();
 
   const googleLogin = useGoogleLogin({
     onSuccess: (tokenResponse) => {
@@ -27,6 +27,15 @@ export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) =
     }}>
       <h1>Welcome to Enyu Auto</h1>
       <p>Please sign in to continue</p>
+      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={useMsOps}
+          onChange={e => setUseMsOps(e.target.checked)}
+          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+        />
+        Use Microsoft (OneDrive Excel)
+      </label>
       <button
         onClick={() => googleLogin()}
         style={{

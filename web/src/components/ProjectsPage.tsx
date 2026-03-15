@@ -10,6 +10,7 @@ import {
   completeDateUpdater,  
   updateDoneParentIds,
   type IOneDriveDirInfo,
+  createMsExcelDataOps,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
 import { freedCampOps } from '../lib/util';
@@ -65,7 +66,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 
 export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?: () => void }) => {
-  const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials } = useAuth();  
+  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
@@ -87,7 +88,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   
 
   const startupRunOnce = useRef(false);
-  const { msToken, msAccount, msLoginRedirect, msLogout } = useAuth();
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
     getFreedCampToken: async (opsAndTemplates) => {
@@ -111,8 +111,11 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const logParam = { getOperations: () => [], doLog }
   async function fetchData(freedCampCredentials: FreedCampLoginParams, fullReload = false) {
     console.log('useEffect run');
-    if (token) {
-      const ops = await getSheetOps({ token }, sheetInfoCache);
+    const activeToken = useMsOps ? msToken : token;
+    if (activeToken) {
+      const ops = useMsOps
+        ? createMsExcelDataOps(msToken!)
+        : await getSheetOps({ token: token! }, sheetInfoCache);
       if (opsConfig &&combinedOpsAndData && !fullReload) {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
@@ -178,11 +181,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   //}, [freedCampCredentials]);
 
   useEffect(() => {
-    if (token && !startupRunOnce.current && freedCampCredentials) {
+    const ready = useMsOps ? !!msToken : !!token;
+    if (ready && !startupRunOnce.current && freedCampCredentials) {
       startupRunOnce.current = true;
       fetchData(freedCampCredentials);
     }
-  }, [token, freedCampCredentials]);
+  }, [token, msToken, freedCampCredentials, useMsOps]);
   
 
 

@@ -11,10 +11,11 @@ import { FreedCampSecretsPage } from './components/FreedCampSecretsPage';
 type View = 'projects' | 'sheets' | 'onedrive' | 'transfers' | 'freedcamp';
 
 const AppContent = () => {
-  const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect, msAccount } = useAuth();
+  const { isAuthenticated, isMsAuthenticated, useMsOps, logout, msLoginRedirect, msAccount } = useAuth();
   const [currentView, setCurrentView] = useState<View>('projects');
 
-  if (!isAuthenticated && currentView !== 'onedrive') {
+  const hasActiveAuth = useMsOps ? isMsAuthenticated : isAuthenticated;
+  if (!hasActiveAuth && currentView !== 'onedrive') {
     return <LoginPage onGoToOneDrive={isMsAuthenticated ? () => setCurrentView('onedrive') : undefined} />;
   }
 

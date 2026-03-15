@@ -25,6 +25,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isMsAuthenticated: boolean;
+  useMsOps: boolean;
+  setUseMsOps: (val: boolean) => void;
   opsConfig: IOpsConfig | null;
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
@@ -44,6 +46,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
   const [freedCampCredentials, setFreedCampCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [useMsOps, setUseMsOpsState] = useState<boolean>(() => localStorage.getItem('use_ms_ops') === 'true');
+
+  const setUseMsOps = (val: boolean) => {
+    setUseMsOpsState(val);
+    localStorage.setItem('use_ms_ops', val ? 'true' : 'false');
+  };
 
   // Load token from localStorage on mount, then handle MSAL redirect/silent refresh
   useEffect(() => {
@@ -179,7 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{
       token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, msLogout, logout,
-      isAuthenticated, isMsAuthenticated, sheetInfoCache: {
+      isAuthenticated, isMsAuthenticated, useMsOps, setUseMsOps, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
       },
