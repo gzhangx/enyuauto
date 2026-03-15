@@ -6,8 +6,9 @@ import { GoogleSheetsPage } from './components/GoogleSheetsPage';
 import { ProjectsPage } from './components/ProjectsPage';
 import { MicrosoftOneDrivePage } from './components/MicrosoftOneDrivePage';
 import { TransfersPage } from './components/TransfersPage';
+import { FreedCampSecretsPage } from './components/FreedCampSecretsPage';
 
-type View = 'projects' | 'sheets' | 'onedrive' | 'transfers';
+type View = 'projects' | 'sheets' | 'onedrive' | 'transfers' | 'freedcamp';
 
 const AppContent = () => {
   const { isAuthenticated, isMsAuthenticated, logout, msLoginRedirect, msAccount } = useAuth();
@@ -27,6 +28,19 @@ const AppContent = () => {
         gap: '1rem',
         alignItems: 'center'
       }}>
+        <button
+          onClick={() => setCurrentView('freedcamp')}
+          style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: currentView === 'freedcamp' ? '#e65100' : '#6c757d',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+          }}
+        >
+          FreedCamp Login
+        </button>
         <button
           onClick={() => setCurrentView('projects')}
           style={{
@@ -139,6 +153,7 @@ const AppContent = () => {
       {currentView === 'sheets' && <GoogleSheetsPage />}
       {currentView === 'onedrive' && <MicrosoftOneDrivePage />}
       {currentView === 'transfers' && <TransfersPage />}
+      {currentView === 'freedcamp' && <FreedCampSecretsPage />}
     </>
   );
 };

@@ -24,6 +24,8 @@ interface AuthContextType {
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
   setCombinedOpsAndData: (data: ICombinedOpsAndFreeCampData | null) => void;
+  freedCampCredentials: { username: string; password: string } | null;
+  setFreedCampCredentials: (creds: { username: string; password: string } | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,6 +38,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [sheetInfoCached, setSheetInfoCached] = useState<ISheetInfoSimple[] | null>(null);
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
+  const [freedCampCredentials, setFreedCampCredentials] = useState<{ username: string; password: string } | null>(null);
 
   // Load token from localStorage on mount, then handle MSAL redirect/silent refresh
   useEffect(() => {
@@ -169,6 +172,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       },
       opsConfig, setOpsConfig,
       combinedOpsAndData, setCombinedOpsAndData,
+      freedCampCredentials, setFreedCampCredentials,
     }}>
       {children}
     </AuthContext.Provider>

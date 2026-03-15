@@ -65,7 +65,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 
 export const ProjectsPage = () => {
-  const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData } = useAuth();  
+  const { token, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
