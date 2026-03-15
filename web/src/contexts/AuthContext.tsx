@@ -4,6 +4,7 @@ import type { IOpsConfig, ISheetInfoCache } from '../../shared/opsTypes';
 import type { ICombinedOpsAndFreeCampData } from '../../shared/main_ops';
 import type { AccountInfo } from '@azure/msal-browser';
 import { msalInstance, msalReady } from '../lib/msalInstance';
+import { readFreedCampCredentials, type FreedCampCredentials } from '../lib/freedCampCredentials';
 
 const GRAPH_SCOPES = ['Files.ReadWrite', 'User.Read'];
 
@@ -98,6 +99,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     });
   }, []);
+
+  // Auto-load FreedCamp credentials once an MS token is available
+  useEffect(() => {
+    if (!msToken || freedCampCredentials) return;
+    readFreedCampCredentials(msToken)
+      .then((creds: FreedCampCredentials | null) => { if (creds) setFreedCampCredentials(creds); })
+      .catch(() => {/* non-fatal – user can load manually */});
+  }, [msToken]);
 
   // Auto-logout when token expires
   useEffect(() => {
