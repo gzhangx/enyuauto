@@ -171,18 +171,18 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     setProjectList(filtered);
   }, [fullProjectList, showAllProjects]);
 
-  useEffect(() => {
-    if (!freedCampCredentials && onNavigateToFreedCamp) {
-      onNavigateToFreedCamp();
-    }
-  }, [freedCampCredentials]);
+  //useEffect(() => {
+    //if (!freedCampCredentials && onNavigateToFreedCamp) {
+      //onNavigateToFreedCamp();
+    //}
+  //}, [freedCampCredentials]);
 
   useEffect(() => {
     if (token && !startupRunOnce.current && freedCampCredentials) {
       startupRunOnce.current = true;
       fetchData(freedCampCredentials);
     }
-  }, [token]);
+  }, [token, freedCampCredentials]);
   
 
 
