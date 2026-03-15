@@ -1,8 +1,18 @@
 import type { ISheetInfoSimple } from "@gzhangx/googleapi/lib/googleApi";
 import type { ActionType } from "./types";
 
-import * as gs from '@gzhangx/googleapi';
 import type { ProjectTaskParams } from "./freedcampTypes";
+
+/** Abstract sheet/workbook data-access layer — implemented by GoogleSheetDataOps or MsExcelDataOps. */
+export interface ISheetDataOps {
+    readData(sheetName: string): Promise<{ values: string[][] }>;
+    /**
+     * Write `values` to a single rectangular block.
+     * @param row  1-indexed data row (0 = header row, 1 = first data row).
+     * @param col  0-indexed column number.
+     */
+    autoUpdateValues(sheetName: string, values: string[][], position: { row: number; col: number }): Promise<void>;
+}
 export type DueDateKeys = `${ActionType} Due Date`;
 export type CompleteDateKeys = `${ActionType} Complete Date`;
 export type TaskIdKeys = `${ActionType} TaskId`;
@@ -117,7 +127,7 @@ export interface IEditorInfoMap { [key: string]: IEditorInfo };
 export interface OperationAndTemplates {
     validOperation: IOperationWithLineNumberAndParentTaskId;
     templates: Templates;
-    ops: gs.gsAccount.IGetSheetOpsReturn;
+    ops: ISheetDataOps;
     editorInfoMap: IEditorInfoMap;
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
 }

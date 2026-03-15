@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult } from './freedcampTypes';
-import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -93,10 +93,65 @@ const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 // }
 
 
-export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cache?: ISheetInfoCache): Promise<gs.gsAccount.IGetSheetOpsReturn> {
+export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cache?: ISheetInfoCache): Promise<ISheetDataOps> {
     const gsc = await gs.google.gsAccount.getClient(creds);
     const ops = await gsc.getSheetOps(mainSheetId, cache);
-    return ops;
+    return wrapGoogleSheetOps(ops);
+}
+
+/** Wrap a Google Sheets ops object to satisfy ISheetDataOps. */
+export function wrapGoogleSheetOps(ops: gs.gsAccount.IGetSheetOpsReturn): ISheetDataOps {
+    return {
+        readData: (sheet) => ops.readData(sheet),
+        autoUpdateValues: async (sheet, values, pos) => { await ops.autoUpdateValues(sheet, values, pos); },
+    };
+}
+
+function _toExcelCol(n: number): string {
+    let result = '';
+    while (n > 0) { n--; result = String.fromCharCode(65 + (n % 26)) + result; n = Math.floor(n / 26); }
+    return result;
+}
+
+/**
+ * Create an ISheetDataOps backed by a Microsoft Excel workbook via Graph API.
+ * @param msToken  A valid MS Graph bearer token with Files.ReadWrite scope.
+ * @param driveItemId  The OneDrive item ID of the .xlsx file.
+ */
+export function createMsExcelDataOps(msToken: string, driveItemId: string): ISheetDataOps {
+    const baseUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${driveItemId}`;
+    const jsonHeaders = () => ({ Authorization: `Bearer ${msToken}`, 'Content-Type': 'application/json' });
+
+    return {
+        async readData(sheetName: string) {
+            const res = await fetch(
+                `${baseUrl}/workbook/worksheets/${encodeURIComponent(sheetName)}/usedRange`,
+                { headers: jsonHeaders() }
+            );
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error((body as any)?.error?.message || res.statusText);
+            }
+            const data = await res.json();
+            return { values: (data.values ?? []) as string[][] };
+        },
+        async autoUpdateValues(sheetName: string, values: string[][], pos: { row: number; col: number }) {
+            // pos.row is 1-indexed data row (header=0), pos.col is 0-indexed
+            const physicalRow = pos.row + 1; // spreadsheet row: header at 1, first data at 2
+            const startCol = _toExcelCol(pos.col + 1);
+            const endCol = _toExcelCol(pos.col + (values[0]?.length ?? 1));
+            const endRow = physicalRow + values.length - 1;
+            const address = `${startCol}${physicalRow}:${endCol}${endRow}`;
+            const res = await fetch(
+                `${baseUrl}/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='${address}')`,
+                { method: 'PATCH', headers: jsonHeaders(), body: JSON.stringify({ values }) }
+            );
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error((body as any)?.error?.message || res.statusText);
+            }
+        },
+    };
 }
 
 function getExistingTaskId(templateName: ActionType, operation: OperationWithDueDates) {
@@ -104,7 +159,7 @@ function getExistingTaskId(templateName: ActionType, operation: OperationWithDue
 }
 
 
-export async function anyKeyUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
+export async function anyKeyUpdater(ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
     const newValue: string = item[key as keyof typeof item] as string;
     const lineNumber: number = item.itemPositionOnSheet;    
     const index = opsConfig.headers.indexOf(key);
@@ -119,7 +174,7 @@ export async function anyKeyUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsCon
     });
 }
 
-async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
+async function taskIdUpdater(ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, log: DebugLog) {
     const newTaskId: string = getExistingTaskId(key, item);
     const lineNumber: number = item.itemPositionOnSheet;
     const index = opsConfig.templates[key].taskIdPos;    
@@ -133,7 +188,7 @@ async function taskIdUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IO
     });
 }
 
-export async function completeDateUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) {
+export async function completeDateUpdater(ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) {
     const lineNumber: number = item.itemPositionOnSheet;
     const index = opsConfig.templates[key].completeDatePos;    
     log.doLog(`update complete date: ${val} at line ${lineNumber} for action ${key}  `);
@@ -143,7 +198,7 @@ export async function completeDateUpdater(ops: gs.gsAccount.IGetSheetOpsReturn, 
     });
 }
 
-export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
+export async function loadMainData(ops: ISheetDataOps) {
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];
     //const operationListData = await ops.readDataByColumnName('main');
@@ -160,7 +215,7 @@ export async function loadMainData(ops: gs.gsAccount.IGetSheetOpsReturn) {
     });
     return { operationList, headers };
 }
-export async function getOpsAndMainList(ops: gs.gsAccount.IGetSheetOpsReturn,log: DebugLog): Promise<IOpsConfig> {
+export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Promise<IOpsConfig> {
     //const ops = await getSheetOps(token);
     log.doLog('getOpsAndMainList: got sheet ops');
     const { operationList, headers } = await loadMainData(ops);
@@ -649,7 +704,7 @@ export interface IOneDriveDirInfo {
     webUrl: string;
 }
 export async function processOperation(
-    ops: gs.gsAccount.IGetSheetOpsReturn,
+    ops: ISheetDataOps,
     freedCampOps: FreeCampAndUpdateOperations,
     combined: ICombinedOpsAndFreeCampData,    
     operation: IOperationWithLineNumberAndParentTaskId,    
@@ -784,7 +839,7 @@ export interface DebugLog {
 }
 
 
-export async function deleteItemActionTask( ops: gs.gsAccount.IGetSheetOpsReturn,
+export async function deleteItemActionTask( ops: ISheetDataOps,
     freedCampOps: FreeCampAndUpdateOperations,    
     opsAndTemplates: IOpsConfig,
     operation: IOperationWithLineNumber,    
@@ -814,7 +869,7 @@ export async function deleteItemActionTask( ops: gs.gsAccount.IGetSheetOpsReturn
 }
 
 
-export async function main(ops: gs.gsAccount.IGetSheetOpsReturn, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
+export async function main(ops: ISheetDataOps, freedCampOps: FreedCampOps, lineNumber: number, log: DebugLog, opStr?: string) {
     const opsAndTemplates = await getOpsAndMainList(ops, log);
     if (!opsAndTemplates) {        
         return undefined;

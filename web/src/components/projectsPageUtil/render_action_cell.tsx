@@ -1,9 +1,8 @@
 
 import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData } from '../../../shared/main_ops';
-import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig } from '../../../shared/opsTypes';
+import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import React, { type JSX } from 'react';
-import * as gs from '@gzhangx/googleapi';
 
 
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
@@ -86,7 +85,7 @@ export type RenderActionCellDeps = {
 	combined: ICombinedOpsAndFreeCampData | null;
 	freeCampOpsWithCache: any;
 	deleteItemActionTask: Function;
-	completeDateUpdater: (ops: gs.gsAccount.IGetSheetOpsReturn, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
+	completeDateUpdater: (ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
 	doLog: (msg: string) => void;
 	fetchData: () => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
