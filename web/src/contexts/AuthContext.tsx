@@ -33,6 +33,7 @@ interface AuthContextType {
   setCombinedOpsAndData: (data: ICombinedOpsAndFreeCampData | null) => void;
   freedCampCredentials: IFreedCampCredentials | null;
   setFreedCampCredentials: (creds: IFreedCampCredentials | null) => void;
+  authLoadingStatus: string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,6 +48,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
   const [freedCampCredentials, setFreedCampCredentials] = useState<{ username: string; password: string } | null>(null);
   const [useMsOps, setUseMsOpsState] = useState<boolean>(() => localStorage.getItem('use_ms_ops') === 'true');
+  const [authLoadingStatus, setAuthLoadingStatus] = useState<string>('Initializing Microsoft login...');
 
   const setUseMsOps = (val: boolean) => {
     setUseMsOpsState(val);
@@ -88,9 +90,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setMsToken(redirectResult.accessToken);
         localStorage.setItem('ms_token', redirectResult.accessToken);
         localStorage.setItem('ms_token_expires_at', expiresAt.toString());
+        setAuthLoadingStatus('Setting MS token...');
       } else {
         const accounts = msalInstance.getAllAccounts();
         if (accounts.length > 0) {
+          setAuthLoadingStatus('Acquiring token silently...');
           msalInstance
             .acquireTokenSilent({ scopes: GRAPH_SCOPES, account: accounts[0] })
             .then(result => {
@@ -100,20 +104,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setMsToken(result.accessToken);
                 localStorage.setItem('ms_token', result.accessToken);
                 localStorage.setItem('ms_token_expires_at', expiresAt.toString());
+                setAuthLoadingStatus('Setting MS token...');
+              } else {
+                setAuthLoadingStatus('');
               }
             })
-            .catch(() => {/* Silent refresh failed – user must log in manually */});
+            .catch(() => { setAuthLoadingStatus(''); /* Silent refresh failed – user must log in manually */ });
+        } else {
+          setAuthLoadingStatus('');
         }
       }
-    });
+    }).catch(() => { setAuthLoadingStatus(''); });
   }, []);
 
   // Auto-load FreedCamp credentials once an MS token is available
   useEffect(() => {
-    if (!msToken || freedCampCredentials) return;
+    if (!msToken || freedCampCredentials) {
+      if (msToken) setAuthLoadingStatus('');
+      return;
+    }
+    setAuthLoadingStatus('Loading FreedCamp credentials...');
     readFreedCampCredentials(msToken)
       .then((creds: FreedCampCredentials | null) => { if (creds) setFreedCampCredentials(creds); })
-      .catch(() => {/* non-fatal – user can load manually */});
+      .catch(() => {/* non-fatal – user can load manually */})
+      .finally(() => { setAuthLoadingStatus(''); });
   }, [msToken]);
 
   // Auto-logout when token expires
@@ -187,7 +201,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{
       token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, msLogout, logout,
-      isAuthenticated, isMsAuthenticated, useMsOps, setUseMsOps, sheetInfoCache: {
+      isAuthenticated, isMsAuthenticated, useMsOps, setUseMsOps, authLoadingStatus, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
       },
