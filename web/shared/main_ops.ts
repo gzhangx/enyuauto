@@ -228,8 +228,20 @@ export async function loadMainData(ops: ISheetDataOps) {
     //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
     const operationList: IOperationWithLineNumberAndParentTaskId[] = rawMainData.values.slice(1).map((row, index) => {
         const obj = {} as IOperationWithLineNumberAndParentTaskId;
-        headers.forEach((header, colIndex) => {
-            obj[header as keyof OperationWithDueDates] = (row[colIndex] || '').trim();
+        headers.forEach((header, colIndex) => {           
+            let val: string = String(row[colIndex] ?? '');
+            if (typeof row[colIndex] === 'number') {
+                if (header.endsWith('Date')) {
+                    // Convert Excel date serial to YYYY-MM-DD
+                    // Excel serial 1 = Jan 1 1900; 25569 days between Jan 1 1900 and Unix epoch
+                    const date = new Date((row[colIndex] as number - 25569) * 86400 * 1000);
+                    const yyyy = date.getUTCFullYear();
+                    const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+                    const dd = String(date.getUTCDate()).padStart(2, '0');
+                    val = `${yyyy}-${mm}-${dd}`;
+                }
+            }
+            obj[header as keyof OperationWithDueDates] = val.trim();            
         });
         obj.itemPositionOnSheet = index + 1;
         obj.isFinished = false;
