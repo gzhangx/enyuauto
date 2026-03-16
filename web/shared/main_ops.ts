@@ -4,6 +4,7 @@ import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
 import { MS_MAIN_EXCEL_FILE_NAME } from '../src/lib/freedCampCredentials';
+import { SP_ENYU_GENERAL_FOLDER, resolveSiteGraphDriveRoot } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -117,30 +118,34 @@ function _toExcelCol(n: number): string {
 
 /**
  * Create an ISheetDataOps backed by a Microsoft Excel workbook via Graph API.
- * The workbook is resolved by looking up MS_MAIN_EXCEL_FILE_NAME in the user's
- * OneDrive root directory. The item ID is cached after the first lookup.
+ * The workbook is resolved by looking up MS_MAIN_EXCEL_FILE_NAME in the
+ * General folder (SP_ENYU_GENERAL_FOLDER) of the Shared Documents library on the
+ * enyueditors SharePoint site (SP_ENYU_DRIVE_ROOT). The item ID is cached after the first lookup.
  * @param msToken  A valid MS Graph bearer token with Files.ReadWrite scope.
  */
 export function createMsExcelDataOps(msToken: string): ISheetDataOps {
-    const driveRoot = `https://graph.microsoft.com/v1.0/me/drive`;
     const jsonHeaders = () => ({ Authorization: `Bearer ${msToken}`, 'Content-Type': 'application/json' });
 
     let cachedItemId: string | null = null;
+    let cachedDriveRoot: string | null = null;
 
     async function getBaseUrl(): Promise<string> {
-        if (!cachedItemId) {
-            const res = await fetch(
-                `${driveRoot}/root:/${encodeURIComponent(MS_MAIN_EXCEL_FILE_NAME)}`,
-                { headers: jsonHeaders() }
-            );
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                throw new Error((body as any)?.error?.message || res.statusText);
-            }
-            const data = await res.json();
-            cachedItemId = data.id as string;
+        if (cachedItemId && cachedDriveRoot) {
+            return `${cachedDriveRoot}/items/${cachedItemId}`;
         }
-        return `${driveRoot}/items/${cachedItemId}`;
+        const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+        cachedDriveRoot = driveRoot;
+        const res = await fetch(
+            `${driveRoot}/root:/${SP_ENYU_GENERAL_FOLDER}/${encodeURIComponent(MS_MAIN_EXCEL_FILE_NAME)}`,
+            { headers: jsonHeaders() }
+        );
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error((body as any)?.error?.message || res.statusText);
+        }
+        const data = await res.json();
+        cachedItemId = data.id as string;
+        return `${cachedDriveRoot}/items/${cachedItemId}`;
     }
 
     return {
