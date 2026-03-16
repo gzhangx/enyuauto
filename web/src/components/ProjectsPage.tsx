@@ -66,7 +66,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 
 export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?: () => void }) => {
-  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, authLoadingStatus } = useAuth();  
+  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, setUseMsOps, authLoadingStatus } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
@@ -370,6 +370,17 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
+        <select
+          value={useMsOps ? 'ms' : 'google'}
+          onChange={e => {
+            setUseMsOps(e.target.value === 'ms');
+            startupRunOnce.current = false;
+          }}
+          style={{ fontSize: '14px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer' }}
+        >
+          <option value="google">Google Sheets</option>
+          <option value="ms">Microsoft Excel (SharePoint)</option>
+        </select>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
         <button className="btn btn-create" onClick={()=>fetchData(freedCampCredentials, true)}>Reload All</button>
         {msAccount && (
