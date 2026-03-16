@@ -3,8 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
-import { MS_MAIN_EXCEL_FILE_NAME } from '../src/lib/freedCampCredentials';
-import { SP_ENYU_GENERAL_FOLDER, resolveSiteGraphDriveRoot } from '../src/lib/msGraphConfig';
+import { findOrCreateExcelFile } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -133,19 +132,10 @@ export function createMsExcelDataOps(msToken: string): ISheetDataOps {
         if (cachedItemId && cachedDriveRoot) {
             return `${cachedDriveRoot}/items/${cachedItemId}`;
         }
-        const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+        const { itemId, driveRoot } = await findOrCreateExcelFile(msToken);
+        cachedItemId = itemId;
         cachedDriveRoot = driveRoot;
-        const res = await fetch(
-            `${driveRoot}/root:/${SP_ENYU_GENERAL_FOLDER}/${encodeURIComponent(MS_MAIN_EXCEL_FILE_NAME)}`,
-            { headers: jsonHeaders() }
-        );
-        if (!res.ok) {
-            const body = await res.json().catch(() => ({}));
-            throw new Error((body as any)?.error?.message || res.statusText);
-        }
-        const data = await res.json();
-        cachedItemId = data.id as string;
-        return `${cachedDriveRoot}/items/${cachedItemId}`;
+        return `${driveRoot}/items/${itemId}`;
     }
 
     return {

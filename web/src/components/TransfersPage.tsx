@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { MS_MAIN_EXCEL_FILE_NAME } from '../lib/freedCampCredentials';
-import { SP_ENYU_GENERAL_FOLDER, resolveSiteGraphDriveRoot } from '../lib/msGraphConfig';
+import { findOrCreateExcelFile } from '../lib/msGraphConfig';
 
 const GOOGLE_SHEET_ID = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
-
-const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 // ---- Minimal ZIP / XLSX builder ----
 
@@ -147,39 +145,6 @@ function toColLetter(col: number): string {
 }
 
 // ---- Graph helpers ----
-async function findOrCreateExcelFile(msToken: string, log: (s: string) => void): Promise<string> {
-  const authHeaders = { Authorization: `Bearer ${msToken}` };
-  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
-
-  const findRes = await fetch(
-    `${driveRoot}/root:/${SP_ENYU_GENERAL_FOLDER}/${MS_MAIN_EXCEL_FILE_NAME}`,
-    { headers: authHeaders }
-  );
-  if (findRes.ok) {
-    const item = await findRes.json();
-    log(`Found existing file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${item.id})`);
-    return item.id as string;
-  }
-  if (findRes.status !== 404) {
-    const body = await findRes.json().catch(() => ({}));
-    throw new Error(body?.error?.message || findRes.statusText);
-  }
-
-  log(`File not found, creating ${MS_MAIN_EXCEL_FILE_NAME}…`);
-  const minimalXlsx = buildMinimalXlsx();
-  const createRes = await fetch(
-    `${driveRoot}/root:/${SP_ENYU_GENERAL_FOLDER}/${MS_MAIN_EXCEL_FILE_NAME}:/content`,
-    { method: 'PUT', headers: { ...authHeaders, 'Content-Type': EXCEL_CONTENT_TYPE }, body: minimalXlsx.buffer as ArrayBuffer }
-  );
-  if (!createRes.ok) {
-    const body = await createRes.json().catch(() => ({}));
-    throw new Error(body?.error?.message || createRes.statusText);
-  }
-  const created = await createRes.json();
-  log(`Created file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${created.id})`);
-  return created.id as string;
-}
-
 async function copyGoogleSheetToOneDrive(
   googleToken: string,
   msToken: string,
@@ -201,8 +166,7 @@ async function copyGoogleSheetToOneDrive(
   log(`Found ${sheetTitles.length} sheet(s): ${sheetTitles.join(', ')}`);
 
   // 2. Find or create Excel file
-  const itemId = await findOrCreateExcelFile(msToken, log);
-  const driveRoot = await resolveSiteGraphDriveRoot(msToken); // cached — no extra network call
+  const { itemId, driveRoot } = await findOrCreateExcelFile(msToken, log, buildMinimalXlsx);
   const baseUrl = `${driveRoot}/items/${itemId}`;
   const jsonHeaders: Record<string, string> = {
     Authorization: `Bearer ${msToken}`,
