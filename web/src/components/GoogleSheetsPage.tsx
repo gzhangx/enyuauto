@@ -1,12 +1,37 @@
 import { useState } from 'react';
+import { useGoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../contexts/AuthContext';
 
 export const GoogleSheetsPage = () => {
-  const { token, logout } = useAuth();
+  const { token, login, logout } = useAuth();
   const [sheetId, setSheetId] = useState('');
   const [sheetData, setSheetData] = useState<any[][]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>('');
+
+  const googleLogin = useGoogleLogin({
+    onSuccess: (tokenResponse) => {
+      login(tokenResponse.access_token, tokenResponse.expires_in);
+    },
+    onError: () => {
+      setError('Google login failed. Please try again.');
+    },
+    scope: 'https://www.googleapis.com/auth/spreadsheets',
+  });
+
+  if (!token) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', gap: '1rem' }}>
+        <p style={{ color: '#555' }}>Sign in with Google to access Google Sheets.</p>
+        <button
+          onClick={() => googleLogin()}
+          style={{ padding: '0.75rem 2rem', backgroundColor: '#4285f4', color: 'white', border: 'none', borderRadius: '4px', fontSize: '1rem', cursor: 'pointer' }}
+        >
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
 
   const readSheet = async () => {
     if (!sheetId.trim()) {
