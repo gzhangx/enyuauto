@@ -785,7 +785,7 @@ export async function processOperation(
                     return found ? found.webUrl : match;
                 });
             }
-            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category']) {
+            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
                 if (replaceItem === 'article' && link) continue;
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
