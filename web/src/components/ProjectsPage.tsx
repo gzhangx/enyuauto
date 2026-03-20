@@ -475,7 +475,9 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   }
                 }>Create</button>}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>
-                  <a href={p.文件} target="_blank">{p.文件}</a>
+                  {p.mainFolder
+                    ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
+                    : p.文件}
                 </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
