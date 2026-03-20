@@ -19,7 +19,7 @@ export const SP_ENYU_GRAPH_DRIVE_ROOT =
   'https://graph.microsoft.com/v1.0/sites/acccnusa.sharepoint.com:/sites/enyueditors:/drive';
 
 /** Sub-folder inside the document library where EnYu working files live. */
-export const SP_ENYU_GENERAL_FOLDER = 'General';
+export const SP_ENYU_GENERAL_FOLDER = 'General/ENYU Co-workers Resources/Projects';
 
 const SP_ENYU_SITE_GRAPH_URL = 'https://graph.microsoft.com/v1.0/sites/acccnusa.sharepoint.com:/sites/enyueditors';
 let _resolvedDriveRoot: string | null = null;
