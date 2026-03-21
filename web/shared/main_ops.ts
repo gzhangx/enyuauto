@@ -731,6 +731,103 @@ export interface IOneDriveDirInfo {
     name: string;
     webUrl: string;
 }
+
+
+interface ActionsToPerformInfo {
+    action: ActionType;
+    editor: string;
+     editorName: string;
+     template: string;
+}
+/**
+ * Returns the list of actions that still need to be performed for a given operation.
+ * Mirrors the filtering logic in processOperation:
+ *   - Skips actions whose task ID is already set.
+ *   - Skips actions disabled for English-only articles.
+ *   - When an action has its AI flag set (e.g. `校对 AI` = 'Y') AND a corresponding AI template
+ *     exists, it is treated as an AI action. In that case actionExcludes is checked using the AI
+ *     action name (e.g. `校对 AI`) to exclude other actions from the result.
+ */
+export function getActionsToPerform(
+    operation: IOperationWithLineNumberAndParentTaskId,
+    combined: ICombinedOpsAndFreeCampData,
+    fileName: string, //fileName, for log only
+    log: DebugLog,
+): ActionsToPerformInfo[] {
+    const { groupAndMainProjectMapping, templates } = combined.opsConfig;
+
+    //real actions, replacing name with AI if found. however since config is still none-ai, this is only used to do exclusions.
+    const allRealActions: ActionType[] = groupAndMainProjectMapping.actions.map(action => {
+        const AIActionName = `${action} AI` as ActionType;
+        const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
+        if (isAIAction && templates[AIActionName]) {
+            return AIActionName;
+        } else {
+            return action;
+        }
+    });    
+
+    const excludedActions = new Set<ActionType>();
+    for (const action of allRealActions) {
+        const excludes = groupAndMainProjectMapping.actionExcludes[action];
+        if (excludes) {
+            for (const excluded of excludes) {
+                excludedActions.add(excluded);
+            }
+        }
+    }
+
+    const actionsToPerform: ActionsToPerformInfo[] = [];
+    const taskIds: string[] = [];
+    for (const action of groupAndMainProjectMapping.actions) {
+        if (excludedActions.has(action)) {
+            log.doLog(`getActionsToPerform: excluding action ${action} due to actionExcludes`);
+            continue;
+        }
+
+        const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+        if (!actionConfig) {
+            throw new Error(`Configuration for action ${action} not found in groupAndMainProjectMapping.shortProjectNameToProjectId`);
+        }
+        const editor = operation[action];
+        const editorLookup = combined.opsConfig.editorInfoMap[editor];
+        const isEnglishOnly = isEditorEnglish(editorLookup);
+        if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
+            log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
+            operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
+            continue;
+        }
+        const editorName = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
+
+        const AIActionName = `${action} AI` as ActionType;
+        const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
+        const regularAction = templates[action];
+        const curTemplateActionInfo = isAIAction ? templates[AIActionName] || templates[action] : regularAction;
+        if (isAIAction && curTemplateActionInfo === regularAction) {
+            log.doLog(`processOperation: AI action ${AIActionName} is enabled for file ${fileName} but template for it is not found, falling back to regular action ${action} template`, true);
+        }
+        const existingTaskId = getExistingTaskId(action, operation);
+        if (existingTaskId) {
+            log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
+            taskIds.push(existingTaskId);
+            continue;
+        }
+        let template1 = curTemplateActionInfo.template;
+        if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
+            template1 = curTemplateActionInfo.templateEnglish;
+        }
+        //const link = action === '校对' ? infos.link : undefined;
+
+        actionsToPerform.push({
+            action,
+            editorName,
+            editor,
+            template: template1,
+        });
+    }
+    return actionsToPerform;
+}
+
 export async function processOperation(
     ops: ISheetDataOps,
     freedCampOps: FreeCampAndUpdateOperations,
@@ -750,38 +847,44 @@ export async function processOperation(
         const fileName = operation['文件'];
         const infos: OperationInfo = getOperationInfo(combined, operation, log);
 
-        // Check if article is English-only (no Chinese characters)        
+        // Check if article is English-only (no Chinese characters)
         
+        const actionsToPerform = getActionsToPerform(operation, combined, fileName, log);
         //const projectGroupMapping = getProjectGroupMapping();        
-        for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+        //for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+        for (const actionP of actionsToPerform) {
+            const action = actionP.action;
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];           
-            const editor = operation[action];
-            const editorLookup = combined.opsConfig.editorInfoMap[editor];
-            const isEnglishOnly = isEditorEnglish(editorLookup);
-             if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
-                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
-                operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
-                continue;
-            }
-            infos.editor = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
+            infos.editor = actionP.editorName;
+            //const editor = operation[action];
+            //const editorLookup = combined.opsConfig.editorInfoMap[editor];
+            //const isEnglishOnly = isEditorEnglish(editorLookup);
+            // if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
+            //    log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
+            //    operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
+            //    continue;
+            //}
+            //infos.editor = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
 
-            const AIActionName = `${action} AI` as ActionType;
-            const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
-            const regularAction = templates[action];            
-            const curTemplateActionInfo = isAIAction ? templates[AIActionName] || templates[action] : regularAction;
-            if (isAIAction && curTemplateActionInfo === regularAction) {
-                log.doLog(`processOperation: AI action ${AIActionName} is enabled for file ${fileName} but template for it is not found, falling back to regular action ${action} template`, true);
-            }
-            const existingTaskId = getExistingTaskId(action, operation);
-            if (existingTaskId) {
-                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
-                taskIds.push(existingTaskId);
-                continue;
-            }
-            let template1 = curTemplateActionInfo.template;
-            if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
-                template1 = curTemplateActionInfo.templateEnglish;
-            } 
+            //const AIActionName = `${action} AI` as ActionType;
+            //const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
+            //const regularAction = templates[action];            
+            //const curTemplateActionInfo = isAIAction ? templates[AIActionName] || templates[action] : regularAction;
+            //if (isAIAction && curTemplateActionInfo === regularAction) {
+            //    log.doLog(`processOperation: AI action ${AIActionName} is enabled for file ${fileName} but template for it is not found, falling back to regular action ${action} template`, true);
+            //}
+            //const existingTaskId = getExistingTaskId(action, operation);
+            //if (existingTaskId) {
+            //    log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
+            //    taskIds.push(existingTaskId);
+            //    continue;
+            //}
+            //let template1 = curTemplateActionInfo.template;
+            //if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
+            //    template1 = curTemplateActionInfo.templateEnglish;
+            //} 
+            let template1 = actionP.template;
+            const editor = operation[action];
             const link = action === '校对' ? infos.link : undefined;            
             
             // if oneDriveDirInfos exists, find all matches in template that matches  {media_link:XXXX}, and if XXXX matches any of the oneDriveDirInfos.name, replace {media_link:XXXX} 
