@@ -116,7 +116,10 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
             subTaskOf?: ActionType;
             isTaskEnabledForEnglish?: boolean;
         }; //'校对': { "project_id": "3696514" }
-    }
+    };
+    actionExcludes: {
+        [key in ActionType]?: ActionType[]; //if actionExcludes['语音制作 AI'] = ['语音编辑'], it means if 语音制作 AI Exists, then we should exclude 语音编辑
+    };
 }
 
 export interface IEditorInfoMap { [key: string]: IEditorInfo };
@@ -142,7 +145,7 @@ export interface IOpsConfig {
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
     editorInfoMap: IEditorInfoMap;
     headers: string[];
-    templates: Templates;
+    templates: Templates;    
 }
 
 

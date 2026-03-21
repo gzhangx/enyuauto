@@ -296,6 +296,7 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
         }
     }
 
+    //
     return { operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
 }
 
@@ -358,8 +359,9 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             [key in ActionType]: {
                 project_id: string;
                 subTaskOf?: ActionType;
-             }; //populated later after we login to freedcamp
+            }; //populated later after we login to freedcamp
         },
+        actionExcludes: {},
     }
     configMap.groupName = values.find(row => row[0] === 'groupName')?.[1] || '';
     configMap.actions = values.find(row => row[0] === 'operations')?.[1].split(',').map(item => item.trim() as ActionType) || [];
@@ -376,6 +378,11 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
                 subTaskOfFromSheetConfig: row[3] ? row[3].trim() as ActionType : undefined,
                 isTaskEnabledForEnglishFromSheetConfig: row[4]?.trim() === 'N' ? 'N' : '',
             };
+        }
+        if (row[0] === 'actionExcludes') {
+            const action = row[1].trim() as ActionType;
+            const excludes = row[2].split(',').map(item => item.trim() as ActionType);
+            configMap.actionExcludes[action] = excludes;
         }
     });
     return configMap;
