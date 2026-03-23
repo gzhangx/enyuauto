@@ -7,6 +7,7 @@ import { ProjectsPage } from './components/ProjectsPage';
 import { MicrosoftOneDrivePage } from './components/MicrosoftOneDrivePage';
 import { TransfersPage } from './components/TransfersPage';
 import { FreedCampSecretsPage } from './components/FreedCampSecretsPage';
+import { DoGoogleSignIn } from './lib/util';
 
 type View = 'projects' | 'sheets' | 'onedrive' | 'transfers' | 'freedcamp';
 
@@ -55,19 +56,20 @@ const AppContent = () => {
         >
           Projects
         </button>
-        <button
-          onClick={() => setCurrentView('sheets')}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: currentView === 'sheets' ? '#007bff' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Google Sheets
-        </button>
+        {DoGoogleSignIn && <button
+            onClick={() => setCurrentView('sheets')}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: currentView === 'sheets' ? '#007bff' : '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Google Sheets
+          </button>
+        }
         <button
           onClick={() => setCurrentView('onedrive')}
           style={{
@@ -90,7 +92,7 @@ const AppContent = () => {
           </svg>
           OneDrive
         </button>
-        <button
+        {DoGoogleSignIn && <button
           onClick={() => setCurrentView('transfers')}
           style={{
             padding: '0.5rem 1rem',
@@ -103,6 +105,7 @@ const AppContent = () => {
         >
           Transfers
         </button>
+        }
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {isMsAuthenticated && msAccount && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', marginRight: '0.5rem' }}>

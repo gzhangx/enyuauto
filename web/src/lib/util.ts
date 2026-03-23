@@ -2,7 +2,7 @@
 import type { ProjectTaskParams, CreateTaskResponse, FreedCampOps, FreedCampProcessor, ICurrentSessionData, FreedCampLoginParams, LoginResponse, IProjectTasksResult } from '../../shared/freedcampTypes';
 import { freedcampApi } from './api';
 
-
+export const DoGoogleSignIn = false;
 
 
 async function login({ username, password }: FreedCampLoginParams): Promise<LoginResponse> {    

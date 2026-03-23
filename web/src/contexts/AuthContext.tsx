@@ -47,7 +47,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
   const [freedCampCredentials, setFreedCampCredentials] = useState<{ username: string; password: string } | null>(null);
-  const [useMsOps, setUseMsOpsState] = useState<boolean>(() => localStorage.getItem('use_ms_ops') === 'true');
+  const [useMsOps, setUseMsOpsState] = useState<boolean>(() => {
+    return true;
+    //localStorage.getItem('use_ms_ops') === 'true'
+  });
   const [authLoadingStatus, setAuthLoadingStatus] = useState<string>('Initializing Microsoft login...');
 
   const setUseMsOps = (val: boolean) => {

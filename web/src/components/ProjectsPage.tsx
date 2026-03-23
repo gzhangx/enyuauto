@@ -13,7 +13,7 @@ import {
   createMsExcelDataOps,
 } from '../../shared/main_ops';
 import { ErrorDialog } from './ErrorDialog';
-import { freedCampOps } from '../lib/util';
+import { DoGoogleSignIn, freedCampOps } from '../lib/util';
 import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
@@ -372,6 +372,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         <h1 style={{ margin: 0 }}>Enyu Site</h1>
         <select
           value={useMsOps ? 'ms' : 'google'}
+          disabled = {!DoGoogleSignIn}
           onChange={e => {
             setUseMsOps(e.target.value === 'ms');
             startupRunOnce.current = false;
