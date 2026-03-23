@@ -837,7 +837,7 @@ export async function processOperation(
     log: DebugLog,
     debug_Prefix: string = ''
 ): Promise<string[]> {
-    const { templates, groupAndMainProjectMapping } = combined.opsConfig;    
+    const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
     
     const taskIds = [];
