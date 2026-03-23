@@ -39,7 +39,7 @@ export async function resolveSiteGraphDriveRoot(msToken: string): Promise<string
     const body = await res.json().catch(() => ({}));
     throw new Error((body as any)?.error?.message || res.statusText);
   }
-  const data = await res.json();
+  const data = await res.json() as { id: string };
   _resolvedDriveRoot = `https://graph.microsoft.com/v1.0/sites/${data.id}/drive`;
   return _resolvedDriveRoot;
 }
@@ -63,7 +63,7 @@ export async function findOrCreateExcelFile(
     { headers: authHeaders },
   );
   if (findRes.ok) {
-    const item = await findRes.json();
+    const item = await findRes.json() as { id: string; };
     log(`Found existing file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${item.id})`);
     return { itemId: item.id as string, driveRoot };
   }
@@ -86,7 +86,7 @@ export async function findOrCreateExcelFile(
     const body = await createRes.json().catch(() => ({}));
     throw new Error((body as any)?.error?.message || createRes.statusText);
   }
-  const created = await createRes.json();
+  const created = await createRes.json() as { id: string; };
   log(`Created file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${created.id})`);
   return { itemId: created.id as string, driveRoot };
 }

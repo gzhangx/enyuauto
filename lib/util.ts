@@ -1,9 +1,9 @@
 import * as gs from '@gzhangx/googleapi';
 
-import type {LoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps, IProjectTasksResult} from '../web/shared/freedcampTypes';
+import type { FreedCampLoginParams, LoginResponse, ProjectTaskParams, CreateTaskResponse, FreedCampProcessor, ICurrentSessionData, FreedCampOps, IProjectTasksResult} from '../web/shared/freedcampTypes';
 
 
-async function login({ username, password }: LoginParams): Promise<LoginResponse> {
+async function login({ username, password }: FreedCampLoginParams): Promise<LoginResponse> {
     const auth = {
         is_ajax1: true,
         time_on_page1: 5,

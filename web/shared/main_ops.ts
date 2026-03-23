@@ -149,8 +149,8 @@ export function createMsExcelDataOps(msToken: string): ISheetDataOps {
                 const body = await res.json().catch(() => ({}));
                 throw new Error((body as any)?.error?.message || res.statusText);
             }
-            const data = await res.json();
-            return { values: (data.values ?? []) as string[][] };
+            const data = await res.json() as { values?: string[][] };
+            return { values: (data.values ?? [])};
         },
         async autoUpdateValues(sheetName: string, values: string[][], pos: { row: number; col: number }) {
             const baseUrl = await getBaseUrl();

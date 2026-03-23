@@ -37,6 +37,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     if (body.action === 'freedcamp') {
       return doFreedcampAction(body, log);
     }
+    //action below are no longer used.
     const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
     
@@ -80,8 +81,9 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
           throw new Error(`No operation found for line number ${lineNumber}`);
         }
         for (const action of mainCfg.groupAndMainProjectMapping.actions) {
-          const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
-          sres.push(rr || '');
+          //const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
+          //const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
+          //sres.push(rr || '');
         }
         res = sres.join('\n');
       } catch (error) {

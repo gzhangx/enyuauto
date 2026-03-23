@@ -35,8 +35,8 @@ async function test() {
               throw new Error(`No operation found for line number ${lineNumber}`);
             }
             for (const action of mainCfg.groupAndMainProjectMapping.actions) {
-              const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
-              sres.push(rr || '');
+              //const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
+              //sres.push(rr || '');
             }
 }
 

@@ -15,8 +15,12 @@ async function getSecsFileId(msToken: string): Promise<string | null> {
     { headers: { Authorization: `Bearer ${msToken}` } }
   );
   if (res.status === 404) return null;
-  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error?.message || res.statusText);
-  return (await res.json()).id as string;
+  if (!res.ok) {
+    const resJson = await res.json().catch(err=>err) as { error: { message: string; }} ;
+    throw new Error(resJson.error?.message || res.statusText);
+  }
+  const resJson = (await res.json()) as  { id: string; };
+  return resJson.id as string;
 }
 
 export async function readFreedCampCredentials(msToken: string): Promise<FreedCampCredentials | null> {
@@ -29,7 +33,8 @@ export async function readFreedCampCredentials(msToken: string): Promise<FreedCa
   );
   if (!res.ok) return null;
 
-  const rows: string[][] = (await res.json()).values ?? [];
+  const jsonRet = (await res.json()) as { values: string[][]};
+  const rows: string[][] = jsonRet.values ?? [];
   const row = rows.find(r => r[0] === LOGIN_CFG_KEY);
   if (!row) return null;
   return { username: row[1] ?? '', password: row[2] ?? '' };
