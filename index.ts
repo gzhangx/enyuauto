@@ -37,6 +37,9 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     if (body.action === 'freedcamp') {
       return doFreedcampAction(body, log);
     }
+    if (body.action === 'wordpress') {
+      return doWordpressAction(body, log);
+    }
     //action below are no longer used.
     const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
@@ -287,4 +290,107 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
   }
 }
 
+const WP_BASE_URL = 'https://enyu.acccn.org/wp-json/wp/v2';
 
+// action: wordpress
+// subAction: uploadMedia, createPost
+// uploadMedia: wpToken, filename, mimeType, b64
+// createPost: wpToken, title, content, status?
+async function doWordpressAction(params: { [key: string]: string }, log: mainOps.DebugLog): Promise<LambdaResponse> {
+  try {
+    if (!params) throw new Error('Missing parameters for wordpress action');
+    const subAction = params['subAction'];
+    const wpToken = params['wpToken'];
+    if (!wpToken) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ message: 'Missing wpToken' }),
+      };
+    }
+    const authHeader = wpToken;
+
+    let result: any = {};
+
+    switch (subAction) {
+      case 'uploadMedia': {
+        const filename = params['filename'];
+        const mimeType = params['mimeType'];
+        const b64 = params['b64'];
+        if (!filename || !mimeType || !b64) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ message: 'Missing required parameters', error: 'filename, mimeType, and b64 are required for uploadMedia' }),
+          };
+        }
+        const binaryBuffer = Buffer.from(b64, 'base64');
+        const res = await fetch(`${WP_BASE_URL}/media`, {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Disposition': `attachment; filename="${filename}"`,
+            'Content-Type': mimeType,
+          },
+          body: binaryBuffer,
+        });
+        result = await res.json();
+        log.doLog(`Uploaded media: ${filename}, status: ${res.status}`);
+        break;
+      }
+
+      case 'createPost': {
+        const title = params['title'];
+        const content = params['content'];
+        if (!title || !content) {
+          return {
+            statusCode: 400,
+            headers,
+            body: JSON.stringify({ message: 'Missing required parameters', error: 'title and content are required for createPost' }),
+          };
+        }
+        const res = await fetch(`${WP_BASE_URL}/posts`, {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title,
+            content,
+            status: params['status'] || 'draft',
+          }),
+        });
+        result = await res.json();
+        log.doLog(`Created post: ${title}, status: ${res.status}`);
+        break;
+      }
+
+      default:
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            message: 'Invalid subAction',
+            error: `Unknown subAction: ${subAction}. Valid actions: uploadMedia, createPost`,
+          }),
+        };
+    }
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(result),
+    };
+  } catch (error) {
+    log.doLog(`WordPress action error: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        message: 'WordPress action failed',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    };
+  }
+}

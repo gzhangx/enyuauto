@@ -72,3 +72,35 @@ export async function freedcampApi<T = any>(request: FreedcampParams): Promise<T
     return await response.json();
 }
 
+type WordpressParams = {
+    subAction: 'uploadMedia' | 'createPost';
+    wpToken: string;
+    filename?: string;
+    mimeType?: string;
+    b64?: string;
+    title?: string;
+    content?: string;
+    status?: string;
+};
+
+export async function wordpressApi<T = any>(request: WordpressParams): Promise<T> {
+    const body = {
+        action: 'wordpress',
+        ...request,
+    };
+
+    const response = await fetch(enyuApiBaseUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        throw new Error(`WordPress API error: ${response.statusText}`);
+    }
+
+    return await response.json();
+}
+

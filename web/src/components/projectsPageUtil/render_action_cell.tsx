@@ -3,6 +3,7 @@ import type { FreedCampLoginParams } from '../../../shared/freedcampTypes';
 import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
+import { wordpressApi } from '../../lib/api';
 import React, { useState, type JSX } from 'react';
 import { fetchOneDriveChildren } from '../MicrosoftOneDrivePage';
 import { convertDocxToHtml, buildWpOutputPage } from '../../lib/docToWp';
@@ -77,23 +78,16 @@ const PublishButton: React.FC<{
   const handleUpload = async () => {
     if (!dialog || !wpToken) return;
     setUploading(true);
-    const authHeader = 'Basic ' + btoa(wpToken);
     const statuses: { name: string; url?: string; error?: string }[] = [];
     for (const img of dialog.images) {
       try {
-        const binaryStr = atob(img.b64);
-        const bytes = new Uint8Array(binaryStr.length);
-        for (let j = 0; j < binaryStr.length; j++) bytes[j] = binaryStr.charCodeAt(j);
-        const res = await fetch('https://enyu.acccn.org/wp-json/wp/v2/media', {
-          method: 'POST',
-          headers: {
-            Authorization: authHeader,
-            'Content-Disposition': `attachment; filename="${img.name}"`,
-            'Content-Type': img.mimeType,
-          },
-          body: bytes.buffer as ArrayBuffer,
+        const data = await wordpressApi({
+          subAction: 'uploadMedia',
+          wpToken: 'Basic ' + btoa(wpToken),
+          filename: img.name,
+          mimeType: img.mimeType,
+          b64: img.b64,
         });
-        const data = await res.json();
         if (data.source_url) {
           statuses.push({ name: img.name, url: data.source_url });
         } else {
