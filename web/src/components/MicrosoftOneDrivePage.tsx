@@ -190,8 +190,13 @@ export const MicrosoftOneDrivePage = () => {
         throw new Error(body?.error?.message || res.statusText);
       }
       const arrayBuffer = await res.arrayBuffer();
-      const result = await mammoth.convertToHtml({ arrayBuffer });
-      const blob = new Blob([result.value], { type: 'text/html' });
+      const result = await mammoth.convertToHtml(
+        { arrayBuffer },
+        { convertImage: mammoth.images.imgElement(img => img.read('base64').then(data => ({ src: data.slice(0, 10) }))) }
+      );
+      // Strip any remaining <img> tags so the HTML is clean and easy to copy
+      const cleanHtml = result.value.replace(/<img[^>]*>/gi, '');
+      const blob = new Blob([cleanHtml], { type: 'text/html' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');
     } catch (err: any) {
