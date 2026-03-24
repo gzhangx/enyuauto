@@ -184,6 +184,7 @@ export const FreedCampSecretsPage = () => {
     if (freedCampCredentials) {
       setUsername(freedCampCredentials.username);
       setPassword(freedCampCredentials.password);
+      setenyu_wp_token(freedCampCredentials.enyu_wp_token ?? '');
     }
   }, [freedCampCredentials]);
 
@@ -262,6 +263,15 @@ export const FreedCampSecretsPage = () => {
             value={password}
             onChange={e => setPassword(e.target.value)}
             autoComplete="current-password"
+            style={inputStyle}
+          />
+        </label>
+        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.9rem' }}>
+          EnYu WP Token
+          <input
+            type="text"
+            value={enyu_wp_token}
+            onChange={e => setenyu_wp_token(e.target.value)}
             style={inputStyle}
           />
         </label>
