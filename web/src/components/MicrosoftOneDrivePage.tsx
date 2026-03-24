@@ -278,16 +278,36 @@ export const MicrosoftOneDrivePage = () => {
       );
       const wpBlocks = htmlToWpBlocks(result.value);
       const escaped = wpBlocks.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Build a clean preview from the original mammoth HTML (mojibake-fixed, no images)
+      const previewHtml = fixMojibake(result.value).replace(/<img[^>]*>/gi, '');
       const page = `<!DOCTYPE html><html>
 <head><meta charset="utf-8"><title>WP Blocks</title>
 <style>
-body { font-family: sans-serif; padding: 1rem; background: #f5f5f5; }
-#btn { padding: .5rem 1.5rem; background: #6f42c1; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; margin-bottom: 1rem; }
-pre { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-break: break-word; font-size: .85rem; }
+*, *::before, *::after { box-sizing: border-box; }
+body { font-family: sans-serif; margin: 0; background: #f0f0f0; }
+.toolbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ddd; padding: .6rem 1rem; display: flex; gap: .5rem; }
+.toolbar button { padding: .4rem 1.1rem; border: none; border-radius: 4px; cursor: pointer; font-size: .9rem; color: #fff; }
+#btn-copy { background: #6f42c1; }
+#btn-preview { background: #0078d4; }
+#btn-code { background: #495057; }
+.pane { display: none; padding: 1rem; }
+.pane.active { display: block; }
+#preview-pane { max-width: 780px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 6px; margin-top: 1rem; line-height: 1.7; font-size: 1rem; }
+#preview-pane p { margin: .9em 0; }
+#preview-pane strong { font-weight: 700; }
+pre { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-break: break-word; font-size: .82rem; }
 </style></head>
 <body>
-<button id="btn" onclick="navigator.clipboard.writeText(document.getElementById('b').textContent).then(function(){document.getElementById('btn').textContent='Copied \u2713'}).catch(function(){document.getElementById('btn').textContent='Error'})">Copy All</button>
-<pre id="b">${escaped}</pre>
+<div class="toolbar">
+  <button id="btn-preview" onclick="show('preview')">Preview</button>
+  <button id="btn-code" onclick="show('code')">WP Code</button>
+  <button id="btn-copy" onclick="navigator.clipboard.writeText(document.getElementById('b').textContent).then(function(){document.getElementById('btn-copy').textContent='Copied \u2713';setTimeout(function(){document.getElementById('btn-copy').textContent='Copy All'},2000)}).catch(function(){document.getElementById('btn-copy').textContent='Error'})">Copy All</button>
+</div>
+<div id="preview" class="pane active"><div id="preview-pane">${previewHtml}</div></div>
+<div id="code" class="pane"><pre id="b">${escaped}</pre></div>
+<script>
+function show(id){document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('active')});document.getElementById(id).classList.add('active');}
+</script>
 </body></html>`;
       const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
