@@ -27,28 +27,26 @@ const PublishButton: React.FC<{
 }> = ({ p, msToken, wpToken }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState<{ wpBlocks: string; previewHtml: string; images: import('../../lib/docToWp').DocxImage[]; blobUrl: string } | null>(null);
+  const [tab, setTab] = useState<'preview' | 'code'>('preview');
+  const [copied, setCopied] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState<{ name: string; url?: string; error?: string }[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const handlePublish = async () => {
     if (!p.mainFolder) { setError('No mainFolder for this project'); return; }
     setLoading(true);
     setError('');
     try {
-      // 1. List mainFolder → find the article folder by name
       const articleChildren = await fetchOneDriveChildren(msToken, p.mainFolder) as MinDriveItem[];
-      
-
       const publishFolder = articleChildren.find(item => item.folder && /4\s*publish/i.test(item.name));
-		if (!publishFolder) throw new Error(`"4 Publish" folder not found in "${p['文件']}"`);
-		
-	  const driveId = publishFolder.parentReference?.driveId;
+      if (!publishFolder) throw new Error(`"4 Publish" folder not found in "${p['文件']}"`);
+      const driveId = publishFolder.parentReference?.driveId;
       if (!driveId) throw new Error('Could not determine driveId for publish folder');
-
-      // 3. List "4 Publish" → find first .docx
       const publishChildren = await fetchDriveItemChildren(msToken, driveId, publishFolder.id);
       const docxItem = publishChildren.find(item => /\.docx?$/i.test(item.name));
       if (!docxItem) throw new Error('No .docx file found in "4 Publish" folder');
 
-      // 4. Download
       const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${docxItem.id}/content`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${msToken}` } });
       if (!res.ok) {
@@ -56,18 +54,75 @@ const PublishButton: React.FC<{
         throw new Error((body as any)?.error?.message || res.statusText);
       }
       const arrayBuffer = await res.arrayBuffer();
-
-      // 5. Convert and open
       const converted = await convertDocxToHtml(arrayBuffer);
       const page = buildWpOutputPage(converted, wpToken);
       const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
-      window.open(URL.createObjectURL(blob), '_blank');
+      setDialog({ ...converted, blobUrl: URL.createObjectURL(blob) });
+      setTab('preview');
+      setUploadStatus([]);
     } catch (err: any) {
       setError(err.message || String(err));
     } finally {
       setLoading(false);
     }
   };
+
+  const handleCopy = async () => {
+    if (!dialog) return;
+    await navigator.clipboard.writeText(dialog.wpBlocks);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleUpload = async () => {
+    if (!dialog || !wpToken) return;
+    setUploading(true);
+    const authHeader = 'Basic ' + btoa(wpToken);
+    const statuses: { name: string; url?: string; error?: string }[] = [];
+    for (const img of dialog.images) {
+      try {
+        const binaryStr = atob(img.b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let j = 0; j < binaryStr.length; j++) bytes[j] = binaryStr.charCodeAt(j);
+        const res = await fetch('https://enyu.acccn.org/wp-json/wp/v2/media', {
+          method: 'POST',
+          headers: {
+            Authorization: authHeader,
+            'Content-Disposition': `attachment; filename="${img.name}"`,
+            'Content-Type': img.mimeType,
+          },
+          body: bytes.buffer as ArrayBuffer,
+        });
+        const data = await res.json();
+        if (data.source_url) {
+          statuses.push({ name: img.name, url: data.source_url });
+        } else {
+          statuses.push({ name: img.name, error: data.message || JSON.stringify(data) });
+        }
+      } catch (e: any) {
+        statuses.push({ name: img.name, error: String(e) });
+      }
+      setUploadStatus([...statuses]);
+    }
+    setUploading(false);
+  };
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 2000,
+    display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '2rem 1rem', overflowY: 'auto',
+  };
+  const dlgStyle: React.CSSProperties = {
+    background: '#fff', borderRadius: '8px', width: '100%', maxWidth: '860px',
+    boxShadow: '0 8px 32px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', maxHeight: '90vh',
+  };
+  const tbStyle: React.CSSProperties = {
+    display: 'flex', gap: '0.4rem', padding: '0.6rem 1rem', borderBottom: '1px solid #ddd',
+    flexWrap: 'wrap', alignItems: 'center', background: '#f8f9fa', borderRadius: '8px 8px 0 0',
+  };
+  const btnBase = (bg: string, disabled = false): React.CSSProperties => ({
+    padding: '0.35rem 0.9rem', border: 'none', borderRadius: '4px', cursor: disabled ? 'not-allowed' : 'pointer',
+    fontSize: '0.85rem', color: '#fff', background: disabled ? '#aaa' : bg,
+  });
 
   return (
     <span>
@@ -80,6 +135,50 @@ const PublishButton: React.FC<{
         {loading ? '…' : '发布 WP'}
       </button>
       {error && <span style={{ color: 'red', fontSize: '11px', display: 'block' }}>{error}</span>}
+
+      {dialog && (
+        <div style={overlayStyle} onClick={e => { if (e.target === e.currentTarget) setDialog(null); }}>
+          <div style={dlgStyle}>
+            {/* Toolbar */}
+            <div style={tbStyle}>
+              <button style={btnBase(tab === 'preview' ? '#0078d4' : '#6c757d')} onClick={() => setTab('preview')}>Preview</button>
+              <button style={btnBase(tab === 'code' ? '#495057' : '#6c757d')} onClick={() => setTab('code')}>WP Code</button>
+              <button style={btnBase('#6f42c1')} onClick={handleCopy}>{copied ? 'Copied ✓' : 'Copy All'}</button>
+              {dialog.images.length > 0 && (
+                <button style={btnBase('#e91e63', uploading || !wpToken)} disabled={uploading || !wpToken} onClick={handleUpload} title={!wpToken ? 'No WP token configured' : undefined}>
+                  {uploading ? 'Uploading…' : `Upload Images (${dialog.images.length})`}
+                </button>
+              )}
+              <button style={btnBase('#17a2b8')} onClick={() => window.open(dialog.blobUrl, '_blank')}>Open in New Window</button>
+              <button style={{ ...btnBase('#6c757d'), marginLeft: 'auto' }} onClick={() => setDialog(null)}>✕ Close</button>
+            </div>
+
+            {/* Upload status */}
+            {uploadStatus.length > 0 && (
+              <div style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', borderBottom: '1px solid #eee' }}>
+                {uploadStatus.map((s, i) => (
+                  <div key={i} style={{ color: s.error ? 'red' : 'green' }}>
+                    {s.error ? `✗ ${s.name}: ${s.error}` : <span>✓ <a href={s.url} target="_blank" rel="noreferrer">{s.name}</a></span>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Panes */}
+            <div style={{ overflowY: 'auto', flex: 1, padding: '1rem' }}>
+              {tab === 'preview' && (
+                <div style={{ maxWidth: '780px', margin: '0 auto', lineHeight: 1.7, fontSize: '1rem' }}
+                  dangerouslySetInnerHTML={{ __html: dialog.previewHtml }} />
+              )}
+              {tab === 'code' && (
+                <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontSize: '0.82rem', margin: 0 }}>
+                  {dialog.wpBlocks}
+                </pre>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </span>
   );
 };
