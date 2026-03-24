@@ -34,17 +34,14 @@ const PublishButton: React.FC<{
     setError('');
     try {
       // 1. List mainFolder → find the article folder by name
-      const mainChildren = await fetchOneDriveChildren(msToken, p.mainFolder) as MinDriveItem[];
-      const articleFolder = mainChildren.find(item => item.folder && item.name === p['文件']);
-      if (!articleFolder) throw new Error(`Article folder "${p['文件']}" not found in mainFolder`);
+      const articleChildren = await fetchOneDriveChildren(msToken, p.mainFolder) as MinDriveItem[];
+      
 
-      const driveId = articleFolder.parentReference?.driveId;
-      if (!driveId) throw new Error('Could not determine driveId for article folder');
-
-      // 2. List article folder → find "4 Publish"
-      const articleChildren = await fetchDriveItemChildren(msToken, driveId, articleFolder.id);
       const publishFolder = articleChildren.find(item => item.folder && /4\s*publish/i.test(item.name));
-      if (!publishFolder) throw new Error(`"4 Publish" folder not found in "${p['文件']}"`);
+		if (!publishFolder) throw new Error(`"4 Publish" folder not found in "${p['文件']}"`);
+		
+	  const driveId = publishFolder.parentReference?.driveId;
+      if (!driveId) throw new Error('Could not determine driveId for publish folder');
 
       // 3. List "4 Publish" → find first .docx
       const publishChildren = await fetchDriveItemChildren(msToken, driveId, publishFolder.id);
