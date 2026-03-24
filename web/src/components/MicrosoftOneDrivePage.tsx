@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import * as mammoth from 'mammoth';
 import { useAuth } from '../contexts/AuthContext';
 
 type DriveItem = {
@@ -129,7 +130,7 @@ const btnStyle = (color: string): React.CSSProperties => ({
 
 export const MicrosoftOneDrivePage = () => {
   const { msToken, msAccount, msLoginRedirect } = useAuth();
-  const [folderInput, setFolderInput] = useState('https://acccnusa.sharepoint.com/sites/enyueditors/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2Fenyueditors%2FShared%20Documents%2FGeneral%2FEnYu%202026%2F2026%2D03%2F6%5F%E5%AE%A3%E6%95%99%E6%97%A0%E5%9B%BD%E7%95%8C%202026%2D3%2D1%20Pauline%20Sattles%20Feb%202026%20newsletter%20Joy&viewid=8059c88a%2D1194%2D4065%2Db31a%2D3749f1c293f2');
+  const [folderInput, setFolderInput] = useState('https://acccnusa.sharepoint.com/sites/enyueditors/Shared%20Documents/Forms/AllItems.aspx?id=%2Fsites%2Fenyueditors%2FShared%20Documents%2FGeneral%2FEnYu%202026%2F2026%2D03%2F7%5FMissions%20Beyond%20Borders%202026%2D3%2D5%20%2D%20Roger%20L%20%2D%20Who%20Is%20that%20in%20the%20Painting%2F4%20Publish&p=true&ga=1');
   const [files, setFiles] = useState<DriveItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -138,6 +139,8 @@ export const MicrosoftOneDrivePage = () => {
   const [xlsxData, setXlsxData] = useState<string[][] | null>(null);
   const [xlsxLoading, setXlsxLoading] = useState(false);
   const [xlsxError, setXlsxError] = useState('');
+  const [docHtmlLoading, setDocHtmlLoading] = useState<string | null>(null);
+  const [docHtmlError, setDocHtmlError] = useState('');
 
   // On mount: consume redirect result OR silently refresh a cached session
   // (This is now handled centrally by AuthContext)
@@ -163,6 +166,39 @@ export const MicrosoftOneDrivePage = () => {
 
   const handleListFiles = async () => {
     handleListFilesFor(folderInput);
+  };
+
+  const isDocFile = (item: DriveItem) => {
+    const name = item.name.toLowerCase();
+    const mime = item.file?.mimeType ?? '';
+    return name.endsWith('.doc') || name.endsWith('.docx') ||
+      mime.includes('wordprocessingml') || mime.includes('msword');
+  };
+
+  const handleTranslateToHtml = async (item: DriveItem) => {
+    if (!msToken) return;
+    setDocHtmlLoading(item.id);
+    setDocHtmlError('');
+    try {
+      const driveId = item.parentReference?.driveId;
+      const url = driveId
+        ? `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/content`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${item.id}/content`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${msToken}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error?.message || res.statusText);
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      const result = await mammoth.convertToHtml({ arrayBuffer });
+      const blob = new Blob([result.value], { type: 'text/html' });
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+    } catch (err: any) {
+      setDocHtmlError(err.message || String(err));
+    } finally {
+      setDocHtmlLoading(null);
+    }
   };
 
   const handleReadXlsx = async () => {
@@ -249,6 +285,9 @@ export const MicrosoftOneDrivePage = () => {
       {error && (
         <p style={{ color: '#dc3545', marginBottom: '1rem' }}>{error}</p>
       )}
+      {docHtmlError && (
+        <p style={{ color: '#dc3545', marginBottom: '1rem' }}>HTML conversion error: {docHtmlError}</p>
+      )}
 
       {files !== null && (
         files.length === 0 ? (
@@ -268,6 +307,15 @@ export const MicrosoftOneDrivePage = () => {
                   <tr key={item.id}>
                     <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
                       <a href={item.webUrl} target="_blank" rel="noreferrer">{item.name}</a>
+                      {isDocFile(item) && (
+                        <button
+                          onClick={() => handleTranslateToHtml(item)}
+                          disabled={docHtmlLoading === item.id}
+                          style={{ ...btnStyle('#6f42c1'), marginLeft: '0.5rem', padding: '0.2rem 0.6rem', fontSize: '0.8rem' }}
+                        >
+                          {docHtmlLoading === item.id ? 'Converting…' : 'To HTML'}
+                        </button>
+                      )}
                     </td>
                     <td style={{ border: '1px solid #ddd', padding: '8px 10px' }}>
                       {item.folder ? 'Folder' : (item.file?.mimeType ?? 'File')}
