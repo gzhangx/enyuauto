@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import * as mammoth from 'mammoth';
 import { useAuth } from '../contexts/AuthContext';
+import { convertDocxToHtml, buildWpOutputPage } from '../lib/docToWp';
 
 type DriveItem = {
   id: string;
@@ -118,88 +118,6 @@ async function readXlsxSheet(token: string, input: string, sheetName = 'Sheet1')
   return lastNonEmpty === -1 ? [] : values.slice(0, lastNonEmpty + 1);
 }
 
-function fixMojibake(text: string): string {
-  return text
-    .replace(/â€œ/g, '\u201C')       // " left double quote
-    .replace(/â€\u009d/g, '\u201D')  // " right double quote (via C1 control byte)
-    .replace(/â€™/g, '\u2019')       // ' right single quote / apostrophe
-    .replace(/â€˜/g, '\u2018')       // ' left single quote
-    .replace(/â€¦/g, '\u2026')       // … ellipsis
-    .replace(/â€/g, '\u201D')        // fallback: remaining â€ → closing "
-    .replace(/Â /g, ' ');            // stray Â before space
-}
-
-function htmlToWpBlocks(html: string): string {
-  const fixed = fixMojibake(html);
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(fixed, 'text/html');
-  const nonEmpty = Array.from(doc.body.querySelectorAll('p')).filter(
-    p => (p.textContent ?? '').trim() !== ''
-  );
-  if (nonEmpty.length === 0) return '(No content found)';
-
-  let idx = 0;
-  let conferenceLabel = '';
-  let articleTitle = '';
-  let authorName = '';
-
-  if (nonEmpty[idx]?.querySelector('strong') && /conference/i.test(nonEmpty[idx].textContent ?? '')) {
-    conferenceLabel = (nonEmpty[idx].textContent ?? '').trim();
-    idx++;
-  }
-  if (idx < nonEmpty.length && nonEmpty[idx]?.querySelector('strong') && !/^by\s/i.test((nonEmpty[idx].textContent ?? '').trim())) {
-    articleTitle = (nonEmpty[idx].textContent ?? '').trim().replace(/^[\u201C"]|[\u201D"]$/g, '');
-    idx++;
-  }
-  if (idx < nonEmpty.length && /^by\s+/i.test((nonEmpty[idx].textContent ?? '').trim())) {
-    authorName = (nonEmpty[idx].textContent ?? '').trim().replace(/^by\s+/i, '');
-    idx++;
-  }
-
-  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const parts: string[] = [];
-
-  if (conferenceLabel) {
-    parts.push(
-      `<!-- wp:paragraph {"style":{"typography":{"fontSize":"20px"}}} -->\n` +
-      `<p style="font-size:20px"><mark style="background-color:rgba(0, 0, 0, 0);color:#cf2e2e" class="has-inline-color"><strong>${esc(conferenceLabel)}\u00a0</strong></mark></p>\n` +
-      `<!-- /wp:paragraph -->`
-    );
-  }
-
-  if (articleTitle) {
-    const titleJson = JSON.stringify(articleTitle).slice(1, -1);
-    parts.push(
-      `<!-- wp:ultimate-post/heading {"blockId":"c901aa","currentPostId":"","headingText":"${titleJson}","headingStyle":"style1","headingAlign":"center","headingTypo":{"openTypography":1,"size":{"lg":42,"unit":"px","xs":"30"},"height":{"lg":"","unit":"px"},"decoration":"none","transform":"","family":"","weight":"400"},"headingColor":"var(\\u002d\\u002dpostx_preset_Contrast_3_color)","headingSpacing":{"lg":"10","sm":10,"unit":"px","ulg":"px","uxs":"px","xs":"10"},"wrapBg":{"openColor":1,"type":"color","color":"rgba(234,240,240,1)","gradient":"linear-gradient(90deg, rgb(6, 147, 227) 0%, rgb(155, 81, 224) 100%)","clip":false}} /-->`
-    );
-  }
-
-  parts.push(
-    `<!-- wp:image {"sizeSlug":"full","linkDestination":"none","align":"wide"} -->\n` +
-    `<figure class="wp-block-image alignwide size-full"><img src="TODO_featured_image_url" alt="" /></figure>\n` +
-    `<!-- /wp:image -->`
-  );
-
-  const today = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
-  parts.push(
-    `<!-- wp:preformatted {"style":{"typography":{"fontSize":"12px"}}} -->\n` +
-    `<pre class="wp-block-preformatted" style="font-size:12px">Author\uff1a${esc(authorName) || 'TODO'}<br>Date: ${today}<br>Category\uff1a<a href="https://enyu.acccn.org/mission-en/" target="_blank" rel="noreferrer noopener">Missions Beyond Borders</a></pre>\n` +
-    `<!-- /wp:preformatted -->`
-  );
-
-  for (const p of nonEmpty.slice(idx)) {
-    const inner = (p.innerHTML ?? '').replace(/^[\t ]+/, '').trim();
-    if (!inner) continue;
-    parts.push(
-      `<!-- wp:paragraph {"editorskit":{"tabletAlignment":"justify","mobileAlignment":"justify","devices":false,"desktop":true,"tablet":true,"mobile":true,"loggedin":true,"loggedout":true,"acf_visibility":"","acf_field":"","acf_condition":"","acf_value":"","migrated":false,"unit_test":false}} -->\n` +
-      `<p class="has-tablet-text-align-justify has-mobile-text-align-justify">${inner}</p>\n` +
-      `<!-- /wp:paragraph -->`
-    );
-  }
-
-  return parts.join('\n\n');
-}
-
 const btnStyle = (color: string): React.CSSProperties => ({
   padding: '0.5rem 1.25rem',
   backgroundColor: color,
@@ -272,43 +190,8 @@ export const MicrosoftOneDrivePage = () => {
         throw new Error(body?.error?.message || res.statusText);
       }
       const arrayBuffer = await res.arrayBuffer();
-      const result = await mammoth.convertToHtml(
-        { arrayBuffer },
-        { convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: '' })) }
-      );
-      const wpBlocks = htmlToWpBlocks(result.value);
-      const escaped = wpBlocks.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      // Build a clean preview from the original mammoth HTML (mojibake-fixed, no images)
-      const previewHtml = fixMojibake(result.value).replace(/<img[^>]*>/gi, '');
-      const page = `<!DOCTYPE html><html>
-<head><meta charset="utf-8"><title>WP Blocks</title>
-<style>
-*, *::before, *::after { box-sizing: border-box; }
-body { font-family: sans-serif; margin: 0; background: #f0f0f0; }
-.toolbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ddd; padding: .6rem 1rem; display: flex; gap: .5rem; }
-.toolbar button { padding: .4rem 1.1rem; border: none; border-radius: 4px; cursor: pointer; font-size: .9rem; color: #fff; }
-#btn-copy { background: #6f42c1; }
-#btn-preview { background: #0078d4; }
-#btn-code { background: #495057; }
-.pane { display: none; padding: 1rem; }
-.pane.active { display: block; }
-#preview-pane { max-width: 780px; margin: 0 auto; background: #fff; padding: 2rem; border-radius: 6px; margin-top: 1rem; line-height: 1.7; font-size: 1rem; }
-#preview-pane p { margin: .9em 0; }
-#preview-pane strong { font-weight: 700; }
-pre { background: #fff; padding: 1rem; border: 1px solid #ddd; border-radius: 4px; white-space: pre-wrap; word-break: break-word; font-size: .82rem; }
-</style></head>
-<body>
-<div class="toolbar">
-  <button id="btn-preview" onclick="show('preview')">Preview</button>
-  <button id="btn-code" onclick="show('code')">WP Code</button>
-  <button id="btn-copy" onclick="navigator.clipboard.writeText(document.getElementById('b').textContent).then(function(){document.getElementById('btn-copy').textContent='Copied \u2713';setTimeout(function(){document.getElementById('btn-copy').textContent='Copy All'},2000)}).catch(function(){document.getElementById('btn-copy').textContent='Error'})">Copy All</button>
-</div>
-<div id="preview" class="pane active"><div id="preview-pane">${previewHtml}</div></div>
-<div id="code" class="pane"><pre id="b">${escaped}</pre></div>
-<script>
-function show(id){document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('active')});document.getElementById(id).classList.add('active');}
-</script>
-</body></html>`;
+      const converted = await convertDocxToHtml(arrayBuffer);
+      const page = buildWpOutputPage(converted);
       const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
       const blobUrl = URL.createObjectURL(blob);
       window.open(blobUrl, '_blank');

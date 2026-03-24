@@ -249,6 +249,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     fetchData,
     setErrorDialog,
     daysShowAlertAfterComplete,
+    msToken,
+    wpToken: freedCampCredentials?.enyu_wp_token,
   };
 
   const stickyHeaderCellStyle = {

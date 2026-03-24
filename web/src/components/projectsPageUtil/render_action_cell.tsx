@@ -3,7 +3,89 @@ import type { FreedCampLoginParams } from '../../../shared/freedcampTypes';
 import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
-import React, { type JSX } from 'react';
+import React, { useState, type JSX } from 'react';
+import { fetchOneDriveChildren } from '../MicrosoftOneDrivePage';
+import { convertDocxToHtml, buildWpOutputPage } from '../../lib/docToWp';
+
+/** Minimal DriveItem shape needed locally */
+type MinDriveItem = { id: string; name: string; folder?: object; parentReference?: { driveId?: string } };
+
+async function fetchDriveItemChildren(token: string, driveId: string, itemId: string): Promise<MinDriveItem[]> {
+  const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/children`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  return ((await res.json()).value ?? []) as MinDriveItem[];
+}
+
+const PublishButton: React.FC<{
+  p: IOperationWithLineNumberAndParentTaskId;
+  msToken: string;
+  wpToken?: string;
+}> = ({ p, msToken, wpToken }) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handlePublish = async () => {
+    if (!p.mainFolder) { setError('No mainFolder for this project'); return; }
+    setLoading(true);
+    setError('');
+    try {
+      // 1. List mainFolder → find the article folder by name
+      const mainChildren = await fetchOneDriveChildren(msToken, p.mainFolder) as MinDriveItem[];
+      const articleFolder = mainChildren.find(item => item.folder && item.name === p['文件']);
+      if (!articleFolder) throw new Error(`Article folder "${p['文件']}" not found in mainFolder`);
+
+      const driveId = articleFolder.parentReference?.driveId;
+      if (!driveId) throw new Error('Could not determine driveId for article folder');
+
+      // 2. List article folder → find "4 Publish"
+      const articleChildren = await fetchDriveItemChildren(msToken, driveId, articleFolder.id);
+      const publishFolder = articleChildren.find(item => item.folder && /4\s*publish/i.test(item.name));
+      if (!publishFolder) throw new Error(`"4 Publish" folder not found in "${p['文件']}"`);
+
+      // 3. List "4 Publish" → find first .docx
+      const publishChildren = await fetchDriveItemChildren(msToken, driveId, publishFolder.id);
+      const docxItem = publishChildren.find(item => /\.docx?$/i.test(item.name));
+      if (!docxItem) throw new Error('No .docx file found in "4 Publish" folder');
+
+      // 4. Download
+      const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${docxItem.id}/content`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${msToken}` } });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as any)?.error?.message || res.statusText);
+      }
+      const arrayBuffer = await res.arrayBuffer();
+
+      // 5. Convert and open
+      const converted = await convertDocxToHtml(arrayBuffer);
+      const page = buildWpOutputPage(converted, wpToken);
+      const blob = new Blob([page], { type: 'text/html;charset=utf-8' });
+      window.open(URL.createObjectURL(blob), '_blank');
+    } catch (err: any) {
+      setError(err.message || String(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <span>
+      <button
+        className="btn btn-create"
+        onClick={handlePublish}
+        disabled={loading}
+        style={{ background: '#e91e63', color: 'white', marginLeft: '4px' }}
+      >
+        {loading ? '…' : '发布 WP'}
+      </button>
+      {error && <span style={{ color: 'red', fontSize: '11px', display: 'block' }}>{error}</span>}
+    </span>
+  );
+};
 
 
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
@@ -94,6 +176,8 @@ export type RenderActionCellDeps = {
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
 	//logParam: { doLog: (msg: string) => void };
 	daysShowAlertAfterComplete: number;
+	msToken?: string | null;
+	wpToken?: string;
 };
 
 export function renderActionCell(
@@ -112,6 +196,8 @@ export function renderActionCell(
 		//fetchData,
 		//setErrorDialog,
 		daysShowAlertAfterComplete,
+		msToken,
+		wpToken,
 	} = deps;
 
 	const taskId = p[getTaskIdColumnName(action)];
@@ -188,7 +274,10 @@ export function renderActionCell(
 			}
 			{
 				dateEditorDsp
-			}			
+			}
+			{action === '发布' && msToken && (
+				<PublishButton p={p} msToken={msToken} wpToken={wpToken} />
+			)}
 		</>
 	);
 }
