@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { FREED_CAMP_SHEET, LOGIN_CFG_KEY } from '../lib/freedCampCredentials';
+import { FREED_CAMP_SHEET, LOGIN_CFG_KEY, type FreedCampCredentials } from '../lib/freedCampCredentials';
 
 const SECS_FILE_NAME = 'enyu_secs.xlsx';
 const EXCEL_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -82,7 +82,7 @@ async function findOrCreateSecsFile(msToken: string): Promise<string> {
   return (await createRes.json()).id as string;
 }
 
-async function readCredentials(msToken: string): Promise<{ username: string; password: string } | null> {
+async function readCredentials(msToken: string): Promise<FreedCampCredentials | null> {
   const itemId = await findOrCreateSecsFile(msToken);
   const auth = { Authorization: `Bearer ${msToken}` };
 
@@ -105,12 +105,16 @@ async function readCredentials(msToken: string): Promise<{ username: string; pas
   );
   if (!rangeRes.ok) return null;
   const rows: string[][] = (await rangeRes.json()).values ?? [];
-  const row = rows.find(r => r[0] === LOGIN_CFG_KEY);
-  if (!row) return null;
-  return { username: row[1] ?? '', password: row[2] ?? '' };
+  const row = rows.find(r => r[0] === LOGIN_CFG_KEY) || [];  
+  const enyuTokenRow = rows.find(r => r[0] === 'enyu_wp_token') || [];
+  const ret: FreedCampCredentials = {
+    username: row[1] ?? '', password: row[2] ?? '',
+    enyu_wp_token: enyuTokenRow[1] ?? '',
+  };
+  return ret;
 }
 
-async function saveCredentials(msToken: string, username: string, password: string): Promise<void> {
+async function saveCredentials(msToken: string, save: FreedCampCredentials): Promise<void> {
   const itemId = await findOrCreateSecsFile(msToken);
   const auth = { Authorization: `Bearer ${msToken}`, 'Content-Type': 'application/json' };
 
@@ -123,7 +127,7 @@ async function saveCredentials(msToken: string, username: string, password: stri
   if (rangeRes.ok) rows = (await rangeRes.json()).values ?? [];
 
   const rowIdx = rows.findIndex(r => r[0] === LOGIN_CFG_KEY);
-  const newRow = [LOGIN_CFG_KEY, username, password];
+  const newRow = [LOGIN_CFG_KEY, save.username, save.password];
 
   if (rowIdx === -1) {
     // Append after last row (1-indexed)
@@ -169,6 +173,7 @@ export const FreedCampSecretsPage = () => {
   const { msToken, msAccount, msLoginRedirect, freedCampCredentials, setFreedCampCredentials } = useAuth();
   const [username, setUsername] = useState(freedCampCredentials?.username ?? '');
   const [password, setPassword] = useState(freedCampCredentials?.password ?? '');
+  const [enyu_wp_token, setenyu_wp_token] = useState(freedCampCredentials?.enyu_wp_token ?? '');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState('');
@@ -192,6 +197,7 @@ export const FreedCampSecretsPage = () => {
       if (creds) {
         setUsername(creds.username);
         setPassword(creds.password);
+        setenyu_wp_token(creds.enyu_wp_token);
         setFreedCampCredentials(creds);
         setStatus('Loaded successfully.');
       } else {
@@ -210,8 +216,9 @@ export const FreedCampSecretsPage = () => {
     setStatus('');
     setError('');
     try {
-      await saveCredentials(msToken, username, password);
-      setFreedCampCredentials({ username, password });
+      const saveObj = { username, password, enyu_wp_token };
+      await saveCredentials(msToken, saveObj);
+      setFreedCampCredentials(saveObj);
       setStatus('Saved successfully.');
     } catch (e: any) {
       setError(e.message || String(e));

@@ -8,10 +8,7 @@ import { readFreedCampCredentials, type FreedCampCredentials } from '../lib/free
 
 const GRAPH_SCOPES = ['Files.ReadWrite', 'User.Read'];
 
-export interface IFreedCampCredentials {
-  username: string;
-  password: string;
-}
+
 interface AuthContextType {
   token: string | null;
   msToken: string | null;
@@ -31,8 +28,8 @@ interface AuthContextType {
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
   setCombinedOpsAndData: (data: ICombinedOpsAndFreeCampData | null) => void;
-  freedCampCredentials: IFreedCampCredentials | null;
-  setFreedCampCredentials: (creds: IFreedCampCredentials | null) => void;
+  freedCampCredentials: FreedCampCredentials | null;
+  setFreedCampCredentials: (creds: FreedCampCredentials | null) => void;
   authLoadingStatus: string;
 }
 
@@ -46,7 +43,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [sheetInfoCached, setSheetInfoCached] = useState<ISheetInfoSimple[] | null>(null);
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
-  const [freedCampCredentials, setFreedCampCredentials] = useState<{ username: string; password: string } | null>(null);
+  const [freedCampCredentials, setFreedCampCredentials] = useState<FreedCampCredentials | null>(null);
   const [useMsOps, setUseMsOpsState] = useState<boolean>(() => {
     return true;
     //localStorage.getItem('use_ms_ops') === 'true'
@@ -128,7 +125,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     setAuthLoadingStatus('Loading FreedCamp credentials...');
     readFreedCampCredentials(msToken)
-      .then((creds: FreedCampCredentials | null) => { if (creds) setFreedCampCredentials(creds); })
+      .then((creds) => { if (creds) setFreedCampCredentials(creds); })
       .catch(() => {/* non-fatal – user can load manually */})
       .finally(() => { setAuthLoadingStatus(''); });
   }, [msToken]);
