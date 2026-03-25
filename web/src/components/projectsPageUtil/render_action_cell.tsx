@@ -10,7 +10,7 @@ import { convertDocxToHtml, buildWpOutputPage } from '../../lib/docToWp';
 
 /** Minimal DriveItem shape needed locally */
 type MinDriveItem = { id: string; name: string; folder?: object; parentReference?: { driveId?: string } };
-
+const SHOW_WP_Button = false;
 async function fetchDriveItemChildren(token: string, driveId: string, itemId: string): Promise<MinDriveItem[]> {
   const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/children`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -120,14 +120,15 @@ const PublishButton: React.FC<{
 
   return (
     <span>
-      <button
-        className="btn btn-create"
-        onClick={handlePublish}
-        disabled={loading}
-        style={{ background: '#e91e63', color: 'white', marginLeft: '4px' }}
-      >
-        {loading ? '…' : '发布 WP'}
-      </button>
+		  {SHOW_WP_Button &&<button
+			  className="btn btn-create"
+			  onClick={handlePublish}
+			  disabled={loading}
+			  style={{ background: '#e91e63', color: 'white', marginLeft: '4px' }}
+		  >
+			  {loading ? '…' : '发布 WP'}
+		  </button>
+		  }
       {error && <span style={{ color: 'red', fontSize: '11px', display: 'block' }}>{error}</span>}
 
       {dialog && (
