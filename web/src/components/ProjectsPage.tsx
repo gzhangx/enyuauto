@@ -2,8 +2,10 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
-  getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation,deleteItemActionTask,
+  getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation, deleteItemActionTask,
+  getActionsToPerform,
   type FreeCampAndUpdateOperations,
+  type ActionsToPerformInfo,
   loadMainData,
   combineOpsConfigWithFreedCampData,
   type DebugLog,
@@ -12,6 +14,7 @@ import {
   type IOneDriveDirInfo,
   createMsExcelDataOps,
 } from '../../shared/main_ops';
+import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
 import { DoGoogleSignIn, freedCampOps } from '../lib/util';
 import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
@@ -77,6 +80,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   });
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  type CreateTasksDialogState = {
+    operation: IOperationWithLineNumberAndParentTaskId;
+    oneDriveFolders: IOneDriveDirInfo[];
+    actions: ActionsToPerformInfo[];
+    selected: Partial<Record<ActionType, boolean>>;
+  };
+  const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
   const { logMessages, doLog, criticalError, closeCriticalError } = useLogger(60000);
   const [showLogPanel, setShowLogPanel] = useState(false);
@@ -292,6 +302,175 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         onClose={closeCriticalError}
       />
 
+      {createTasksDialog && combinedOpsAndData && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2100,
+          }}
+          onClick={() => setCreateTasksDialog(null)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              padding: '1.5rem',
+              borderRadius: '8px',
+              maxWidth: '520px',
+              width: '92%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem' }}>
+              Create FreedCamp tasks — {createTasksDialog.operation['文件']}
+            </h2>
+            <p style={{ margin: '0 0 1rem 0', color: '#555', fontSize: '14px' }}>
+              Uncheck any action you do not want to create yet. Subtasks automatically keep their parent actions selected.
+            </p>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.25rem 0' }}>
+              {createTasksDialog.actions.map((row) => (
+                <li
+                  key={row.action}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '8px 0',
+                    borderBottom: '1px solid #eee',
+                    fontSize: '14px',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id={`create-task-${row.action}`}
+                    checked={createTasksDialog.selected[row.action] === true}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setCreateTasksDialog((prev) => {
+                        if (!prev) return prev;
+                        const mapping =
+                          combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
+                        const selected = { ...prev.selected };
+
+                        const collectDescendants = (par: ActionType): ActionType[] => {
+                          const out: ActionType[] = [];
+                          for (const item of prev.actions) {
+                            const cfg = mapping[item.action];
+                            if (cfg?.subTaskOf === par) {
+                              out.push(item.action, ...collectDescendants(item.action));
+                            }
+                          }
+                          return out;
+                        };
+
+                        if (checked) {
+                          selected[row.action] = true;
+                          let parent = mapping[row.action]?.subTaskOf;
+                          while (parent) {
+                            if (prev.actions.some((x) => x.action === parent)) {
+                              selected[parent] = true;
+                            }
+                            parent = mapping[parent]?.subTaskOf;
+                          }
+                        } else {
+                          selected[row.action] = false;
+                          for (const desc of collectDescendants(row.action)) {
+                            selected[desc] = false;
+                          }
+                        }
+                        return { ...prev, selected };
+                      });
+                    }}
+                  />
+                  <label htmlFor={`create-task-${row.action}`} style={{ cursor: 'pointer', flex: 1 }}>
+                    <strong>{row.action}</strong>
+                    <span style={{ color: '#666', marginLeft: '8px' }}>{row.editorName}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setCreateTasksDialog(null)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '4px',
+                  border: '1px solid #ccc',
+                  background: '#f5f5f5',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-create"
+                onClick={async () => {
+                  const dlg = createTasksDialog;
+                  if (!dlg || !combinedOpsAndData) return;
+                  const selectedSet = new Set<ActionType>(
+                    dlg.actions.filter((a) => dlg.selected[a.action]).map((a) => a.action),
+                  );
+                  if (selectedSet.size === 0) {
+                    setErrorDialog({
+                      show: true,
+                      message: 'Select at least one action to create, or press Cancel.',
+                    });
+                    return;
+                  }
+                  setCreateTasksDialog(null);
+                  const ops = sheetOpsRef.current;
+                  if (!ops) return;
+                  setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Creating project...' }));
+                  const logs: DebugLog = {
+                    doLog: (msg) => {
+                      console.log(msg);
+                      setProgressText(msg);
+                    },
+                  };
+                  try {
+                    await processOperation(
+                      ops,
+                      freeCampOpsWithCache,
+                      combinedOpsAndData,
+                      dlg.operation,
+                      dlg.oneDriveFolders,
+                      logs,
+                      '',
+                      selectedSet,
+                    );
+                  } catch (error: unknown) {
+                    const err = error as { message?: string };
+                    console.error('Error creating project:', error);
+                    setErrorDialog({
+                      show: true,
+                      message: `Failed to create project:\n${err.message || String(error)}`,
+                    });
+                  } finally {
+                    setIsLoading((prev) => ({ ...prev, projectButtonAction: '' }));
+                    setProgressText('');
+                  }
+                }}
+              >
+                Create selected
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button
         type="button"
         aria-label={showLogPanel ? 'Hide logs' : 'Show logs'}
@@ -442,39 +621,42 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       setResponseData('Operation data not loaded yet.');
                       return;
                     }
-                    setIsLoading(prev => ({ ...prev, projectButtonAction: 'Creating project...' }));
+                    const ops = sheetOpsRef.current;
+                    if (!ops || !combinedOpsAndData) return;
+                    setIsLoading(prev => ({ ...prev, projectButtonAction: 'Preparing…' }));
                     try {
-                      const ops = sheetOpsRef.current;
-                      if (ops) {
-                        const logs: DebugLog = {
-                          doLog: msg => {
-                            console.log(msg);
-                            setProgressText(msg);
-                          }
-                        };
-                        if (combinedOpsAndData) {
-                          let oneDriveFolders: IOneDriveDirInfo[] = [];
-                          if (p.mainFolder) {
-                            if (!msToken) {
-                              setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
-                              return;
-                            }
-                            console.log('debugremove sending main folder', p.mainFolder)
-                            oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
-                          }
-                          await processOperation(ops, freeCampOpsWithCache, combinedOpsAndData, p, oneDriveFolders, logs);
+                      let oneDriveFolders: IOneDriveDirInfo[] = [];
+                      if (p.mainFolder) {
+                        if (!msToken) {
+                          setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
+                          return;
                         }
+                        oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
                       }
-                    } catch (error: any) {
-                      console.error('Error creating project:', error);                                            
-                      setErrorDialog({ show: true, message: `Failed to create project:\n${error.message || String(error)}` });
-                      return;
+                      const previewLog: DebugLog = { doLog: (msg) => console.log(msg) };
+                      const previewOp = { ...p } as IOperationWithLineNumberAndParentTaskId;
+                      const actions = getActionsToPerform(previewOp, combinedOpsAndData, p['文件'], previewLog);
+                      if (actions.length === 0) {
+                        setErrorDialog({
+                          show: true,
+                          message:
+                            'No new FreedCamp tasks to create for this row (all actions already have tasks or are excluded).',
+                        });
+                        return;
+                      }
+                      const selected: Partial<Record<ActionType, boolean>> = {};
+                      for (const a of actions) selected[a.action] = true;
+                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected });
+                    } catch (error: unknown) {
+                      const err = error as { message?: string };
+                      console.error('Error preparing project creation:', error);
+                      setErrorDialog({
+                        show: true,
+                        message: `Failed to prepare project creation:\n${err.message || String(error)}`,
+                      });
                     } finally {
                       setIsLoading(prev => ({ ...prev, projectButtonAction: '' }));
-                      setProgressText('');
                     }
-                    //const retData = await createOrDelProject(p.itemPositionOnSheet, 'main');
-                    //setResponseData(JSON.stringify(retData, null, 2));
                   }
                 }>Create</button>}</td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>

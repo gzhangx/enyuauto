@@ -733,7 +733,7 @@ export interface IOneDriveDirInfo {
 }
 
 
-interface ActionsToPerformInfo {
+export interface ActionsToPerformInfo {
     action: ActionType;
     editor: string;
      editorName: string;
@@ -835,7 +835,9 @@ export async function processOperation(
     operation: IOperationWithLineNumberAndParentTaskId,    
     oneDriveDirInfos: IOneDriveDirInfo[],
     log: DebugLog,
-    debug_Prefix: string = ''
+    debug_Prefix: string = '',
+    /** When set, only FreedCamp tasks for these action keys are created (must be a subset of `getActionsToPerform`). */
+    selectedActions?: ReadonlySet<ActionType>,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
@@ -850,9 +852,13 @@ export async function processOperation(
         // Check if article is English-only (no Chinese characters)
         
         const actionsToPerform = getActionsToPerform(operation, combined, fileName, log);
+        const actionsToRun =
+            selectedActions === undefined
+                ? actionsToPerform
+                : actionsToPerform.filter((a) => selectedActions.has(a.action));
         //const projectGroupMapping = getProjectGroupMapping();        
         //for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
-        for (const actionP of actionsToPerform) {
+        for (const actionP of actionsToRun) {
             const action = actionP.action;
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];           
             infos.editor = actionP.editorName;
