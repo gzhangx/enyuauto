@@ -695,7 +695,7 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
             publishCompleted = publishItem.completed_ts !== null && publishItem.completed_ts !== undefined;
         }
         const taskDone = item['发布'] === 'done';
-        item.isFinished = (publishCompleted || taskDone) && !item.syncFreeCampToSheetData;
+        item.isFinished = item.done === 'Y';//(publishCompleted || taskDone) && !item.syncFreeCampToSheetData;
         item.noNeedToCreate = publishCompleted || taskDone;
     }
     if (updated) {

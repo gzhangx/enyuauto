@@ -40,6 +40,7 @@ export interface Operation {
     '发布': string;
     '二校': string;
     mainFolder: string;
+    done: string | 'Y' | 'N' | '';
 }
 
 export function getTaskIdColumnName(action: ActionType): TaskIdKeys {
