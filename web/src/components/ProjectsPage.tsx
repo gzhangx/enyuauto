@@ -653,7 +653,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         return;
                       }
                       const selected: Partial<Record<ActionType, boolean>> = {};
-                      for (const a of actions) selected[a.action] = true;
+                      //for (const a of actions) selected[a.action] = true;
                       setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected });
                     } catch (error: unknown) {
                       const err = error as { message?: string };
