@@ -216,6 +216,28 @@ export async function completeDateUpdater(ops: ISheetDataOps, opsConfig: IOpsCon
     });
 }
 
+/** Writes the main sheet `done` column: `Y` hides the row when "Show all" is off (`isFinished`). */
+export async function updateDoneColumn(
+    ops: ISheetDataOps,
+    opsConfig: IOpsConfig,
+    item: IOperationWithLineNumber,
+    markDone: boolean,
+    log: DebugLog,
+): Promise<void> {
+    const lineNumber = item.itemPositionOnSheet;
+    const doneHeader = 'done';
+    const index = opsConfig.headers.indexOf(doneHeader);
+    if (index < 0) {
+        throw new Error(`Main sheet header row must include a column named "${doneHeader}".`);
+    }
+    const value = markDone ? 'Y' : '';
+    log.doLog(`update done column: ${value || '(empty)'} at line ${lineNumber}`);
+    await ops.autoUpdateValues('main', [[value]], {
+        row: lineNumber,
+        col: index,
+    });
+}
+
 export async function loadMainData(ops: ISheetDataOps) {
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0];

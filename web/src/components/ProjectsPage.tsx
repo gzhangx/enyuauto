@@ -11,6 +11,7 @@ import {
   type DebugLog,
   completeDateUpdater,  
   updateDoneParentIds,
+  updateDoneColumn,
   type IOneDriveDirInfo,
   createMsExcelDataOps,
 } from '../../shared/main_ops';
@@ -93,6 +94,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(3);
+  const [doneColumnSavingLine, setDoneColumnSavingLine] = useState<number | null>(null);
   
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
   
@@ -608,6 +610,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                 {action}
               </th>
             ))}
+            <th
+              style={stickyHeaderCellStyle}
+              title='Sets the sheet column "done" to Y so this row is hidden unless "Show all" is checked.'
+            >
+              Done
+            </th>
             <th style={stickyHeaderCellStyle}>Line</th>
           </tr>
         </thead>
@@ -671,6 +679,42 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     {renderActionCell(p, action, actionCellDeps)}
                   </td>
                 ))}
+                <td style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'center' }}>
+                  <input
+                    type="checkbox"
+                    title='Maps to sheet column "done": Y hides this row from the default list.'
+                    checked={(p.done || '').toUpperCase() === 'Y'}
+                    disabled={
+                      !opsConfig ||
+                      opsConfig.headers.indexOf('done') < 0 ||
+                      doneColumnSavingLine === p.itemPositionOnSheet
+                    }
+                    onChange={async (e) => {
+                      const checked = e.target.checked;
+                      const ops = sheetOpsRef.current;
+                      if (!ops || !opsConfig) return;
+                      setDoneColumnSavingLine(p.itemPositionOnSheet);
+                      try {
+                        await updateDoneColumn(ops, opsConfig, p, checked, { doLog });
+                        setFullProjectList((prev) =>
+                          prev.map((row) =>
+                            row.itemPositionOnSheet === p.itemPositionOnSheet
+                              ? { ...row, done: checked ? 'Y' : '', isFinished: checked }
+                              : row,
+                          ),
+                        );
+                      } catch (error: unknown) {
+                        const err = error as { message?: string };
+                        setErrorDialog({
+                          show: true,
+                          message: err.message || String(error),
+                        });
+                      } finally {
+                        setDoneColumnSavingLine(null);
+                      }
+                    }}
+                  />
+                </td>
                 <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}
                   { renderSyncActionCell(p, freedCampCredentials, actionCellDeps, 'Sync from FreedCamp') }
                 </td>
