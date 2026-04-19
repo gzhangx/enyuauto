@@ -45,7 +45,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
       console.error(msg);
       setCriticalError({ show: true, message: msg });
     } else {
-      console.log(msg);
+      console.log('show msg in doLog',msg);
     }
     const newLog: LogMessage = {
       id: logIdCounterRef.current++,
@@ -438,7 +438,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Creating project...' }));
                   const logs: DebugLog = {
                     doLog: (msg) => {
-                      console.log(msg);
+                      console.log('doLog',msg);
                       setProgressText(msg);
                     },
                   };

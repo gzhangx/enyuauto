@@ -295,9 +295,9 @@ export function renderActionCell(
 	const freedCampItem = p[`${action} FreeCamp Item`];
 
 	// Build tooltip text
-	if (p.文件.includes('宣教无国界')) {
-		console.log('fond 2026-1-25 宣教无国界 陈默 三福培训分享- ', p.文件)
-	}
+	//if (p.文件.includes('宣教无国界')) {
+		//console.log('fond 2026-1-25 宣教无国界 陈默 三福培训分享- ', p.文件)
+	//}
 	let tooltipText = '';
 	if (freedCampItem) {
 		const parts: string[] = [];
@@ -322,9 +322,9 @@ export function renderActionCell(
 	}
 
 	const hasCompletedDate = freedCampItem?.completed_ts;
-	if (hasCompletedDate) {
-		console.log(freedCampItem, 'debugremove freedCampItem is in render_action_cell.tsx')
-	}
+	//if (hasCompletedDate) {
+	//	console.log(freedCampItem, 'debugremove freedCampItem is in render_action_cell.tsx')
+	//}
 
 	const hasAssignedTo = freedCampItem?.assigned_to_id && freedCampItem?.assigned_to_id !== '0';
 

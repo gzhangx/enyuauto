@@ -240,7 +240,7 @@ export async function updateDoneColumn(
 
 export async function loadMainData(ops: ISheetDataOps) {
     const rawMainData = await ops.readData('main');
-    const headers = rawMainData.values[0];
+    const headers = rawMainData.values[0].map(h => h.toLowerCase() === 'done' ? 'done' : h);
     //const operationListData = await ops.readDataByColumnName('main');
     //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
     const operationList: IOperationWithLineNumberAndParentTaskId[] = rawMainData.values.slice(1).map((row, index) => {
