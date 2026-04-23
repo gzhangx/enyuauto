@@ -40,6 +40,7 @@ export interface Operation {
     '发布': string;
     '二校': string;
     mainFolder: string;
+    slug: string;
     done: string | 'Y' | 'N' | '';
 }
 
@@ -80,6 +81,7 @@ export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber &
 
 export interface OperationInfo {
     author: string;
+    slug: string;
     article: string;
     link: string;
     email: string;

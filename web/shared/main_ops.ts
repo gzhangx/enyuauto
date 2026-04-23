@@ -519,7 +519,8 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
     const article = operation['文章名'];
     //const fileName = operation['文件'];
     const infos: OperationInfo = {        
-            author: operation['作者'],
+        author: operation['作者'],
+        slug: operation['slug'],
             article,
             link: operation['文章链接'],
             email: operation['作者电邮'],
@@ -585,7 +586,6 @@ function buildSyncUpdates(
             if (freedCampKey !== 'id') {
                 if (freedCampKey === 'assigned_to_id') {
                     const userInfo = combined.userIdToInfoMap[fcVal];
-                    console.log(`Mapping user ID ${fcVal} to name:`, userInfo, freedCampItem, freedCampKey);
                     if (userInfo) {
                         fcVal = userInfo.full_name;
                     }
@@ -925,6 +925,7 @@ export async function processOperation(
             }
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
                 if (replaceItem === 'article' && link) continue;
+                console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
             if (link) {
