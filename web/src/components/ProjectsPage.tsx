@@ -335,10 +335,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           >
             <h2 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem' }}>
               Create FreedCamp tasks — {createTasksDialog.operation['文件']}
-            </h2>
-            <p style={{ margin: '0 0 1rem 0', color: '#555', fontSize: '14px' }}>
-              Uncheck any action you do not want to create yet. Subtasks automatically keep their parent actions selected.
-            </p>
+            </h2>            
             <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.25rem 0' }}>
               {createTasksDialog.actions.map((row) => (
                 <li

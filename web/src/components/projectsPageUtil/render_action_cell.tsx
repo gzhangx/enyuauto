@@ -301,7 +301,7 @@ export function renderActionCell(
 	let tooltipText = '';
 	if (freedCampItem) {
 		const parts: string[] = [];
-		if (freedCampItem.completed_ts) {
+		if (freedCampItem.completed_ts && freedCampItem.status_title === 'Completed') {
 			const completedDate = new Date(freedCampItem.completed_ts * 1000);
 			parts.push(`Completed: ${completedDate.toLocaleString()}`);
 		}
@@ -321,7 +321,7 @@ export function renderActionCell(
 		return <span style={{ color: 'green', fontWeight: 'bold' }} title={tooltipText}>Done</span>;
 	}
 
-	const hasCompletedDate = freedCampItem?.completed_ts;
+	const hasCompletedDate = freedCampItem?.status_title === 'Completed' ? freedCampItem?.completed_ts : null;
 	//if (hasCompletedDate) {
 	//	console.log(freedCampItem, 'debugremove freedCampItem is in render_action_cell.tsx')
 	//}
@@ -340,7 +340,7 @@ export function renderActionCell(
 		dateEditorDsp = (
 			<span
 				style={{ color, fontWeight: 'bold' }}
-				title={freedCampItem.assigned_to_fullname || undefined}
+				title={freedCampItem?.assigned_to_fullname || undefined}
 			>
 				{formatLocalDateYyyyMmDd(hasCompletedDate)}
 			</span>
