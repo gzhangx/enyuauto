@@ -176,11 +176,13 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
     
     switch (subAction) {
       case 'login':
+        log.doLog('Performing login action');
         const loginRes = await util.freedCampOps.login({
           username: params['username'] || '',
           password: params['password'] || '',
         });
         result = loginRes;
+        log.doLog('Performed login action ' + JSON.stringify(loginRes));
         break;
         
       case 'getSessionCurrentData':
