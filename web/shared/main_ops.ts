@@ -463,7 +463,7 @@ export interface FreeCampAndUpdateOperations {
 }
 
 export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): FreeCampAndUpdateOperations {
-    async function getFreedCampToken(loginParams: FreedCampLoginParams, forceReload: boolean) {
+    async function getFreedCampToken(loginParams: FreedCampLoginParams) { //forceReload: boolean not used
         const loginToken = await freedCampOps.login(loginParams);
         return loginToken;
     }
