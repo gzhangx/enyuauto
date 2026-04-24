@@ -1,5 +1,9 @@
 # AWS Deployment Guide
 
+Updated deployment:
+sam build
+sam deploy
+
 ## Prerequisites
 
 ### 1. Install AWS CLI
