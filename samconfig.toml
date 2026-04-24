@@ -3,12 +3,13 @@ version = 0.1
 [default]
 [default.deploy]
 [default.deploy.parameters]
-stack_name = "enyu-auto"
+stack_name = "enyu-auto-v2"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
 confirm_changeset = false
-resolve_s3 = true
-s3_prefix = "enyu-auto"
+resolve_s3 = false
+s3_prefix = "enyu-auto-v2"
+s3_bucket = "enyu-deployment-bucket1"
 disable_rollback = true
 image_repositories = []
 

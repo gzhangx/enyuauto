@@ -11,7 +11,6 @@ Resources:
   EnyuAutoFunction:
     Type: AWS::Serverless::Function
     Properties:
-      FunctionName: enyu_auto
       CodeUri: ./
       Handler: dist/index.handler
       Runtime: nodejs20.x

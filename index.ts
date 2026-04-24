@@ -1,7 +1,7 @@
 import * as mainOps from './web/shared/main_ops';
 import * as util from './lib/util';
 import { ProjectTaskParams, FreedCampProcessor, LoginResponse } from './web/shared/freedcampTypes';
-import * as secs from './enyu_secs.json';
+//import * as secs from './enyu_secs.json';
 //aws logs tail /aws/lambda/enyu_auto --follow --region us-east-1
 interface LambdaEvent {
   queryStringParameters: {
@@ -41,18 +41,18 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       return doWordpressAction(body, log);
     }
     //action below are no longer used.
-    const ops = await mainOps.getSheetOps(secs.gsAuth);
+    //const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
     
     const action = params['action'] || 'main' as 'main' | 'getList' | 'freedcamp';
 
     
     if (action === 'getList') {
-      const list = await mainOps.getOpsAndMainList(ops, log);
+      //const list = await mainOps.getOpsAndMainList(ops, log);
       return {
         statusCode: 200,
         headers: headers,          
-        body: JSON.stringify(list),
+        body: 'no longer supported', //JSON.stringify(list),
       };
     }
     let opStr: string | undefined;
@@ -77,17 +77,12 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
         if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
         const fops = mainOps.getFreeCampAndUpdateOperations(util.freedCampOps);
-        const mainCfg = await mainOps.getOpsAndMainList(ops, log);
+        //const mainCfg = await mainOps.getOpsAndMainList(ops, log);
         let sres: string[] = [];
-        const operation = mainOps.getOperationFromLineNumber(mainCfg.operationList, lineNumber);
-        if (!operation) {
+        //const operation = mainOps.getOperationFromLineNumber(mainCfg.operationList, lineNumber);
+        //if (!operation) {
           throw new Error(`No operation found for line number ${lineNumber}`);
-        }
-        for (const action of mainCfg.groupAndMainProjectMapping.actions) {
-          //const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
-          //const rr = await mainOps.deleteItemActionTask(ops, fops, mainCfg, operation, action, log);
-          //sres.push(rr || '');
-        }
+        //}        
         res = sres.join('\n');
       } catch (error) {
         console.error('Operation error:', error);
