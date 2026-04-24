@@ -150,13 +150,13 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       let cookies: LoginResponse = {} as LoginResponse;
       
       // Check if cookies are provided in parameters
-      if (params['cookies']) {
+       const username = params['username'] || '';
+      const password = params['password'] || '';
+      if (params['cookies'] && !username && !password) {
         cookies.Cookie = params['cookies'];
         log.doLog(`Using ${cookies.Cookie} cookies from parameters for action: ${subAction}`);
       } else {
-        // If no cookies provided, try to login
-        const username = params['username'] || '';
-        const password = params['password'] || '';
+        // If no cookies provided, try to login       
         if (!username || !password) {
           return {
             statusCode: 400,
