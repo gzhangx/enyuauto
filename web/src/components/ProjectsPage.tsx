@@ -102,19 +102,22 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const startupRunOnce = useRef(false);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
     ...originalFreedCampOps,
-    getFreedCampToken: async (opsAndTemplates) => {
+    getFreedCampToken: async (opsAndTemplates, forceReload) => {
       const now = Date.now();
       const oneHour = 60 * 60 * 1000; // 1 hour in milliseconds
       
       // Check if cached token exists and is still valid
-      if (cachedToken && (now - cachedToken.timestamp) < oneHour) {
+      if (!forceReload && cachedToken && (now - cachedToken.timestamp) < oneHour) {
         doLog('Using cached FreedCamp token');
         return cachedToken.token;
+      }
+      if (forceReload) {
+        doLog('Force reload requested for FreedCamp token');
       }
       
       // Get new token if cache is expired or doesn't exist
       doLog('Fetching new FreedCamp token');
-      const newToken = await originalFreedCampOps.getFreedCampToken(opsAndTemplates);
+      const newToken = await originalFreedCampOps.getFreedCampToken(opsAndTemplates, forceReload);
       setCachedToken({ token: newToken, timestamp: now });
       return newToken;
     },    
@@ -141,7 +144,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         await getOpsAndMainList(ops, logParam).then(async res => {
           setOpsConfig(res); // Save the complete response (including functions)
           //const { ops, operationList, groupAndMainProjectMapping, editorInfoMap, headers } = res;
-          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, freedCampCredentials, logParam);          
+          const combined = await combineOpsConfigWithFreedCampData(res, freeCampOpsWithCache, freedCampCredentials, logParam, fullReload);          
 
           //--------------------------- get freecamp data        
           const pr = freeCampOpsWithCache.getFreedCampProcessor(combined.loginToken);
