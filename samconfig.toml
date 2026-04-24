@@ -10,7 +10,7 @@ confirm_changeset = false
 resolve_s3 = false
 s3_prefix = "enyu-auto-v2"
 s3_bucket = "enyu-deployment-bucket1"
-disable_rollback = true
+disable_rollback = false
 image_repositories = []
 
 [default.global.parameters]

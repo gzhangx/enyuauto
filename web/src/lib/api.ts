@@ -5,7 +5,7 @@ export function getActions(): readonly ActionType[] {
     return actions ;
 }
 
-const enyuApiBaseUrl = 'https://fk9u03bqm3.execute-api.us-east-1.amazonaws.com/default/enyu_auto';
+const enyuApiBaseUrl = 'https://fk9u03bqm3.execute-api.us-east-1.amazonaws.com/default/enyu-auto-v2-EnyuAutoFunction-r0jJLctkXxHF';
 export type ProjectItem = {
         '文件': string;
         '作者': string;
