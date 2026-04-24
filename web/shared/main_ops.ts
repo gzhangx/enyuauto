@@ -495,6 +495,10 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
     
     const userData = await pr.getSessionCurrentData();
     const userIdToInfoMap: { [userId: string]: IUserInfo } = {};
+    if (!userData.data.users) {
+        log.doLog('Error: getSessionCurrentData did not return user data: ' + (userData as any).msg);
+        throw new Error('getSessionCurrentData did not return user data: ' + (userData as any).msg);
+    }
     const userNameToInfoMap = userData.data.users.reduce((acc, user) => {
         acc[user.full_name] = user;
         userIdToInfoMap[user.user_id] = user;
