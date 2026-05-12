@@ -110,14 +110,18 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
         [key: string]: {
             shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
             subTaskOfFromSheetConfig?: ActionType;
-            isTaskEnabledForEnglishFromSheetConfig?: '' | 'N';
+            // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+            // isTaskEnabledForEnglishFromSheetConfig?: '' | 'N';
+            // ========== END COMMENTED OUT ==========
         }; 
     };
     shortProjectNameToProjectId: { //populated later after we login to freedcamp
         [key in ActionType]: {
             project_id: string;
             subTaskOf?: ActionType;
-            isTaskEnabledForEnglish?: boolean;
+            // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+            // isTaskEnabledForEnglish?: boolean;
+            // ========== END COMMENTED OUT ==========
         }; //'校对': { "project_id": "3696514" }
     };
     actionExcludes: {

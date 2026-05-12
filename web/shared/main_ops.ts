@@ -398,7 +398,9 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2].trim() as ActionType,
                 subTaskOfFromSheetConfig: row[3] ? row[3].trim() as ActionType : undefined,
-                isTaskEnabledForEnglishFromSheetConfig: row[4]?.trim() === 'N' ? 'N' : '',
+                // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+                // isTaskEnabledForEnglishFromSheetConfig: row[4]?.trim() === 'N' ? 'N' : '',
+                // ========== END COMMENTED OUT ==========
             };
         }
         if (row[0] === 'actionExcludes') {
@@ -433,7 +435,9 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
                 project_id: proj.project_id,
                 subTaskOf: projectInfo.subTaskOfFromSheetConfig,
-                isTaskEnabledForEnglish: projectInfo.isTaskEnabledForEnglishFromSheetConfig !== 'N',
+                // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+                // isTaskEnabledForEnglish: projectInfo.isTaskEnabledForEnglishFromSheetConfig !== 'N',
+                // ========== END COMMENTED OUT ==========
             };
         }
     });
@@ -537,20 +541,25 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
 
         // Check if article is English-only (no Chinese characters)
     const groupAndMainProjectMapping = combined.opsConfig.groupAndMainProjectMapping;
-    for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
-        const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-        const editor = operation[action];
-        const editorLookup = combined.opsConfig.editorInfoMap[editor];
+        // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+        // Old logic: skip action if disabled for English and editor is English-only (Brother/Sister)
+        // New logic: show all actions, let UI checkbox determine if English template should be used
+        /*
+        for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
+            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+            const editor = operation[action];
+            const editorLookup = combined.opsConfig.editorInfoMap[editor];
 
-        const isEnglishOnly =isEditorEnglish(editorLookup);
-        if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
-            const fileName = operation['文件'];
-            log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
-            operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
-            continue;
+            const isEnglishOnly =isEditorEnglish(editorLookup);
+            if (actionConfig.isTaskEnabledForEnglish === false && isEnglishOnly) {
+                const fileName = operation['文件'];
+                log.doLog(`processOperation: skipping action ${action} for file ${fileName} as it is disabled from sheet config for English-only article`);
+                operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
+                continue;
+            }
         }
-    }
-    
+        */
+        // ========== END COMMENTED OUT ==========
     return infos;
 }
 
@@ -762,8 +771,9 @@ export interface IOneDriveDirInfo {
 export interface ActionsToPerformInfo {
     action: ActionType;
     editor: string;
-     editorName: string;
-     template: string;
+    editorName: string;
+    template: string;
+    hasEnglishTemplate: boolean;
 }
 /**
  * Returns the list of actions that still need to be performed for a given operation.
@@ -815,6 +825,10 @@ export function getActionsToPerform(
         if (!actionConfig) {
             throw new Error(`Configuration for action ${action} not found in groupAndMainProjectMapping.shortProjectNameToProjectId`);
         }
+        // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
+        // Old logic: skip action if disabled for English and editor is English-only (Brother/Sister)
+        // New logic: show all actions, let UI checkbox determine if English template should be used
+        /*
         const editor = operation[action];
         const editorLookup = combined.opsConfig.editorInfoMap[editor];
         const isEnglishOnly = isEditorEnglish(editorLookup);
@@ -823,6 +837,10 @@ export function getActionsToPerform(
             operation[getTaskIdColumnName(action)] = 'TaskIsEnglishAndIsDisabledForEnglish';
             continue;
         }
+        */
+        // ========== END COMMENTED OUT ==========
+        const editor = operation[action];
+        const editorLookup = combined.opsConfig.editorInfoMap[editor];
         const editorName = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
 
         const AIActionName = `${action} AI` as ActionType;
@@ -839,9 +857,11 @@ export function getActionsToPerform(
             continue;
         }
         let template1 = curTemplateActionInfo.template;
-        if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
-            template1 = curTemplateActionInfo.templateEnglish;
-        }
+        // ========== AFTER ENGLISH REFACTOR: no longer auto-select English template here ==========
+        // Previously: if (isEnglishOnly && curTemplateActionInfo.templateEnglish) { template1 = curTemplateActionInfo.templateEnglish; }
+        // Now: English template selection is done in UI checkbox, passed via useEnglishTemplateMap to processOperation
+        const hasEnglishTemplate = !!curTemplateActionInfo.templateEnglish;
+        // ========== END AFTER ENGLISH REFACTOR ==========
         //const link = action === '校对' ? infos.link : undefined;
 
         actionsToPerform.push({
@@ -849,6 +869,7 @@ export function getActionsToPerform(
             editorName,
             editor,
             template: template1,
+            hasEnglishTemplate,
         });
     }
     return actionsToPerform;
@@ -864,6 +885,8 @@ export async function processOperation(
     debug_Prefix: string = '',
     /** When set, only FreedCamp tasks for these action keys are created (must be a subset of `getActionsToPerform`). */
     selectedActions?: ReadonlySet<ActionType>,
+    /** Map of action -> whether to use English template (if available). */
+    useEnglishTemplateMap?: Map<ActionType, boolean>,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
@@ -888,6 +911,7 @@ export async function processOperation(
             const action = actionP.action;
             const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];           
             infos.editor = actionP.editorName;
+            // ========== BEFORE ENGLISH REFACTOR: old code that auto-selected template based on editor type ==========
             //const editor = operation[action];
             //const editorLookup = combined.opsConfig.editorInfoMap[editor];
             //const isEnglishOnly = isEditorEnglish(editorLookup);
@@ -912,10 +936,20 @@ export async function processOperation(
             //    continue;
             //}
             //let template1 = curTemplateActionInfo.template;
-            //if (isEnglishOnly && curTemplateActionInfo.templateEnglish) {
-            //    template1 = curTemplateActionInfo.templateEnglish;
-            //} 
+            // ========== END BEFORE ENGLISH REFACTOR ==========
             let template1 = actionP.template;
+            // ========== AFTER ENGLISH REFACTOR: new code that uses user selection from UI checkbox ==========
+            // Check if user selected to use English template for this action
+            if (useEnglishTemplateMap?.get(action) && actionP.hasEnglishTemplate) {
+                const regularAction = combined.opsConfig.templates[action];
+                const AIActionName = `${action} AI` as ActionType;
+                const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
+                const curTemplateActionInfo = isAIAction ? combined.opsConfig.templates[AIActionName] || regularAction : regularAction;
+                if (curTemplateActionInfo.templateEnglish) {
+                    template1 = curTemplateActionInfo.templateEnglish;
+                }
+            }
+            // ========== END AFTER ENGLISH REFACTOR ==========
             const editor = operation[action];
             const link = action === '校对' ? infos.link : undefined;            
             

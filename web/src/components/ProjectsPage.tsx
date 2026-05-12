@@ -86,6 +86,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     oneDriveFolders: IOneDriveDirInfo[];
     actions: ActionsToPerformInfo[];
     selected: Partial<Record<ActionType, boolean>>;
+    useEnglishTemplate: Partial<Record<ActionType, boolean>>;
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -345,59 +346,82 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   key={row.action}
                   style={{
                     display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px',
+                    flexDirection: 'column',
+                    gap: '8px',
                     padding: '8px 0',
                     borderBottom: '1px solid #eee',
                     fontSize: '14px',
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    id={`create-task-${row.action}`}
-                    checked={createTasksDialog.selected[row.action] === true}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setCreateTasksDialog((prev) => {
-                        if (!prev) return prev;
-                        const mapping =
-                          combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
-                        const selected = { ...prev.selected };
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <input
+                      type="checkbox"
+                      id={`create-task-${row.action}`}
+                      checked={createTasksDialog.selected[row.action] === true}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setCreateTasksDialog((prev) => {
+                          if (!prev) return prev;
+                          const mapping =
+                            combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
+                          const selected = { ...prev.selected };
 
-                        const collectDescendants = (par: ActionType): ActionType[] => {
-                          const out: ActionType[] = [];
-                          for (const item of prev.actions) {
-                            const cfg = mapping[item.action];
-                            if (cfg?.subTaskOf === par) {
-                              out.push(item.action, ...collectDescendants(item.action));
+                          const collectDescendants = (par: ActionType): ActionType[] => {
+                            const out: ActionType[] = [];
+                            for (const item of prev.actions) {
+                              const cfg = mapping[item.action];
+                              if (cfg?.subTaskOf === par) {
+                                out.push(item.action, ...collectDescendants(item.action));
+                              }
+                            }
+                            return out;
+                          };
+
+                          if (checked) {
+                            selected[row.action] = true;
+                            let parent = mapping[row.action]?.subTaskOf;
+                            while (parent) {
+                              if (prev.actions.some((x) => x.action === parent)) {
+                                selected[parent] = true;
+                              }
+                              parent = mapping[parent]?.subTaskOf;
+                            }
+                          } else {
+                            selected[row.action] = false;
+                            for (const desc of collectDescendants(row.action)) {
+                              selected[desc] = false;
                             }
                           }
-                          return out;
-                        };
-
-                        if (checked) {
-                          selected[row.action] = true;
-                          let parent = mapping[row.action]?.subTaskOf;
-                          while (parent) {
-                            if (prev.actions.some((x) => x.action === parent)) {
-                              selected[parent] = true;
-                            }
-                            parent = mapping[parent]?.subTaskOf;
-                          }
-                        } else {
-                          selected[row.action] = false;
-                          for (const desc of collectDescendants(row.action)) {
-                            selected[desc] = false;
-                          }
-                        }
-                        return { ...prev, selected };
-                      });
-                    }}
-                  />
-                  <label htmlFor={`create-task-${row.action}`} style={{ cursor: 'pointer', flex: 1 }}>
-                    <strong>{row.action}</strong>
-                    <span style={{ color: '#666', marginLeft: '8px' }}>{row.editorName}</span>
-                  </label>
+                          return { ...prev, selected };
+                        });
+                      }}
+                    />
+                    <label htmlFor={`create-task-${row.action}`} style={{ cursor: 'pointer', flex: 1 }}>
+                      <strong>{row.action}</strong>
+                      <span style={{ color: '#666', marginLeft: '8px' }}>{row.editorName}</span>
+                    </label>
+                  </div>
+                  {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                      <input
+                        type="checkbox"
+                        id={`use-english-${row.action}`}
+                        checked={createTasksDialog.useEnglishTemplate[row.action] === true}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setCreateTasksDialog((prev) => {
+                            if (!prev) return prev;
+                            const useEnglishTemplate = { ...prev.useEnglishTemplate };
+                            useEnglishTemplate[row.action] = checked;
+                            return { ...prev, useEnglishTemplate };
+                          });
+                        }}
+                      />
+                      <label htmlFor={`use-english-${row.action}`} style={{ cursor: 'pointer', color: '#555', fontSize: '13px' }}>
+                        Use English template
+                      </label>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -443,6 +467,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     },
                   };
                   try {
+                    const useEnglishTemplateMap = new Map<ActionType, boolean>();
+                    for (const action of Object.keys(dlg.useEnglishTemplate) as ActionType[]) {
+                      if (dlg.useEnglishTemplate[action]) {
+                        useEnglishTemplateMap.set(action, true);
+                      }
+                    }
                     await processOperation(
                       ops,
                       freeCampOpsWithCache,
@@ -452,6 +482,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       logs,
                       '',
                       selectedSet,
+                      useEnglishTemplateMap,
                     );
                   } catch (error: unknown) {
                     const err = error as { message?: string };
@@ -653,8 +684,9 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         return;
                       }
                       const selected: Partial<Record<ActionType, boolean>> = {};
+                      const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
                       //for (const a of actions) selected[a.action] = true;
-                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected });
+                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate });
                     } catch (error: unknown) {
                       const err = error as { message?: string };
                       console.error('Error preparing project creation:', error);
