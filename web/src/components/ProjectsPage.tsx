@@ -9,6 +9,7 @@ import {
   loadMainData,
   combineOpsConfigWithFreedCampData,
   type DebugLog,
+  formatLocalDateYyyyMmDd,
   completeDateUpdater,  
   updateDoneParentIds,
   updateDoneColumn,
@@ -93,11 +94,42 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const { logMessages, doLog, criticalError, closeCriticalError } = useLogger(60000);
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
+  type OwnerInfoEntry = { article: string; name: string; assignedOn: string; status: string; taskId?: string; timestamp: number; };
   const [showAllProjects, setShowAllProjects] = useState(false);
   const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(3);
   const [doneColumnSavingLine, setDoneColumnSavingLine] = useState<number | null>(null);
-  
+  const [ownerInfoDialog, setOwnerInfoDialog] = useState<{ title: string; entries: OwnerInfoEntry[] } | null>(null);
+
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+
+  const closeOwnerInfoDialog = () => setOwnerInfoDialog(null);
+  const getOwnerInfoEntriesForAction = (action: ActionType): OwnerInfoEntry[] => {
+    const byName = new Map<string, OwnerInfoEntry>();
+    for (const p of fullProjectList) {
+      const freedCampItem = p[`${action} FreeCamp Item`];
+      if (!freedCampItem || !freedCampItem.assigned_to_fullname) continue;
+      const timestamp = freedCampItem.completed_ts ?? 0;
+      const entry: OwnerInfoEntry = {
+        article: p.文章名,
+        name: freedCampItem.assigned_to_fullname,
+        assignedOn: timestamp ? formatLocalDateYyyyMmDd(timestamp) : 'Unknown',
+        status: freedCampItem.status_title || 'Unknown',
+        taskId: freedCampItem.id,
+        timestamp,
+      };
+      const existing = byName.get(entry.name);
+      if (!existing || entry.timestamp > existing.timestamp) {
+        byName.set(entry.name, entry);
+      }
+    }
+    return Array.from(byName.values()).sort((a, b) => b.timestamp - a.timestamp || a.name.localeCompare(b.name));
+  };
+  const openOwnerInfoDialogForAction = (action: ActionType) => {
+    setOwnerInfoDialog({
+      title: `Owner assignment for ${action}`,
+      entries: getOwnerInfoEntriesForAction(action),
+    });
+  };
   
 
   const startupRunOnce = useRef(false);
@@ -638,7 +670,26 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             <th style={stickyHeaderCellStyle}>作者</th>
             {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
               <th key={action} style={stickyHeaderCellStyle}>
-                {action}
+                <button
+                  type="button"
+                  onClick={() => openOwnerInfoDialogForAction(action)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    border: 'none',
+                    background: 'none',
+                    padding: 0,
+                    margin: 0,
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                  title={`Show all owners for ${action} sorted by date descending`}
+                >
+                  <span>{action}</span>
+                  <span style={{ fontSize: '0.9em' }}>👤</span>
+                </button>
               </th>
             ))}
             <th
@@ -755,6 +806,81 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           }
         </tbody>
       </table>      
+      {ownerInfoDialog && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'rgba(0,0,0,0.35)',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            zIndex: 2000,
+            padding: '1rem',
+          }}
+          onClick={closeOwnerInfoDialog}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 12px 30px rgba(0,0,0,0.25)',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              padding: '1rem 1.25rem',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{ownerInfoDialog.title}</h3>
+              <button
+                type="button"
+                onClick={closeOwnerInfoDialog}
+                style={{ border: 'none', background: '#6c757d', color: 'white', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer' }}
+              >
+                Close
+              </button>
+            </div>
+            <div style={{ marginTop: '1rem' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Article</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Owner</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Assigned</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Status</th>
+                    <th style={{ textAlign: 'left', padding: '8px', borderBottom: '1px solid #ddd' }}>Task ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ownerInfoDialog.entries.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center', color: '#555' }}>
+                        No owner assignment details available.
+                      </td>
+                    </tr>
+                  ) : (
+                    ownerInfoDialog.entries.map((entry, index) => (
+                      <tr key={`${entry.name}-${index}`}>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{entry.article}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{entry.name}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{entry.assignedOn}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{entry.status}</td>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{entry.taskId || '—'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
       {responseData && (
         <div style={{ marginTop: '2rem', textAlign: 'left' }}>
           <h2>Response Data:</h2>
