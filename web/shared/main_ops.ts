@@ -540,7 +540,7 @@ function getOperationInfo(combined: ICombinedOpsAndFreeCampData,
         };
 
         // Check if article is English-only (no Chinese characters)
-    const groupAndMainProjectMapping = combined.opsConfig.groupAndMainProjectMapping;
+    //const groupAndMainProjectMapping = combined.opsConfig.groupAndMainProjectMapping;
         // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
         // Old logic: skip action if disabled for English and editor is English-only (Brother/Sister)
         // New logic: show all actions, let UI checkbox determine if English template should be used
