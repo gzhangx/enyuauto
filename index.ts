@@ -76,7 +76,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
       try {
         if (action === 'del') opStr = 'del';
         console.log(`Performing operation: ${opStr} on line ${lineNumber}`);
-        const fops = mainOps.getFreeCampAndUpdateOperations(util.freedCampOps);
+        //const fops = mainOps.getFreeCampAndUpdateOperations(util.freedCampOps);
         //const mainCfg = await mainOps.getOpsAndMainList(ops, log);
         let sres: string[] = [];
         //const operation = mainOps.getOperationFromLineNumber(mainCfg.operationList, lineNumber);

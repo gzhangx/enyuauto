@@ -522,8 +522,9 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
 }
 
 
-function getOperationInfo(combined: ICombinedOpsAndFreeCampData,    
-    operation: IOperationWithLineNumberAndParentTaskId, log: DebugLog,) {
+function getOperationInfo(
+    operation: IOperationWithLineNumberAndParentTaskId,
+) {
     const article = operation['文章名'];
     //const fileName = operation['文件'];
     const infos: OperationInfo = {        
@@ -721,7 +722,7 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
     }
 
     for (const item of projectList) {
-        getOperationInfo(combinedOpsAndData, item, log);
+        getOperationInfo(item);
         const syncFreeCompToSheetParts = buildSyncUpdates(item, combinedOpsAndData);
         item.syncFreeCampToSheetData = syncFreeCompToSheetParts;
         const publishItem = item[`发布 FreeCamp Item`];
@@ -840,7 +841,6 @@ export function getActionsToPerform(
         */
         // ========== END COMMENTED OUT ==========
         const editor = operation[action];
-        const editorLookup = combined.opsConfig.editorInfoMap[editor];
         const editorName = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
 
         const AIActionName = `${action} AI` as ActionType;
@@ -896,7 +896,7 @@ export async function processOperation(
     const pr = freedCampOps.getFreedCampProcessor(combined.loginToken);
     {
         const fileName = operation['文件'];
-        const infos: OperationInfo = getOperationInfo(combined, operation, log);
+        const infos: OperationInfo = getOperationInfo(operation);
 
         // Check if article is English-only (no Chinese characters)
         

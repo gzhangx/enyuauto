@@ -14,6 +14,7 @@
     "allowSyntheticDefaultImports": true,
     "declaration": true,
     "declarationMap": true,
+    "noUnusedLocals": true,
     "sourceMap": true
   },
   "include": [
