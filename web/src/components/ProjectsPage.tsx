@@ -88,6 +88,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     actions: ActionsToPerformInfo[];
     selected: Partial<Record<ActionType, boolean>>;
     useEnglishTemplate: Partial<Record<ActionType, boolean>>;
+    useAITemplate: Partial<Record<ActionType, boolean>>;
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -454,6 +455,27 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       </label>
                     </div>
                   )}
+                  {row.hasAITemplate && createTasksDialog.selected[row.action] && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                      <input
+                        type="checkbox"
+                        id={`use-ai-${row.action}`}
+                        checked={createTasksDialog.useAITemplate[row.action] !== false}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setCreateTasksDialog((prev) => {
+                            if (!prev) return prev;
+                            const useAITemplate = { ...prev.useAITemplate };
+                            useAITemplate[row.action] = checked;
+                            return { ...prev, useAITemplate };
+                          });
+                        }}
+                      />
+                      <label htmlFor={`use-ai-${row.action}`} style={{ cursor: 'pointer', color: '#555', fontSize: '13px' }}>
+                        Use AI template
+                      </label>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
@@ -499,6 +521,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     },
                   };
                   try {
+                    const useAITemplateMap = new Map<ActionType, boolean>();
+                    for (const action of Object.keys(dlg.useAITemplate) as ActionType[]) {
+                      if (dlg.useAITemplate[action] !== false) {
+                        useAITemplateMap.set(action, true);
+                      }
+                    }
                     const useEnglishTemplateMap = new Map<ActionType, boolean>();
                     for (const action of Object.keys(dlg.useEnglishTemplate) as ActionType[]) {
                       if (dlg.useEnglishTemplate[action]) {
@@ -514,6 +542,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       logs,
                       '',
                       selectedSet,
+                      useAITemplateMap,
                       useEnglishTemplateMap,
                     );
                   } catch (error: unknown) {
@@ -736,8 +765,14 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       }
                       const selected: Partial<Record<ActionType, boolean>> = {};
                       const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
+                      const useAITemplate: Partial<Record<ActionType, boolean>> = {};
+                      for (const a of actions) {
+                        if (a.hasAITemplate) {
+                          useAITemplate[a.action] = true;
+                        }
+                      }
                       //for (const a of actions) selected[a.action] = true;
-                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate });
+                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate });
                     } catch (error: unknown) {
                       const err = error as { message?: string };
                       console.error('Error preparing project creation:', error);

@@ -775,15 +775,15 @@ export interface ActionsToPerformInfo {
     editorName: string;
     template: string;
     hasEnglishTemplate: boolean;
+    hasAITemplate: boolean;
 }
 /**
  * Returns the list of actions that still need to be performed for a given operation.
  * Mirrors the filtering logic in processOperation:
  *   - Skips actions whose task ID is already set.
  *   - Skips actions disabled for English-only articles.
- *   - When an action has its AI flag set (e.g. `校对 AI` = 'Y') AND a corresponding AI template
- *     exists, it is treated as an AI action. In that case actionExcludes is checked using the AI
- *     action name (e.g. `校对 AI`) to exclude other actions from the result.
+ *   - When an action has an AI template available, the create dialog exposes an AI checkbox.
+ *     If selected, processOperation will use the AI template instead of the regular template.
  */
 export function getActionsToPerform(
     operation: IOperationWithLineNumberAndParentTaskId,
@@ -793,19 +793,8 @@ export function getActionsToPerform(
 ): ActionsToPerformInfo[] {
     const { groupAndMainProjectMapping, templates } = combined.opsConfig;
 
-    //real actions, replacing name with AI if found. however since config is still none-ai, this is only used to do exclusions.
-    const allRealActions: ActionType[] = groupAndMainProjectMapping.actions.map(action => {
-        const AIActionName = `${action} AI` as ActionType;
-        const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
-        if (isAIAction && templates[AIActionName]) {
-            return AIActionName;
-        } else {
-            return action;
-        }
-    });    
-
     const excludedActions = new Set<ActionType>();
-    for (const action of allRealActions) {
+    for (const action of groupAndMainProjectMapping.actions) {
         const excludes = groupAndMainProjectMapping.actionExcludes[action];
         if (excludes) {
             for (const excluded of excludes) {
@@ -843,26 +832,18 @@ export function getActionsToPerform(
         const editor = operation[action];
         const editorName = getEditorNameForAction(editor, combined) || 'EDITOR NOTSET';
 
-        const AIActionName = `${action} AI` as ActionType;
-        const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
-        const regularAction = templates[action];
-        const curTemplateActionInfo = isAIAction ? templates[AIActionName] || templates[action] : regularAction;
-        if (isAIAction && curTemplateActionInfo === regularAction) {
-            log.doLog(`processOperation: AI action ${AIActionName} is enabled for file ${fileName} but template for it is not found, falling back to regular action ${action} template`, true);
-        }
         const existingTaskId = getExistingTaskId(action, operation);
         if (existingTaskId) {
             log.doLog(`processOperation: skipping action ${action} for file ${fileName} as task ID ${existingTaskId} exists`);
             taskIds.push(existingTaskId);
             continue;
         }
-        let template1 = curTemplateActionInfo.template;
-        // ========== AFTER ENGLISH REFACTOR: no longer auto-select English template here ==========
-        // Previously: if (isEnglishOnly && curTemplateActionInfo.templateEnglish) { template1 = curTemplateActionInfo.templateEnglish; }
-        // Now: English template selection is done in UI checkbox, passed via useEnglishTemplateMap to processOperation
-        const hasEnglishTemplate = !!curTemplateActionInfo.templateEnglish;
-        // ========== END AFTER ENGLISH REFACTOR ==========
-        //const link = action === '校对' ? infos.link : undefined;
+        const regularAction = templates[action];
+        const AIActionName = `${action} AI` as ActionType;
+        const aiAction = templates[AIActionName];
+        let template1 = regularAction.template;
+        const hasEnglishTemplate = !!regularAction.templateEnglish || !!aiAction?.templateEnglish;
+        const hasAITemplate = !!aiAction;
 
         actionsToPerform.push({
             action,
@@ -870,6 +851,7 @@ export function getActionsToPerform(
             editor,
             template: template1,
             hasEnglishTemplate,
+            hasAITemplate,
         });
     }
     return actionsToPerform;
@@ -886,6 +868,7 @@ export async function processOperation(
     /** When set, only FreedCamp tasks for these action keys are created (must be a subset of `getActionsToPerform`). */
     selectedActions?: ReadonlySet<ActionType>,
     /** Map of action -> whether to use English template (if available). */
+    useAITemplateMap?: Map<ActionType, boolean>,
     useEnglishTemplateMap?: Map<ActionType, boolean>,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
@@ -938,18 +921,19 @@ export async function processOperation(
             //let template1 = curTemplateActionInfo.template;
             // ========== END BEFORE ENGLISH REFACTOR ==========
             let template1 = actionP.template;
-            // ========== AFTER ENGLISH REFACTOR: new code that uses user selection from UI checkbox ==========
-            // Check if user selected to use English template for this action
-            if (useEnglishTemplateMap?.get(action) && actionP.hasEnglishTemplate) {
-                const regularAction = combined.opsConfig.templates[action];
-                const AIActionName = `${action} AI` as ActionType;
-                const isAIAction = (operation[AIActionName] || '').toUpperCase() === 'Y';
-                const curTemplateActionInfo = isAIAction ? combined.opsConfig.templates[AIActionName] || regularAction : regularAction;
-                if (curTemplateActionInfo.templateEnglish) {
-                    template1 = curTemplateActionInfo.templateEnglish;
-                }
+            const regularAction = combined.opsConfig.templates[action];
+            const AIActionName = `${action} AI` as ActionType;
+            const aiAction = combined.opsConfig.templates[AIActionName];
+            const useAIAction = !!useAITemplateMap?.get(action);
+            const curTemplateActionInfo = useAIAction && aiAction ? aiAction : regularAction;
+            if (useAIAction && !aiAction) {
+                log.doLog(`processOperation: AI template requested for action ${action}, but ${AIActionName} was not found. Falling back to regular template.`, true);
             }
-            // ========== END AFTER ENGLISH REFACTOR ==========
+            if (useEnglishTemplateMap?.get(action) && curTemplateActionInfo.templateEnglish) {
+                template1 = curTemplateActionInfo.templateEnglish;
+            } else {
+                template1 = curTemplateActionInfo.template;
+            }
             const editor = operation[action];
             const link = action === '校对' ? infos.link : undefined;            
             
