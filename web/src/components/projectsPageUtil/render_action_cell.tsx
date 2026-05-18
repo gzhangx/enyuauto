@@ -346,6 +346,20 @@ export function renderActionCell(
 			</span>
 		);
 	}
+	let assignedEditorDsp: JSX.Element | null = null;
+	if (hasAssignedTo && !hasCompletedDate) {
+		const dueDateValue = freedCampItem?.due_ts ? formatLocalDateYyyyMmDd(freedCampItem.due_ts) : (p[`${action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as unknown as string);
+		const dueDate = typeof dueDateValue === 'string' ? dueDateValue : String(dueDateValue || '');
+		assignedEditorDsp = (
+			<span
+				style={{ fontWeight: 'normal' }}
+				title={`Assigned to: ${freedCampItem?.assigned_to_fullname}\nDue: ${dueDate || 'N/A'}`}
+			>
+				{freedCampItem?.assigned_to_fullname}
+				{dueDate && <span style={{ marginLeft: '8px', color: '#666', fontSize: '0.9em' }}>({dueDate})</span>}
+			</span>
+		);
+	}
 	return (
 		<>
 			{ !hasAssignedTo && !hasCompletedDate && <button
@@ -361,7 +375,7 @@ export function renderActionCell(
 			</button>
 			}
 			{
-				hasAssignedTo && !hasCompletedDate && (freedCampItem.assigned_to_fullname)
+				assignedEditorDsp
 			}
 			{
 				dateEditorDsp
