@@ -356,7 +356,6 @@ export function renderActionCell(
 				title={`Assigned to: ${freedCampItem?.assigned_to_fullname}\nDue: ${dueDate || 'N/A'}`}
 			>
 				{freedCampItem?.assigned_to_fullname}
-				{dueDate && <span style={{ marginLeft: '8px', color: '#666', fontSize: '0.9em' }}>({dueDate})</span>}
 			</span>
 		);
 	}
