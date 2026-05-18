@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
-import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type SyncUpdateItem, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
 import { findOrCreateExcelFile } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
@@ -380,7 +380,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
         shortProjectNameToProjectId: {} as {
             [key in ActionType]: {
                 project_id: string;
-                subTaskOf?: ActionType;
+                mappingConfig: ProjectActionMappingConfig;
             }; //populated later after we login to freedcamp
         },
         actionExcludes: {},
@@ -397,10 +397,9 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2].trim() as ActionType,
-                subTaskOfFromSheetConfig: row[3] ? row[3].trim() as ActionType : undefined,
-                // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
-                // isTaskEnabledForEnglishFromSheetConfig: row[4]?.trim() === 'N' ? 'N' : '',
-                // ========== END COMMENTED OUT ==========
+                copyFileFrom: row[3]?.trim() || undefined,
+                copyFileTo: row[4]?.trim() || undefined,
+                replaceInTemplateCopiedFile: row[5]?.trim() || undefined,
             };
         }
         if (row[0] === 'actionExcludes') {
@@ -434,7 +433,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
 
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
                 project_id: proj.project_id,
-                subTaskOf: projectInfo.subTaskOfFromSheetConfig,
+                mappingConfig: projectInfo,
                 // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
                 // isTaskEnabledForEnglish: projectInfo.isTaskEnabledForEnglishFromSheetConfig !== 'N',
                 // ========== END COMMENTED OUT ==========
@@ -645,37 +644,37 @@ function buildSyncUpdates(
 
 export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampData, projectList: IOperationWithLineNumberAndParentTaskId[],log: DebugLog) {
     const opsConfig = combinedOpsAndData.opsConfig;
-    const actionToTitleToProjectAndTaskIdMap: {
-      [action in ActionType]?: {
-        [title: string]: {
-          projectId: string;
-          taskId: string;
-          task: IOperationWithLineNumberAndParentTaskId;
-        };
-      };
-    } = {};
+    // const actionToTitleToProjectAndTaskIdMap: {
+    //   [action in ActionType]?: {
+    //     [title: string]: {
+    //       projectId: string;
+    //       taskId: string;
+    //       task: IOperationWithLineNumberAndParentTaskId;
+    //     };
+    //   };
+    // } = {};
     console.log('Checking for done sub-tasks to mark main tasks as done...');
-      opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
-        const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
-        if (actionInfo && actionInfo.subTaskOf) {
-          const subTaskOfAction = actionInfo.subTaskOf;
-          projectList.forEach(item => {
-            if (item[getTaskIdColumnName(subTaskOfAction)] === 'done' && !item[getTaskIdColumnName(action)]) {
-              console.log(`EARNNN ${item.文件} ${item.文章名} ${action} as done for line ${item.itemPositionOnSheet} because ${subTaskOfAction} is done`);
-              const prj = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[subTaskOfAction];
-              if (prj) {
-                console.log(`Debugrm parent project ${subTaskOfAction} project id ${prj.project_id} to check if all sub-tasks are done`);
-                if (!actionToTitleToProjectAndTaskIdMap[subTaskOfAction]) actionToTitleToProjectAndTaskIdMap[subTaskOfAction] = {};                
-                actionToTitleToProjectAndTaskIdMap[subTaskOfAction]![item.文件] = {
-                  projectId: prj.project_id,
-                  taskId: '',
-                  task: item,
-                };
-              }
-            }
-          });
-        }
-      });
+    //   opsConfig.groupAndMainProjectMapping.actions.forEach(action => {
+    //     const actionInfo = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action];
+    //     if (actionInfo && actionInfo.subTaskOf) {
+    //       const subTaskOfAction = actionInfo.subTaskOf;
+    //       projectList.forEach(item => {
+    //         if (item[getTaskIdColumnName(subTaskOfAction)] === 'done' && !item[getTaskIdColumnName(action)]) {
+    //           console.log(`EARNNN ${item.文件} ${item.文章名} ${action} as done for line ${item.itemPositionOnSheet} because ${subTaskOfAction} is done`);
+    //           const prj = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[subTaskOfAction];
+    //           if (prj) {
+    //             console.log(`Debugrm parent project ${subTaskOfAction} project id ${prj.project_id} to check if all sub-tasks are done`);
+    //             if (!actionToTitleToProjectAndTaskIdMap[subTaskOfAction]) actionToTitleToProjectAndTaskIdMap[subTaskOfAction] = {};                
+    //             actionToTitleToProjectAndTaskIdMap[subTaskOfAction]![item.文件] = {
+    //               projectId: prj.project_id,
+    //               taskId: '',
+    //               task: item,
+    //             };
+    //           }
+    //         }
+    //       });
+    //     }
+    //   });
     
     let updated = false;
     if (combinedOpsAndData)
@@ -955,24 +954,24 @@ export async function processOperation(
             }
 
 
-            let projectGrpoup = combined.projectGroupMapping[action];
-            const subTaskOf = actionConfig.subTaskOf;
+            let projectGrpoup = combined.projectGroupMapping[action];            
             let taskTitle = `${debug_Prefix}${fileName}`
-            if (subTaskOf) {
-                let h_parent_id = getExistingTaskId(subTaskOf, operation);
-                if (!h_parent_id || h_parent_id === 'done') {
-                    h_parent_id = operation[getParentTaskIdColumnName(subTaskOf)] as string;
-                    if (!h_parent_id) {
-                        log.doLog(`processOperation: Warning no parent task ID found for subtask action ${action} with parent action ${subTaskOf} for file ${fileName}`);
-                        throw new Error(`No parent task ID found for subtask action ${action} with parent action ${subTaskOf}`);
-                    }
+            //const subTaskOf = actionConfig.subTaskOf;
+            // if (subTaskOf) {
+            //     let h_parent_id = getExistingTaskId(subTaskOf, operation);
+            //     if (!h_parent_id || h_parent_id === 'done') {
+            //         h_parent_id = operation[getParentTaskIdColumnName(subTaskOf)] as string;
+            //         if (!h_parent_id) {
+            //             log.doLog(`processOperation: Warning no parent task ID found for subtask action ${action} with parent action ${subTaskOf} for file ${fileName}`);
+            //             throw new Error(`No parent task ID found for subtask action ${action} with parent action ${subTaskOf}`);
+            //         }
 
-                }
-                projectGrpoup = { ...combined.projectGroupMapping[subTaskOf] };
-                projectGrpoup.h_parent_id = h_parent_id;
-                projectGrpoup.description = template1;
-                taskTitle = action;
-            }
+            //     }
+            //     projectGrpoup = { ...combined.projectGroupMapping[subTaskOf] };
+            //     projectGrpoup.h_parent_id = h_parent_id;
+            //     projectGrpoup.description = template1;
+            //     taskTitle = action;
+            // }
             const taskRes = await pr.createTask(projectGrpoup, taskTitle);
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
@@ -1008,9 +1007,9 @@ export async function processOperation(
             }            
             log.doLog(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date
-            if (!subTaskOf) {
-                await pr.doPostAttachment(taskId, postParams);
-            }
+            //if (!subTaskOf) {
+            //    await pr.doPostAttachment(taskId, postParams);
+            //}
         }
     }
     return taskIds;

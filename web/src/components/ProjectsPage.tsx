@@ -399,31 +399,31 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                             combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
                           const selected = { ...prev.selected };
 
-                          const collectDescendants = (par: ActionType): ActionType[] => {
-                            const out: ActionType[] = [];
-                            for (const item of prev.actions) {
-                              const cfg = mapping[item.action];
-                              if (cfg?.subTaskOf === par) {
-                                out.push(item.action, ...collectDescendants(item.action));
-                              }
-                            }
-                            return out;
-                          };
+                          // const collectDescendants = (par: ActionType): ActionType[] => {
+                          //   const out: ActionType[] = [];
+                          //   for (const item of prev.actions) {
+                          //     const cfg = mapping[item.action];
+                          //     if (cfg?.subTaskOf === par) {
+                          //       out.push(item.action, ...collectDescendants(item.action));
+                          //     }
+                          //   }
+                          //   return out;
+                          // };
 
                           if (checked) {
                             selected[row.action] = true;
-                            let parent = mapping[row.action]?.subTaskOf;
-                            while (parent) {
-                              if (prev.actions.some((x) => x.action === parent)) {
-                                selected[parent] = true;
-                              }
-                              parent = mapping[parent]?.subTaskOf;
-                            }
+                            // let parent = mapping[row.action]?.subTaskOf;
+                            // while (parent) {
+                            //   if (prev.actions.some((x) => x.action === parent)) {
+                            //     selected[parent] = true;
+                            //   }
+                            //   parent = mapping[parent]?.subTaskOf;
+                            // }
                           } else {
                             selected[row.action] = false;
-                            for (const desc of collectDescendants(row.action)) {
-                              selected[desc] = false;
-                            }
+                            // for (const desc of collectDescendants(row.action)) {
+                            //   selected[desc] = false;
+                            // }
                           }
                           return { ...prev, selected };
                         });

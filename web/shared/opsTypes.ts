@@ -103,22 +103,23 @@ export type Templates = {
     }
 };
 
+export interface ProjectActionMappingConfig {
+    shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
+    copyFileFrom?: string;
+    copyFileTo?: string;
+    replaceInTemplateCopiedFile?: string;
+}
+
 export interface IGroupAndMainProjectLongToShortNameMapping {
     groupName: string; //EnYu_2026
     actions: ActionType[];
     taskLongToShortNameMapping: {
-        [key: string]: {
-            shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
-            subTaskOfFromSheetConfig?: ActionType;
-            // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
-            // isTaskEnabledForEnglishFromSheetConfig?: '' | 'N';
-            // ========== END COMMENTED OUT ==========
-        }; 
+        [key: string]: ProjectActionMappingConfig;
     };
     shortProjectNameToProjectId: { //populated later after we login to freedcamp
         [key in ActionType]: {
             project_id: string;
-            subTaskOf?: ActionType;
+            mappingConfig: ProjectActionMappingConfig;
             // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
             // isTaskEnabledForEnglish?: boolean;
             // ========== END COMMENTED OUT ==========
