@@ -2,8 +2,8 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
-import { getCompleteDateColumnName, getParentTaskIdColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
-import { findOrCreateExcelFile } from '../src/lib/msGraphConfig';
+import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
+import { copySharePointFile, findOrCreateExcelFile } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -869,6 +869,7 @@ export async function processOperation(
     /** Map of action -> whether to use English template (if available). */
     useAITemplateMap?: Map<ActionType, boolean>,
     useEnglishTemplateMap?: Map<ActionType, boolean>,
+    msToken?: string,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
@@ -953,6 +954,20 @@ export async function processOperation(
                 template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
 
+            const mappingConfig = actionConfig.mappingConfig;
+            if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
+                const sourceValue = (operation as any)[mappingConfig.copyFileFrom] as string | undefined;
+                const destValue = (operation as any)[mappingConfig.copyFileTo] as string | undefined;
+                if (sourceValue?.trim() && destValue?.trim()) {
+                    if (!msToken) {
+                        throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
+                    }
+                    const copiedFileWebUrl = await copySharePointFile(msToken, sourceValue.trim(), destValue.trim());
+                    if (mappingConfig.replaceInTemplateCopiedFile) {
+                        template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
+                    }
+                }
+            }
 
             let projectGrpoup = combined.projectGroupMapping[action];            
             let taskTitle = `${debug_Prefix}${fileName}`

@@ -549,6 +549,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       selectedSet,
                       useAITemplateMap,
                       useEnglishTemplateMap,
+                      msToken || undefined,
                     );
                   } catch (error: unknown) {
                     const err = error as { message?: string };

@@ -90,3 +90,96 @@ export async function findOrCreateExcelFile(
   log(`Created file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${created.id})`);
   return { itemId: created.id as string, driveRoot };
 }
+
+function normalizeSharePointPath(rawValue: string): string {
+  let value = rawValue.trim();
+  const qIndex = value.indexOf('?');
+  if (qIndex >= 0) value = value.slice(0, qIndex);
+  if (value.startsWith('https://graph.microsoft.com')) {
+    const driveRootMatch = value.match(/\/drive\/root:(\/.*?)(?:$|\/|\?)/);
+    if (driveRootMatch) return driveRootMatch[1].replace(/^\/+/, '');
+    const siteRootMatch = value.match(/\/sites\/[^/]+:[^/]+:.*?\/drive\/root:(\/.*?)(?:$|\/|\?)/);
+    if (siteRootMatch) return siteRootMatch[1].replace(/^\/+/, '');
+  }
+  if (value.startsWith('https://')) {
+    const sitePathIndex = value.indexOf('/sites/enyueditors/');
+    if (sitePathIndex >= 0) {
+      const path = value.slice(sitePathIndex + '/sites/enyueditors/'.length);
+      if (path.startsWith('Shared%20Documents/')) {
+        return decodeURIComponent(path.slice('Shared%20Documents/'.length));
+      }
+      if (path.startsWith('Shared Documents/')) {
+        return path.slice('Shared Documents/'.length);
+      }
+      return path.replace(/^\/+/, '');
+    }
+  }
+  return value.replace(/^\/+/, '');
+}
+
+async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: string): Promise<{ id: string; name: string; webUrl: string }> {
+  const path = itemPath.replace(/^\/+/, '');
+  const res = await fetch(`${driveRoot}/root:/${encodeURI(path)}`, {
+    headers: { Authorization: `Bearer ${msToken}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  return await res.json() as { id: string; name: string; webUrl: string };
+}
+
+async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>): Promise<{ webUrl: string }> {
+  const start = Date.now();
+  while (true) {
+    const res = await fetch(location, { headers: authHeaders });
+    if (res.status === 202) {
+      if (Date.now() - start > 20000) {
+        throw new Error('Timed out waiting for Graph copy operation to complete');
+      }
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      continue;
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error((body as any)?.error?.message || res.statusText);
+    }
+    return await res.json() as { webUrl: string };
+  }
+}
+
+export async function copySharePointFile(
+  msToken: string,
+  sourceFileUrl: string,
+  destinationFolderUrl: string,
+): Promise<string> {
+  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+  const sourcePath = normalizeSharePointPath(sourceFileUrl);
+  const destPath = normalizeSharePointPath(destinationFolderUrl).replace(/\/+$/, '');
+
+  const sourceItem = await getDriveItemByPath(msToken, driveRoot, sourcePath);
+  const parentReference = {
+    path: destPath ? `/drive/root:/${destPath}` : '/drive/root:',
+  };
+  const copyRes = await fetch(`${driveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${msToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      parentReference,
+      name: sourceItem.name,
+    }),
+  });
+  if (!copyRes.ok && copyRes.status !== 202) {
+    const body = await copyRes.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || copyRes.statusText);
+  }
+  const location = copyRes.headers.get('Location');
+  if (!location) {
+    throw new Error('Graph copy response did not include Location header');
+  }
+  const result = await waitForGraphCopyCompletion(location, { Authorization: `Bearer ${msToken}` });
+  return result.webUrl;
+}
