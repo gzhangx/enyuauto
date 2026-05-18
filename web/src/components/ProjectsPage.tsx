@@ -431,7 +431,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     />
                     <label htmlFor={`create-task-${row.action}`} style={{ cursor: 'pointer', flex: 1 }}>
                       <strong>{row.action}</strong>
-                      <span style={{ color: '#666', marginLeft: '8px' }}>{row.editorName}</span>
+                      <span 
+                        style={{ color: '#666', marginLeft: '8px' }} 
+                        title={`Due: ${createTasksDialog.operation[`${row.action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as string || 'N/A'}`}
+                      >
+                        {row.editorName}
+                      </span>
                     </label>
                   </div>
                   {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
