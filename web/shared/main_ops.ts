@@ -693,7 +693,11 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
                 const freedCampTsks = prjs.tasks.filter(tsk => tsk.title?.includes(itm.文件));
                 if (freedCampTsks.length !== 0) {
                     if (freedCampTsks.length > 1) {
-                        log.doLog(`Warning: multiple FreedCamp tasks found for ${itm.文件} in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
+                        let warnSTr = itm.文件;
+                        if (!warnSTr) {
+                            warnSTr = 'itm.文件 is empty';
+                        }
+                        log.doLog(`Warning: multiple FreedCamp tasks found for '${warnSTr}' in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
                     } else {
                         itm[`${action} FreeCamp Item`] = freedCampTsks[0];
                     }
