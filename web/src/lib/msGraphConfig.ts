@@ -91,10 +91,31 @@ export async function findOrCreateExcelFile(
   return { itemId: created.id as string, driveRoot };
 }
 
-function normalizeSharePointPath(rawValue: string): string {
+function encodeSharingUrl(url: string): string {
+  const b64 = btoa(url).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  return 'u!' + b64;
+}
+
+async function resolveSharePointSharingUrl(msToken: string, sharingUrl: string): Promise<{ id: string; name: string; parentReference?: { path?: string; driveId?: string } }> {
+  const encoded = encodeSharingUrl(sharingUrl.trim());
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem?$select=id,name,parentReference`,
+    { headers: { Authorization: `Bearer ${msToken}` } }
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  return await res.json() as { id: string; name: string; parentReference?: { path?: string; driveId?: string } };
+}
+
+export async function resolveSharePointPath(rawValue: string, msToken?: string): Promise<string> {
   let value = rawValue.trim();
   const qIndex = value.indexOf('?');
   if (qIndex >= 0) value = value.slice(0, qIndex);
+  if (!value.startsWith('http://') && !value.startsWith('https://')) {
+    return value.replace(/^\/+/, '');
+  }
   if (value.startsWith('https://graph.microsoft.com')) {
     const driveRootMatch = value.match(/\/drive\/root:(\/.*?)(?:$|\/|\?)/);
     if (driveRootMatch) return driveRootMatch[1].replace(/^\/+/, '');
@@ -113,8 +134,24 @@ function normalizeSharePointPath(rawValue: string): string {
       }
       return path.replace(/^\/+/, '');
     }
+    if (!msToken) {
+      throw new Error(`Cannot resolve SharePoint sharing URL without msToken: ${rawValue}`);
+    }
+    const shareItem = await resolveSharePointSharingUrl(msToken, value);
+    const shareItemPath = shareItem.parentReference?.path;
+    if (!shareItemPath) {
+      throw new Error(`Unable to resolve path from SharePoint sharing URL: ${rawValue}`);
+    }
+    return `${shareItemPath.replace(/^\/drive\/root:/, '').replace(/^\/+/g, '')}/${shareItem.name}`;
   }
   return value.replace(/^\/+/, '');
+}
+
+export async function joinSharePointPath(msToken: string, basePath: string, relativePath: string): Promise<string> {
+  const base = await resolveSharePointPath(basePath, msToken);
+  const normalizedBase = base.replace(/[\\/]+$/g, '');
+  const normalizedRelative = relativePath.replace(/^[\\/]+/g, '');
+  return `${normalizedBase}/${normalizedRelative}`;
 }
 
 async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: string): Promise<{ id: string; name: string; webUrl: string }> {
@@ -154,8 +191,8 @@ export async function copySharePointFile(
   destinationFolderUrl: string,
 ): Promise<string> {
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
-  const sourcePath = normalizeSharePointPath(sourceFileUrl);
-  const destPath = normalizeSharePointPath(destinationFolderUrl).replace(/\/+$/, '');
+  const sourcePath = await resolveSharePointPath(sourceFileUrl, msToken);
+  const destPath = (await resolveSharePointPath(destinationFolderUrl, msToken)).replace(/\/+$/, '');
 
   const sourceItem = await getDriveItemByPath(msToken, driveRoot, sourcePath);
   const parentReference = {

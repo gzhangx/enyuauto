@@ -3,7 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
-import { copySharePointFile, findOrCreateExcelFile } from '../src/lib/msGraphConfig';
+import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -961,7 +961,9 @@ export async function processOperation(
             const mappingConfig = actionConfig.mappingConfig;
             if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
                 const sourceValue = (operation as any)[mappingConfig.copyFileFrom] as string | undefined;
-                const destValue = (operation as any)[mappingConfig.copyFileTo] as string | undefined;
+                const destValue = operation.mainFolder
+                    ? await joinSharePointPath(msToken!, operation.mainFolder, mappingConfig.copyFileTo)
+                    : undefined;
                 if (sourceValue?.trim() && destValue?.trim()) {
                     if (!msToken) {
                         throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
