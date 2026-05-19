@@ -109,30 +109,53 @@ async function resolveSharePointSharingUrl(msToken: string, sharingUrl: string):
   return await res.json() as { id: string; name: string; parentReference?: { path?: string; driveId?: string } };
 }
 
-export async function resolveSharePointPath(rawValue: string, msToken?: string): Promise<string> {
+export interface ResolvedSharePointPath {
+  driveId?: string;
+  driveRootUrl?: string;
+  path: string;
+}
+
+function normalizeSharePointWebUrl(value: string): { driveRootUrl: string; path: string } | null {
+  try {
+    const url = new URL(value);
+    const pathname = decodeURIComponent(url.pathname);
+    const siteRootMatch = pathname.match(/^\/(sites|teams|personal)\/[^/]+\//i);
+    if (!siteRootMatch) return null;
+
+    const siteRoot = pathname.match(/^\/((?:sites|teams|personal)\/[^/]+)\//i)?.[1];
+    if (!siteRoot) return null;
+
+    const relativePath = pathname.slice(siteRootMatch[0].length).replace(/^\/+/, '');
+    const normalizedPath = relativePath.startsWith('Shared Documents/')
+      ? relativePath.slice('Shared Documents/'.length)
+      : relativePath;
+
+    return {
+      driveRootUrl: `https://graph.microsoft.com/v1.0/sites/${url.hostname}:/${siteRoot}:/drive`,
+      path: normalizedPath,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveSharePointPath(rawValue: string, msToken?: string): Promise<ResolvedSharePointPath> {
   let value = rawValue.trim();
   const qIndex = value.indexOf('?');
   if (qIndex >= 0) value = value.slice(0, qIndex);
   if (!value.startsWith('http://') && !value.startsWith('https://')) {
-    return value.replace(/^\/+/, '');
+    return { path: value.replace(/^\/+/, '') };
   }
   if (value.startsWith('https://graph.microsoft.com')) {
     const driveRootMatch = value.match(/\/drive\/root:(\/.*?)(?:$|\/|\?)/);
-    if (driveRootMatch) return driveRootMatch[1].replace(/^\/+/, '');
+    if (driveRootMatch) return { path: driveRootMatch[1].replace(/^\/+/, '') };
     const siteRootMatch = value.match(/\/sites\/[^/]+:[^/]+:.*?\/drive\/root:(\/.*?)(?:$|\/|\?)/);
-    if (siteRootMatch) return siteRootMatch[1].replace(/^\/+/, '');
+    if (siteRootMatch) return { path: siteRootMatch[1].replace(/^\/+/, '') };
   }
   if (value.startsWith('https://')) {
-    const sitePathIndex = value.indexOf('/sites/enyueditors/');
-    if (sitePathIndex >= 0) {
-      const path = value.slice(sitePathIndex + '/sites/enyueditors/'.length);
-      if (path.startsWith('Shared%20Documents/')) {
-        return decodeURIComponent(path.slice('Shared%20Documents/'.length));
-      }
-      if (path.startsWith('Shared Documents/')) {
-        return path.slice('Shared Documents/'.length);
-      }
-      return path.replace(/^\/+/, '');
+    const genericWeb = normalizeSharePointWebUrl(value);
+    if (genericWeb) {
+      return { driveRootUrl: genericWeb.driveRootUrl, path: genericWeb.path };
     }
     if (!msToken) {
       throw new Error(`Cannot resolve SharePoint sharing URL without msToken: ${rawValue}`);
@@ -142,21 +165,35 @@ export async function resolveSharePointPath(rawValue: string, msToken?: string):
     if (!shareItemPath) {
       throw new Error(`Unable to resolve path from SharePoint sharing URL: ${rawValue}`);
     }
-    return `${shareItemPath.replace(/^\/drive\/root:/, '').replace(/^\/+/g, '')}/${shareItem.name}`;
+    const normalizedParentPath = shareItemPath.replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/+/g, '');
+    return {
+      driveId: shareItem.parentReference?.driveId,
+      path: `${normalizedParentPath}/${shareItem.name}`.replace(/^\/+/g, ''),
+    };
   }
-  return value.replace(/^\/+/, '');
+  return { path: value.replace(/^\/+/, '') };
 }
 
-export async function joinSharePointPath(msToken: string, basePath: string, relativePath: string): Promise<string> {
+export async function joinSharePointPath(msToken: string, basePath: string, relativePath: string): Promise<ResolvedSharePointPath> {
   const base = await resolveSharePointPath(basePath, msToken);
-  const normalizedBase = base.replace(/[\\/]+$/g, '');
-  const normalizedRelative = relativePath.replace(/^[\\/]+/g, '');
-  return `${normalizedBase}/${normalizedRelative}`;
+  const normalizedBase = base.path.replace(/[\/]+$/g, '');
+  const normalizedRelative = relativePath.replace(/^[\/]+/g, '');
+  return {
+    driveId: base.driveId,
+    driveRootUrl: base.driveRootUrl,
+    path: `${normalizedBase}/${normalizedRelative}`,
+  };
 }
 
-async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: string): Promise<{ id: string; name: string; webUrl: string }> {
+
+async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: string, driveId?: string, driveRootUrl?: string): Promise<{ id: string; name: string; webUrl: string }> {
   const path = itemPath.replace(/^\/+/, '');
-  const res = await fetch(`${driveRoot}/root:/${encodeURI(path)}`, {
+  const url = driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(driveId)}/root:/${encodeURI(path)}`
+    : driveRootUrl
+      ? `${driveRootUrl}/root:/${encodeURI(path)}`
+      : `${driveRoot}/root:/${encodeURI(path)}`;
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${msToken}` },
   });
   if (!res.ok) {
@@ -164,6 +201,18 @@ async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: 
     throw new Error((body as any)?.error?.message || res.statusText);
   }
   return await res.json() as { id: string; name: string; webUrl: string };
+}
+
+async function resolveDriveIdForRoot(msToken: string, driveRootUrl: string): Promise<string> {
+  const res = await fetch(`${driveRootUrl}?$select=id`, {
+    headers: { Authorization: `Bearer ${msToken}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  const data = await res.json() as { id: string };
+  return data.id;
 }
 
 async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>): Promise<{ webUrl: string }> {
@@ -191,14 +240,28 @@ export async function copySharePointFile(
   destinationFolderUrl: string,
 ): Promise<string> {
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
-  const sourcePath = await resolveSharePointPath(sourceFileUrl, msToken);
-  const destPath = (await resolveSharePointPath(destinationFolderUrl, msToken)).replace(/\/+$/, '');
+  const sourcePathResult = await resolveSharePointPath(sourceFileUrl, msToken);
+  const destinationPathResult = await resolveSharePointPath(destinationFolderUrl, msToken);
+  const destPath = destinationPathResult.path.replace(/\/+$/, '');
 
-  const sourceItem = await getDriveItemByPath(msToken, driveRoot, sourcePath);
+  const sourceItem = await getDriveItemByPath(
+    msToken,
+    driveRoot,
+    sourcePathResult.path,
+    sourcePathResult.driveId,
+    sourcePathResult.driveRootUrl,
+  );
+
+  const destinationDriveId = destinationPathResult.driveId
+    ?? (destinationPathResult.driveRootUrl ? await resolveDriveIdForRoot(msToken, destinationPathResult.driveRootUrl) : undefined);
   const parentReference = {
+    driveId: destinationDriveId,
     path: destPath ? `/drive/root:/${destPath}` : '/drive/root:',
   };
-  const copyRes = await fetch(`${driveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy`, {
+  const sourceDriveRoot = sourcePathResult.driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(sourcePathResult.driveId)}`
+    : sourcePathResult.driveRootUrl ?? driveRoot;
+  const copyRes = await fetch(`${sourceDriveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${msToken}`,
