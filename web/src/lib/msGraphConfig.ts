@@ -244,6 +244,9 @@ async function waitForGraphCopyCompletion(location: string, authHeaders: Record<
     }
     const rr = await res.json() as WaitFileResultRes;
     log.doLog(`Waiting ${location} got res ${JSON.stringify(rr)}`);
+    if (rr.status === 'failed' || rr.status === 'inProgress') {
+      continue;
+    }
     return rr;
   }
 }
