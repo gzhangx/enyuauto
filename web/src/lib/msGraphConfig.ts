@@ -224,7 +224,7 @@ interface WaitFileResultRes {
     target: string; //;"01BDEZ3HBZS2ZJTK6F5RHYYUWYSG65AZTZ"
    }
 }
-async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>, log:DebugLog): Promise<WaitFileResultRes> {
+async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>, log:DebugLog): Promise<string> {
   const start = Date.now();
   while (true) {
     const res = await fetch(location, { headers: authHeaders });
@@ -239,15 +239,16 @@ async function waitForGraphCopyCompletion(location: string, authHeaders: Record<
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      log.doLog(`Waiting ${location} error!`)
-      throw new Error((body as any)?.error?.message || res.statusText);
+      log.doLog(`Waiting ${location} error! ${(body as any).error}`)
+      //throw new Error((body as any)?.error?.message || res.statusText);
+      return location;
     }
     const rr = await res.json() as WaitFileResultRes;
     log.doLog(`Waiting ${location} got res ${JSON.stringify(rr)}`);
     if (rr.status === 'failed' || rr.status === 'inProgress') {
       continue;
     }
-    return rr;
+    return location;
   }
 }
 
@@ -320,8 +321,6 @@ export async function copySharePointFile(
 //     "target": "01BDEZ3HBZS2ZJTK6F5RHYYUWYSG65AZTZ"
 //   }
   // }
-  if (result.error) {
-    log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} failed with ${result.error.message}`);
-  }
-  return result.webUrl;
+  
+  return result;
 }
