@@ -294,6 +294,6 @@ export async function copySharePointFile(
     throw new Error('Graph copy response did not include Location header');
   }
   log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} got location ${location}`);
-  const result = await waitForGraphCopyCompletion(location, { Authorization: `Bearer ${msToken}` });
+  const result = await waitForGraphCopyCompletion(location, { Authorization: `Bearer ${msToken}` }, log);
   return result.webUrl;
 }
