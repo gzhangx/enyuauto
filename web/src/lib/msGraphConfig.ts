@@ -215,7 +215,16 @@ async function resolveDriveIdForRoot(msToken: string, driveRootUrl: string): Pro
   return data.id;
 }
 
-async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>, log:DebugLog): Promise<{ webUrl: string }> {
+interface WaitFileResultRes {
+  webUrl: string;
+  status: string;  //"failed",
+  error: {
+    code: string;  //"nameAlreadyExists",
+    message: string; //"Name already exists",
+    target: string; //;"01BDEZ3HBZS2ZJTK6F5RHYYUWYSG65AZTZ"
+   }
+}
+async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>, log:DebugLog): Promise<WaitFileResultRes> {
   const start = Date.now();
   while (true) {
     const res = await fetch(location, { headers: authHeaders });
@@ -233,8 +242,9 @@ async function waitForGraphCopyCompletion(location: string, authHeaders: Record<
       log.doLog(`Waiting ${location} error!`)
       throw new Error((body as any)?.error?.message || res.statusText);
     }
-    log.doLog(`Waiting ${location} got res ${JSON.stringify(res.json())}`);
-    return await res.json() as { webUrl: string };
+    const rr = await res.json() as WaitFileResultRes;
+    log.doLog(`Waiting ${location} got res ${JSON.stringify(rr)}`);
+    return rr;
   }
 }
 
@@ -295,5 +305,20 @@ export async function copySharePointFile(
   }
   log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} got location ${location}`);
   const result = await waitForGraphCopyCompletion(location, { Authorization: `Bearer ${msToken}` }, log);
+  //result has this format:   {
+//   "@odata.context": "https://acccnusa.sharepoint.com/sites/enyueditors/_api/v2.1/$metadata#drives('b!xwQ0UHWhIEWIjAbRaEc163pG3pJF4mNMiu8wVwNbWg1l_K7CJIsATIcOLrIKBWJY')/operations/$entity",
+//   "id": "70f2a6d4-2472-4f48-b0c4-c9e8c9067f99",
+//   "createdDateTime": "0001-01-01T00:00:00Z",
+//   "lastActionDateTime": "0001-01-01T00:00:00Z",
+//   "status": "failed",
+//   "error": {
+//     "code": "nameAlreadyExists",
+//     "message": "Name already exists",
+//     "target": "01BDEZ3HBZS2ZJTK6F5RHYYUWYSG65AZTZ"
+//   }
+  // }
+  if (result.error) {
+    log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} failed with ${result.error.message}`);
+  }
   return result.webUrl;
 }
