@@ -395,8 +395,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         const checked = e.target.checked;
                         setCreateTasksDialog((prev) => {
                           if (!prev) return prev;
-                          const mapping =
-                            combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
+                          //const mapping =
+                          //  combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
                           const selected = { ...prev.selected };
 
                           // const collectDescendants = (par: ActionType): ActionType[] => {
