@@ -1029,7 +1029,7 @@ export async function processOperation(
             log.doLog(`processOperation: prepared post params for task ${taskId} action ${action} with ${JSON.stringify(postParams)}`);
             //due_date
             //if (!subTaskOf) {
-            //    await pr.doPostAttachment(taskId, postParams);
+            await pr.doPostAttachment(taskId, postParams);
             //}
         }
     }
