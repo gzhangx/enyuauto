@@ -968,7 +968,7 @@ export async function processOperation(
                     if (!msToken) {
                         throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
                     }
-                    const copiedFileWebUrl = await copySharePointFile(msToken, sourceValue.trim(), destValue.path.trim());
+                    const copiedFileWebUrl = await copySharePointFile(msToken, sourceValue.trim(), destValue.path.trim(), log);
                     if (mappingConfig.replaceInTemplateCopiedFile) {
                         template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
                     }

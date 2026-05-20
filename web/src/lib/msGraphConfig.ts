@@ -215,12 +215,14 @@ async function resolveDriveIdForRoot(msToken: string, driveRootUrl: string): Pro
   return data.id;
 }
 
-async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>): Promise<{ webUrl: string }> {
+async function waitForGraphCopyCompletion(location: string, authHeaders: Record<string, string>, log:DebugLog): Promise<{ webUrl: string }> {
   const start = Date.now();
   while (true) {
     const res = await fetch(location, { headers: authHeaders });
     if (res.status === 202) {
+      log.doLog(`Waiting ${location}`)
       if (Date.now() - start > 20000) {
+        log.doLog(`Waiting ${location} Tiomeout!!`)
         throw new Error('Timed out waiting for Graph copy operation to complete');
       }
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -228,16 +230,23 @@ async function waitForGraphCopyCompletion(location: string, authHeaders: Record<
     }
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
+      log.doLog(`Waiting ${location} error!`)
       throw new Error((body as any)?.error?.message || res.statusText);
     }
+    log.doLog(`Waiting ${location} got res ${JSON.stringify(res.json())}`);
     return await res.json() as { webUrl: string };
   }
+}
+
+interface DebugLog {
+    doLog: (msg: string, critical?: boolean) => void;
 }
 
 export async function copySharePointFile(
   msToken: string,
   sourceFileUrl: string,
   destinationFolderUrl: string,
+  log: DebugLog
 ): Promise<string> {
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
   const sourcePathResult = await resolveSharePointPath(sourceFileUrl, msToken);
@@ -251,6 +260,8 @@ export async function copySharePointFile(
     sourcePathResult.driveId,
     sourcePathResult.driveRootUrl,
   );
+
+  log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} resolved sourceItem ${sourceItem?.name}`);
 
   const destinationDriveId = destinationPathResult.driveId
     ?? (destinationPathResult.driveRootUrl ? await resolveDriveIdForRoot(msToken, destinationPathResult.driveRootUrl) : undefined);
@@ -273,13 +284,16 @@ export async function copySharePointFile(
     }),
   });
   if (!copyRes.ok && copyRes.status !== 202) {
+    log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} copy error`);
     const body = await copyRes.json().catch(() => ({}));
     throw new Error((body as any)?.error?.message || copyRes.statusText);
   }
   const location = copyRes.headers.get('Location');
   if (!location) {
+    log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} no location`);
     throw new Error('Graph copy response did not include Location header');
   }
+  log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} got location ${location}`);
   const result = await waitForGraphCopyCompletion(location, { Authorization: `Bearer ${msToken}` });
   return result.webUrl;
 }
