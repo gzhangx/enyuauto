@@ -291,6 +291,7 @@ export async function copySharePointFile(
     body: JSON.stringify({
       parentReference,
       name: sourceItem.name,
+      "@microsoft.graph.conflictBehavior": "replace"m
     }),
   });
   if (!copyRes.ok && copyRes.status !== 202) {
