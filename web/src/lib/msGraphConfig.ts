@@ -282,7 +282,7 @@ export async function copySharePointFile(
   const sourceDriveRoot = sourcePathResult.driveId
     ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(sourcePathResult.driveId)}`
     : sourcePathResult.driveRootUrl ?? driveRoot;
-  const copyRes = await fetch(`${sourceDriveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy`, {
+  const copyRes = await fetch(`${sourceDriveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy?@microsoft.graph.conflictBehavior=replace`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${msToken}`,
@@ -291,7 +291,6 @@ export async function copySharePointFile(
     body: JSON.stringify({
       parentReference,
       name: sourceItem.name,
-      "@microsoft.graph.conflictBehavior": "replace",
     }),
   });
   if (!copyRes.ok && copyRes.status !== 202) {
