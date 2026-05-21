@@ -105,9 +105,10 @@ export type Templates = {
 
 export interface ProjectActionMappingConfig {
     shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
-    copyFileFrom?: string;
-    copyFileTo?: string;
-    replaceInTemplateCopiedFile?: string;
+    copyFileFrom?: string;                  //文章链接 copyFromColumnName
+    copyFileTo?: string;                    //2 Second Proofread
+    replaceInTemplateCopiedFile?: string;   //article
+    updateCopiedFileToColumnName?: string;  //二校文章链接
 }
 
 export interface IGroupAndMainProjectLongToShortNameMapping {

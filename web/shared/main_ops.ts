@@ -397,9 +397,10 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = {
                 shortName: row[2].trim() as ActionType,
-                copyFileFrom: row[3]?.trim() || undefined,
-                copyFileTo: row[4]?.trim() || undefined,
-                replaceInTemplateCopiedFile: row[5]?.trim() || undefined,
+                copyFileFrom: row[3]?.trim(),
+                copyFileTo: row[4]?.trim(),
+                replaceInTemplateCopiedFile: row[5]?.trim(),
+                updateCopiedFileToColumnName: row[6]?.trim()
             };
         }
         if (row[0] === 'actionExcludes') {
@@ -969,8 +970,13 @@ export async function processOperation(
                         throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
                     }
                     const copiedFileWebUrl = await copySharePointFile(msToken, sourceValue.trim(), destValue.path.trim(), log);
-                    if (mappingConfig.replaceInTemplateCopiedFile) {
-                        template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
+                    if (copiedFileWebUrl) {
+                        if (mappingConfig.updateCopiedFileToColumnName) {
+                            operation[mappingConfig.updateCopiedFileToColumnName as ActionType] = copiedFileWebUrl; //二校文章链接
+                        }
+                        if (mappingConfig.replaceInTemplateCopiedFile) {
+                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
+                        }
                     }
                 }
             }
