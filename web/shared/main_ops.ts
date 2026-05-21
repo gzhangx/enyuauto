@@ -970,15 +970,7 @@ export async function processOperation(
                     const found = oneDriveDirInfos.find(info => info.name === name);
                     return found ? found.webUrl : match;
                 });
-            }
-            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
-                if (replaceItem === 'article' && !link) continue;
-                console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
-                template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
-            }
-            if (link) {
-                template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
-            }
+            }            
 
             const mappingConfig = actionConfig.mappingConfig;
             if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
@@ -1001,6 +993,17 @@ export async function processOperation(
                         }
                     }
                 }
+            }
+
+            //the above do action mapping article replacements, 
+            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
+                //!link because if it is link it is done below with link
+                if (replaceItem === 'article' && !link) continue;
+                console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
+                template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
+            }
+            if (link) {
+                template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             }
 
             let projectGrpoup = combined.projectGroupMapping[action];            
