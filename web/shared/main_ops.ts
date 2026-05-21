@@ -238,6 +238,27 @@ export async function updateDoneColumn(
     });
 }
 
+
+export async function updateAnyColumn(
+    ops: ISheetDataOps,
+    opsConfig: IOpsConfig,
+    item: IOperationWithLineNumber,
+    columnName: string,
+    value: string,
+    log: DebugLog,
+): Promise<void> {
+    const lineNumber = item.itemPositionOnSheet;
+    const index = opsConfig.headers.indexOf(columnName);
+    if (index < 0) {
+        throw new Error(`Main sheet header row must include a column named "${columnName}".`);
+    }    
+    log.doLog(`update generic column:  ${columnName}===>${value || '(empty)'} at line ${lineNumber}`);
+    await ops.autoUpdateValues('main', [[value]], {
+        row: lineNumber,
+        col: index,
+    });
+}
+
 export async function loadMainData(ops: ISheetDataOps) {
     const rawMainData = await ops.readData('main');
     const headers = rawMainData.values[0].map(h => h.toLowerCase() === 'done' ? 'done' : h);
@@ -951,7 +972,7 @@ export async function processOperation(
                 });
             }
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
-                if (replaceItem === 'article' && link) continue;
+                if (replaceItem === 'article' && !link) continue;
                 console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
@@ -973,6 +994,7 @@ export async function processOperation(
                     if (copiedFileWebUrl) {
                         if (mappingConfig.updateCopiedFileToColumnName) {
                             operation[mappingConfig.updateCopiedFileToColumnName as ActionType] = copiedFileWebUrl; //二校文章链接
+                            await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
                         }
                         if (mappingConfig.replaceInTemplateCopiedFile) {
                             template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
