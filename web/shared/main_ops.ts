@@ -989,7 +989,7 @@ export async function processOperation(
                             await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
                         }
                         if (mappingConfig.replaceInTemplateCopiedFile) {
-                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${copiedFileWebUrl}</a>`);
+                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${infos['article']}</a>`);
                         }
                     }
                 }
@@ -998,7 +998,14 @@ export async function processOperation(
             //the above do action mapping article replacements, 
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
                 //!link because if it is link it is done below with link
-                if (replaceItem === 'article' && !link) continue;
+                if (replaceItem === 'article') {
+                    if (link) {
+                        template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
+                    } else {
+                        template1 = template1.replaceAll('{article}', `<a href="${operation['文章链接']}">${infos['article']}</a>`);
+                    }
+                    continue;
+                }
                 console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
