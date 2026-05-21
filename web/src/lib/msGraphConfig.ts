@@ -322,5 +322,21 @@ export async function copySharePointFile(
 //   }
   // }
   
-  return result;
+  // After the copy operation completes, resolve the newly copied item's webUrl
+  try {
+    const itemPath = `${destPath}/${sourceItem.name}`.replace(/^\/+/, '');
+    const newItem = await getDriveItemByPath(
+      msToken,
+      driveRoot,
+      itemPath,
+      destinationDriveId,
+      destinationPathResult.driveRootUrl,
+    );
+    return newItem.webUrl;
+  } catch (err) {
+    // If we fail to resolve the copied item for any reason, fall back to returning
+    // the operation location (so callers still get a non-empty string) and log.
+    log.doLog(`copySharePointFile: failed to resolve copied item webUrl: ${(err as any)?.message || err}`);
+    return result;
+  }
 }
