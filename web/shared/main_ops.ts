@@ -997,7 +997,7 @@ export async function processOperation(
                             await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
                         }
                         if (mappingConfig.replaceInTemplateCopiedFile) {
-                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, copiedFileWebUrl);
+                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${copiedFileWebUrl}</a>`);
                         }
                     }
                 }
