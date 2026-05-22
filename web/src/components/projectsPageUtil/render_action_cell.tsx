@@ -178,6 +178,22 @@ const PublishButton: React.FC<{
   );
 };
 
+const HoverTooltip: React.FC<{ content: JSX.Element | string; children: JSX.Element | string }> = ({ content, children }) => {
+	const [show, setShow] = useState(false);
+	return (
+		<span style={{ position: 'relative', display: 'inline-block' }} onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+			{children}
+			{show && (
+				<div style={{ position: 'absolute', zIndex: 2200, bottom: '100%', left: 0, marginBottom: 8 }}>
+					<div style={{ background: '#222', color: '#fff', padding: '6px 8px', borderRadius: 6, whiteSpace: 'pre-wrap', fontSize: 12, maxWidth: 320 }}>
+						{typeof content === 'string' ? <span>{content}</span> : content}
+					</div>
+				</div>
+			)}
+		</span>
+	);
+};
+
 
 // Render a cell for syncing sheet with FreedCamp if data exists in FreedCamp but not in p
 export function renderSyncActionCell(
@@ -361,13 +377,18 @@ export function renderActionCell(
 		const isDueSoon = typeof dueMillis === 'number' && dueMillis <= (now + threshold);
 		const dueDisplay = rawDueDateValue ? formatLocalDateYyyyMmDd(rawDueDateValue / 1000) : (sheetDueRaw || 'N/A');
 		assignedEditorDsp = (
-			<span
-				style={{ fontWeight: 'normal' }}
-				title={`Assigned to: ${freedCampItem?.assigned_to_fullname}\nDue: ${dueDisplay || 'N/A'}`}
+			<HoverTooltip
+				content={
+					<>
+						<div>Assigned to: {freedCampItem?.assigned_to_fullname}</div>
+						<div>Due: <span style={{ color: isDueSoon ? 'red' : undefined, fontWeight: isDueSoon ? 'bold' : 'normal' }}>{dueDisplay}</span></div>
+					</>
+				}
 			>
-				<span>{freedCampItem?.assigned_to_fullname}</span>
-				<span style={{ marginLeft: '6px', color: isDueSoon ? 'red' : undefined, fontWeight: isDueSoon ? 'bold' : 'normal', display:'none' }}>{dueDisplay}</span>
-			</span>
+				<span style={{ fontWeight: 'normal' }}>
+					<span>{freedCampItem?.assigned_to_fullname}</span>
+				</span>
+			</HoverTooltip>
 		);
 	}
 	return (
