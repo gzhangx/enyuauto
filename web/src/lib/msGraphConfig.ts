@@ -140,9 +140,8 @@ function normalizeSharePointWebUrl(value: string): { driveRootUrl: string; path:
 }
 
 export async function resolveSharePointPath(rawValue: string, msToken?: string): Promise<ResolvedSharePointPath> {
-  let value = rawValue.trim();
-  const qIndex = value.indexOf('?');
-  if (qIndex >= 0) value = value.slice(0, qIndex);
+  const originalValue = rawValue.trim();
+  let value = originalValue;
   if (!value.startsWith('http://') && !value.startsWith('https://')) {
     return { path: value.replace(/^\/+/, '') };
   }
@@ -153,22 +152,90 @@ export async function resolveSharePointPath(rawValue: string, msToken?: string):
     if (siteRootMatch) return { path: siteRootMatch[1].replace(/^\/+/, '') };
   }
   if (value.startsWith('https://')) {
-    const genericWeb = normalizeSharePointWebUrl(value);
-    if (genericWeb) {
-      return { driveRootUrl: genericWeb.driveRootUrl, path: genericWeb.path };
-    }
     if (!msToken) {
       throw new Error(`Cannot resolve SharePoint sharing URL without msToken: ${rawValue}`);
     }
+
+    // If the URL contains a sourcedoc (GUID) and a file name, try to resolve
+    // the document by id first, then fall back to searching by filename.
+    try {
+      const parsed = new URL(value);
+      const params = parsed.searchParams;
+      const sourceDoc = params.get('sourcedoc');
+      const fileName = params.get('file') ? decodeURIComponent(params.get('file') as string) : undefined;
+
+      if (sourceDoc) {
+        // Attempt to infer site from the path (e.g. /sites/enyueditors appears in pathname)
+        const siteMatch = parsed.pathname.match(/\/sites\/([^/]+)/i)?.[1];
+        const driveRootUrl = siteMatch
+          ? `https://graph.microsoft.com/v1.0/sites/${parsed.hostname}:/sites/${siteMatch}:/drive`
+          : undefined;
+
+        // Try to fetch the item directly by id (sourcedoc might be the drive/item id)
+        if (driveRootUrl) {
+          try {
+            const itemRes = await fetch(`${driveRootUrl}/items/${encodeURIComponent(sourceDoc)}`, {
+              headers: { Authorization: `Bearer ${msToken}` },
+            });
+            if (itemRes.ok) {
+              const item = await itemRes.json() as { id: string; name: string; parentReference?: { path?: string; driveId?: string } };
+              const parentPath = item.parentReference?.path ?? '';
+              const normalizedParentPath = parentPath.replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/+/, '');
+              return {
+                driveId: item.parentReference?.driveId,
+                driveRootUrl,
+                path: `${normalizedParentPath}/${item.name}`.replace(/^\/+/, ''),
+              };
+            }
+          } catch {
+            // fall through to search
+          }
+        }
+
+        // If direct id lookup failed, try searching by filename if available
+        if (fileName && driveRootUrl) {
+          try {
+            const searchRes = await fetch(`${driveRootUrl}/root/search(q='${encodeURIComponent(fileName)}')`, {
+              headers: { Authorization: `Bearer ${msToken}` },
+            });
+            if (searchRes.ok) {
+              const searchData = await searchRes.json() as { value?: Array<any> };
+              const match = (searchData.value || []).find((it: any) => it.name === fileName);
+              if (match) {
+                const parentPath = match.parentReference?.path ?? '';
+                const normalizedParentPath = parentPath.replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/+/, '');
+                return {
+                  driveId: match.parentReference?.driveId,
+                  driveRootUrl,
+                  path: `${normalizedParentPath}/${match.name}`.replace(/^\/+/, ''),
+                };
+              }
+            }
+          } catch {
+            // fall through to generic sharing resolution below
+          }
+        }
+      } else {
+        const genericWeb = normalizeSharePointWebUrl(value);
+        if (genericWeb) {
+          return { driveRootUrl: genericWeb.driveRootUrl, path: genericWeb.path };
+        }
+      }
+
+    } catch {
+      // ignore URL parse errors and continue to generic sharing resolution
+    }
+
+    // Fallback to resolving a sharing URL via Graph if previous attempts didn't work
     const shareItem = await resolveSharePointSharingUrl(msToken, value);
     const shareItemPath = shareItem.parentReference?.path;
     if (!shareItemPath) {
       throw new Error(`Unable to resolve path from SharePoint sharing URL: ${rawValue}`);
     }
-    const normalizedParentPath = shareItemPath.replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/+/g, '');
+    const normalizedParentPath = shareItemPath.replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/+/, '');
     return {
       driveId: shareItem.parentReference?.driveId,
-      path: `${normalizedParentPath}/${shareItem.name}`.replace(/^\/+/g, ''),
+      path: `${normalizedParentPath}/${shareItem.name}`.replace(/^\/+/, ''),
     };
   }
   return { path: value.replace(/^\/+/, '') };
