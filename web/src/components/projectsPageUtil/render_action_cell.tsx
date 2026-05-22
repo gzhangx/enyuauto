@@ -348,14 +348,25 @@ export function renderActionCell(
 	}
 	let assignedEditorDsp: JSX.Element | null = null;
 	if (hasAssignedTo && !hasCompletedDate) {
-		const dueDateValue = freedCampItem?.due_ts ? formatLocalDateYyyyMmDd(freedCampItem.due_ts) : (p[`${action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as unknown as string);
-		const dueDate = typeof dueDateValue === 'string' ? dueDateValue : String(dueDateValue || '');
+		const rawDueDateValue = freedCampItem?.due_ts ? freedCampItem.due_ts * 1000 : undefined;
+		let sheetDueMillis: number | undefined = undefined;
+		const sheetDueRaw = (p[`${action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as unknown as string) || '';
+		if (!rawDueDateValue && sheetDueRaw) {
+			const parsed = Date.parse(sheetDueRaw);
+			if (!isNaN(parsed)) sheetDueMillis = parsed;
+		}
+		const dueMillis = rawDueDateValue ?? sheetDueMillis;
+		const now = Date.now();
+		const threshold = daysShowAlertAfterComplete * 24 * 60 * 60 * 1000;
+		const isDueSoon = typeof dueMillis === 'number' && dueMillis <= (now + threshold);
+		const dueDisplay = rawDueDateValue ? formatLocalDateYyyyMmDd(rawDueDateValue / 1000) : (sheetDueRaw || 'N/A');
 		assignedEditorDsp = (
 			<span
 				style={{ fontWeight: 'normal' }}
-				title={`Assigned to: ${freedCampItem?.assigned_to_fullname}\nDue: ${dueDate || 'N/A'}`}
+				title={`Assigned to: ${freedCampItem?.assigned_to_fullname}\nDue: ${dueDisplay || 'N/A'}`}
 			>
-				{freedCampItem?.assigned_to_fullname}
+				<span>{freedCampItem?.assigned_to_fullname}</span>
+				<span style={{ marginLeft: '6px', color: isDueSoon ? 'red' : undefined, fontWeight: isDueSoon ? 'bold' : 'normal', display:'none' }}>{dueDisplay}</span>
 			</span>
 		);
 	}
