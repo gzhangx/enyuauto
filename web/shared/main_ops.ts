@@ -973,6 +973,7 @@ export async function processOperation(
             }            
 
             const mappingConfig = actionConfig.mappingConfig;
+            let copyLink = mappingConfig?.copyFileFrom && operation['文章链接'];
             if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
                 const sourceValue = (operation as any)[mappingConfig.copyFileFrom] as string | undefined;
                 const destValue = operation.mainFolder
@@ -989,7 +990,8 @@ export async function processOperation(
                             await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
                         }
                         if (mappingConfig.replaceInTemplateCopiedFile) {
-                            template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${infos['article']}</a>`);
+                            //template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${infos['article']}</a>`);
+                            copyLink = copiedFileWebUrl;
                         }
                     }
                 }
@@ -999,19 +1001,17 @@ export async function processOperation(
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
                 //!link because if it is link it is done below with link
                 if (replaceItem === 'article') {
-                    if (link) {
-                        template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
-                    } else {
-                        template1 = template1.replaceAll('{article}', `<a href="${operation['文章链接']}">${infos['article']}</a>`);
+                    if (copyLink) {
+                        template1 = template1.replaceAll('{article}', `<a href="${copyLink}">${infos['article']}</a>`);
                     }
                     continue;
                 }
-                console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
+                //console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
-            if (link) {
-                template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
-            }
+            //if (link) {
+            //    template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
+            //}
 
             let projectGrpoup = combined.projectGroupMapping[action];            
             let taskTitle = `${debug_Prefix}${fileName}`
