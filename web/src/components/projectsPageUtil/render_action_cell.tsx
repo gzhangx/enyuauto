@@ -185,7 +185,7 @@ const HoverTooltip: React.FC<{ content: JSX.Element | string; children: JSX.Elem
 			{children}
 			{show && (
 				<div style={{ position: 'absolute', zIndex: 2200, bottom: '100%', left: 0, marginBottom: 8 }}>
-					<div style={{ background: '#222', color: '#fff', padding: '6px 8px', borderRadius: 6, whiteSpace: 'pre-wrap', fontSize: 12, maxWidth: 320 }}>
+					<div style={{ background: '#fff', color: '#111', padding: '6px 8px', borderRadius: 6, whiteSpace: 'pre-wrap', fontSize: 12, maxWidth: 320, boxShadow: '0 4px 12px rgba(0,0,0,0.12)', border: '1px solid #e6e6e6' }}>
 						{typeof content === 'string' ? <span>{content}</span> : content}
 					</div>
 				</div>
