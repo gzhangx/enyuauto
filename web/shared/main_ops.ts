@@ -1003,6 +1003,8 @@ export async function processOperation(
                 if (replaceItem === 'article') {
                     if (copyLink) {
                         template1 = template1.replaceAll('{article}', `<a href="${copyLink}">${infos['article']}</a>`);
+                    } else {
+                        template1 = template1.replaceAll('{article}', `${infos.article}`);
                     }
                     continue;
                 }
