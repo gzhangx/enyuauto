@@ -552,7 +552,7 @@ function getOperationInfo(
         author: operation['作者'],
         slug: operation['slug'],
             article,
-            link: operation['文章链接'],
+            //link: operation['文章链接'],
             email: operation['作者电邮'],
         category: operation['文章类别'],
             mainFolder: operation['mainFolder'],
@@ -961,7 +961,7 @@ export async function processOperation(
                 template1 = curTemplateActionInfo.template;
             }
             const editor = operation[action];
-            const link = action === '校对' ? infos.link : undefined;            
+            //const link = action === '校对' ? infos.link : undefined;            
             
             // if oneDriveDirInfos exists, find all matches in template that matches  {media_link:XXXX}, and if XXXX matches any of the oneDriveDirInfos.name, replace {media_link:XXXX} 
             // with the corresponding oneDriveDirInfos.webUrl

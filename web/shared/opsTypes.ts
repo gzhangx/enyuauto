@@ -83,7 +83,7 @@ export interface OperationInfo {
     author: string;
     slug: string;
     article: string;
-    link: string;
+    //link: string;
     email: string;
     category: string;
     mainFolder: string;
