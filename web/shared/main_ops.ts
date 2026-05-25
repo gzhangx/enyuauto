@@ -973,7 +973,7 @@ export async function processOperation(
             }            
 
             const mappingConfig = actionConfig.mappingConfig;
-            let copyLink = mappingConfig?.copyFileFrom && operation['文章链接'];
+            let copyLink = mappingConfig?.copyFileFrom && mappingConfig.replaceInTemplateCopiedFile && operation['文章链接'];
             if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
                 const sourceValue = (operation as any)[mappingConfig.copyFileFrom] as string | undefined;
                 const destValue = operation.mainFolder
