@@ -89,6 +89,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     selected: Partial<Record<ActionType, boolean>>;
     useEnglishTemplate: Partial<Record<ActionType, boolean>>;
     useAITemplate: Partial<Record<ActionType, boolean>>;
+    selectedEditor?: Partial<Record<ActionType, string>>;
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -439,6 +440,35 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       </span>
                     </label>
                   </div>
+                  {/* Editor dropdown: show full name from editorInfoMap, default to row.editorName or sheet value */}
+                  {createTasksDialog.selected[row.action] &&
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                      <select
+                        value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCreateTasksDialog((prev) => {
+                            if (!prev) return prev;
+                            const selectedEditor = { ...(prev.selectedEditor || {}) };
+                            selectedEditor[row.action] = val;
+                            return { ...prev, selectedEditor };
+                          });
+                        }}
+                        style={{ marginLeft: '8px', fontSize: '13px', padding: '4px' }}
+                      >
+                        <option value="">(select editor)</option>
+                        {Object.entries(combinedOpsAndData.opsConfig.editorInfoMap).map(([shortName, info]) => {
+                          const pretty = (() => {
+                            const prettyName = info.print_name || info.shortName || '';
+                            const normalizedTitle = (info.title || '').toLowerCase();
+                            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
+                            return isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
+                          })();
+                          return <option key={shortName} value={shortName}>{info.print_name || pretty}</option>;
+                        })}
+                      </select>
+                    </div>
+                  }
                   {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
                       <input
@@ -457,7 +487,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       />
                       <label htmlFor={`use-english-${row.action}`} style={{ cursor: 'pointer', color: '#555', fontSize: '13px' }}>
                         Use English template
-                      </label>
+                      </label>                      
                     </div>
                   )}
                   {row.hasAITemplate && createTasksDialog.selected[row.action] && (
@@ -514,6 +544,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       message: 'Select at least one action to create, or press Cancel.',
                     });
                     return;
+                  }
+                  // apply selected editor choices (shortName) into the operation before creating tasks
+                  if (dlg.selectedEditor) {
+                    for (const k of Object.keys(dlg.selectedEditor) as ActionType[]) {
+                      const v = dlg.selectedEditor[k];
+                      if (v) (dlg.operation as any)[k] = v;
+                    }
                   }
                   setCreateTasksDialog(null);
                   const ops = sheetOpsRef.current;
@@ -772,13 +809,34 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       const selected: Partial<Record<ActionType, boolean>> = {};
                       const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
                       const useAITemplate: Partial<Record<ActionType, boolean>> = {};
+                      const selectedEditor: Partial<Record<ActionType, string>> = {};
                       for (const a of actions) {
                         if (a.hasAITemplate) {
                           useAITemplate[a.action] = true;
                         }
+                        // default selected editor to the value in the sheet row if present
+                        // `p` is the operation row; it may contain the short editor key
+                        // otherwise leave undefined
+                        const maybeEditor = (p as any)[a.action] as string | undefined;
+                        if (maybeEditor) {
+                          selectedEditor[a.action] = maybeEditor;
+                        } else if (a.editorName && combinedOpsAndData?.opsConfig?.editorInfoMap) {
+                          // try to find a matching shortName by comparing pretty display name
+                          const entries = Object.entries(combinedOpsAndData.opsConfig.editorInfoMap);
+                          for (const [shortName, info] of entries) {
+                            const prettyName = info.print_name || info.shortName || '';
+                            const normalizedTitle = (info.title || '').toLowerCase();
+                            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
+                            const display = isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
+                            if (display === a.editorName) {
+                              selectedEditor[a.action] = shortName;
+                              break;
+                            }
+                          }
+                        }
                       }
                       //for (const a of actions) selected[a.action] = true;
-                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate });
+                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate, selectedEditor });
                     } catch (error: unknown) {
                       const err = error as { message?: string };
                       console.error('Error preparing project creation:', error);
