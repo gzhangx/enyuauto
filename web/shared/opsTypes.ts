@@ -76,6 +76,7 @@ export type IOperationWithLineNumberAndParentTaskId = IOperationWithLineNumber &
 } & {
     syncFreeCampToSheetData?: ISyncFreeCampToSheetData;
     noNeedToCreate: boolean;  //if we alreadu published then we should not need to create any more
+    publishCompleted: boolean;
     isFinished: boolean;
 };
 
