@@ -255,8 +255,11 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       setIsLoading(prev => ({ ...prev, projectButtonAction: `Syncing 0/${items.length}` }));
       for (const p of items) {
         const updates = p.syncFreeCampToSheetData?.updates || [];
+        let j = 0;
         for (const update of updates) {
           (p as any)[update.sheetCol as ActionType] = update.value;
+          setIsLoading(prev => ({ ...prev, projectButtonAction: `Syncing ${p.文章名} 0/${items.length} of ${j}/${updates.length}` }));
+          j++;
           await anyKeyUpdater(sheetOpsRef.current, combinedOpsAndData.opsConfig, update.sheetCol as ActionType, p, { doLog });
         }
         i++;
