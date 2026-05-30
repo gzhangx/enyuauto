@@ -737,7 +737,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           </button>        
       )}
         {msAccount && (
-          <button className="btn btn-create" onClick={msLogout} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
+          <button className="btn btn-create" onClick={msLogout} style={{ backgroundColor: '#e3f2fd', color: '#1565c0', display:'none' }}>
             MS Logout ({msAccount.username})
           </button>
         )}
