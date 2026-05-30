@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { DoGoogleSignIn } from '../lib/util';
 
 export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) => {
-  const { login, msLoginRedirect, isMsAuthenticated, msLogout, msAccount, useMsOps } = useAuth();
+  const { login, msLoginRedirect, isMsAuthenticated, msLogout, msAccount } = useAuth();
 
   const googleLogin = useGoogleLogin({
     onSuccess: (tokenResponse) => {
