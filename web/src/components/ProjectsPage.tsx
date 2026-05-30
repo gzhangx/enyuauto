@@ -3,6 +3,7 @@ import '../App.css'
 import { useAuth } from '../contexts/AuthContext';
 import {
   getFreeCampAndUpdateOperations, getOpsAndMainList, getSheetOps, processOperation, deleteItemActionTask,
+  anyKeyUpdater,
   getActionsToPerform,
   type FreeCampAndUpdateOperations,
   type ActionsToPerformInfo,
@@ -71,7 +72,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 
 export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?: () => void }) => {
-  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, setUseMsOps, authLoadingStatus } = useAuth();  
+  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, authLoadingStatus } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
@@ -239,6 +240,38 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   }, [token, msToken, freedCampCredentials, useMsOps]);
   
 
+  const syncProjectsCount = fullProjectList.filter(p => (p.syncFreeCampToSheetData?.updates?.length ?? 0) > 0).length;
+  const hasAnySyncable = syncProjectsCount > 0;
+
+  const handleSyncAll = async () => {
+    if (!sheetOpsRef.current || !combinedOpsAndData) {
+      setErrorDialog({ show: true, message: 'Sheet operations or combined config not ready' });
+      return;
+    }
+    const items = fullProjectList.filter(p => (p.syncFreeCampToSheetData?.updates?.length ?? 0) > 0);
+    if (items.length === 0) return;
+    try {
+      let i = 0;
+      setIsLoading(prev => ({ ...prev, projectButtonAction: `Syncing 0/${items.length}` }));
+      for (const p of items) {
+        const updates = p.syncFreeCampToSheetData?.updates || [];
+        for (const update of updates) {
+          (p as any)[update.sheetCol as ActionType] = update.value;
+          await anyKeyUpdater(sheetOpsRef.current, combinedOpsAndData.opsConfig, update.sheetCol as ActionType, p, { doLog });
+        }
+        i++;
+        setIsLoading(prev => ({ ...prev, projectButtonAction: `Syncing ${i}/${items.length}` }));
+      }
+      await fetchData(freedCampCredentials!);
+    } catch (e: any) {
+      console.error('Error syncing all:', e);
+      setErrorDialog({ show: true, message: `Failed to sync all:\n${e.message || String(e)}` });
+    } finally {
+      setIsLoading(prev => ({ ...prev, projectButtonAction: '' }));
+    }
+  };
+
+
 
   // ...function removed, now imported from render_action_cell.tsx
 
@@ -340,7 +373,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         show={criticalError.show}
         message={criticalError.message}
         onClose={closeCriticalError}
-      />
+      />      
 
       {createTasksDialog && combinedOpsAndData && (
         <div
@@ -687,21 +720,19 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       `}</style>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <h1 style={{ margin: 0 }}>Enyu Site</h1>
-        <select
-          value={useMsOps ? 'ms' : 'google'}
-          disabled = {!DoGoogleSignIn}
-          onChange={e => {
-            setUseMsOps(e.target.value === 'ms');
-            startupRunOnce.current = false;
-          }}
-          style={{ fontSize: '14px', padding: '2px 6px', borderRadius: '4px', border: '1px solid #ccc', cursor: 'pointer' }}
-        >
-          <option value="google">Google Sheets</option>
-          <option value="ms">Microsoft Excel (SharePoint)</option>
-        </select>
+        <h1 style={{ margin: 0 }}>Enyu Site</h1>        
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
-        <button className="btn btn-create" onClick={()=>fetchData(freedCampCredentials, true)}>Reload All</button>
+        <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials, true)}>Reload All</button>
+        {hasAnySyncable && (
+        
+          <button
+            className="btn btn-create"
+            onClick={handleSyncAll}
+            style={{ backgroundColor: '#0078d4', color: 'white' }}
+          >
+            Sync All ({syncProjectsCount})
+          </button>        
+      )}
         {msAccount && (
           <button className="btn btn-create" onClick={msLogout} style={{ backgroundColor: '#e3f2fd', color: '#1565c0' }}>
             MS Logout ({msAccount.username})

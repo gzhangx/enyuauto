@@ -22,8 +22,8 @@ interface AuthContextType {
   logout: () => void;
   isAuthenticated: boolean;
   isMsAuthenticated: boolean;
-  useMsOps: boolean;
-  setUseMsOps: (val: boolean) => void;
+  useMsOps: true;
+  //setUseMsOps: (val: boolean) => void;
   opsConfig: IOpsConfig | null;
   setOpsConfig: (config: IOpsConfig | null) => void;
   combinedOpsAndData: ICombinedOpsAndFreeCampData | null;
@@ -44,16 +44,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [opsConfig, setOpsConfig] = useState<IOpsConfig | null>(null);
   const [combinedOpsAndData, setCombinedOpsAndData] = useState<ICombinedOpsAndFreeCampData | null>(null);
   const [freedCampCredentials, setFreedCampCredentials] = useState<FreedCampCredentials | null>(null);
-  const [useMsOps, setUseMsOpsState] = useState<boolean>(() => {
-    return true;
-    //localStorage.getItem('use_ms_ops') === 'true'
-  });
+  const useMsOps = true;
+  //const [useMsOps, setUseMsOpsState] = useState<boolean>(() => {
+  //  return true;
+  //  //localStorage.getItem('use_ms_ops') === 'true'
+  //});
   const [authLoadingStatus, setAuthLoadingStatus] = useState<string>('Initializing Microsoft login...');
 
-  const setUseMsOps = (val: boolean) => {
-    setUseMsOpsState(val);
-    localStorage.setItem('use_ms_ops', val ? 'true' : 'false');
-  };
+  //const setUseMsOps = (val: boolean) => {
+    //setUseMsOpsState(val);
+    //localStorage.setItem('use_ms_ops', val ? 'true' : 'false');
+  //};
 
   // Load token from localStorage on mount, then handle MSAL redirect/silent refresh
   useEffect(() => {
@@ -201,7 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{
       token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, msLogout, logout,
-      isAuthenticated, isMsAuthenticated, useMsOps, setUseMsOps, authLoadingStatus, sheetInfoCache: {
+      isAuthenticated, isMsAuthenticated, useMsOps, authLoadingStatus, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),
       },
