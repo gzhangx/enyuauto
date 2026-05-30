@@ -19,7 +19,7 @@ import {
 } from '../../shared/main_ops';
 import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
-import { DoGoogleSignIn, freedCampOps } from '../lib/util';
+import { freedCampOps } from '../lib/util';
 import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
