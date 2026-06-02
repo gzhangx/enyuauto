@@ -493,7 +493,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         style={{ marginLeft: '8px', fontSize: '13px', padding: '4px' }}
                       >
                         <option value="">(select editor)</option>
-                        {Object.entries(combinedOpsAndData.opsConfig.editorInfoMap).map(([shortName, info]) => {
+                        {Object.entries(combinedOpsAndData.opsConfig.editorInfoMap).filter(([,info])=>info.group?.indexOf(row.action)>=0).map(([shortName, info]) => {
                           const pretty = (() => {
                             const prettyName = info.print_name || info.shortName || '';
                             const normalizedTitle = (info.title || '').toLowerCase();

@@ -145,8 +145,7 @@ export interface OperationAndTemplates {
 export interface IEditorInfo {
     title: string;   //if title is brother then it is english
     shortName: string;
-    email: string;
-    task: string;
+    group: string; //校对/二校
     print_name: string; //the full chinese name for printing
 }
 

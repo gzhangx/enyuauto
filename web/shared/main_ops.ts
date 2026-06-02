@@ -361,12 +361,9 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
             case 'Full Name':
                 positionToNameMap[index] = 'print_name';
                 break;
-            case 'Email':
-                positionToNameMap[index] = 'email';
-                break;
-            case 'Task':
-                positionToNameMap[index] = 'task';
-                break;
+            case 'Group':
+                positionToNameMap[index] = 'group'; //校对/二校 etc
+                break;            
             case 'Name on FreedCamp':
                 positionToNameMap[index] = 'shortName';
                 break;
@@ -390,6 +387,7 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
             }
         }
     }
+    //Name on FreedCamp (ric.m etc)->{print_name, group, shortName, title}
     return editorInfoMap;
 }
 
