@@ -119,6 +119,55 @@ function normalizeSharePointWebUrl(value: string): { driveRootUrl: string; path:
   try {
     const url = new URL(value);
     const pathname = decodeURIComponent(url.pathname);
+
+    // Prefer explicit SharePoint query params that point to the actual file/folder
+    const params = url.searchParams;
+    const idParam = params.get('id');
+    const viewPathParam = params.get('viewpath') || params.get('view') || params.get('newTargetListUrl');
+    // If `id` is present it often contains the encoded path to the document library root
+    if (idParam) {
+      try {
+        const decodedId = decodeURIComponent(idParam);
+        // id often like "/sites/enyueditors/Shared Documents/General/..."
+        const idMatch = decodedId.match(/^\/(sites|teams|personal)\/[^/]+\/(.*)/i);
+        if (idMatch) {
+          const siteRoot = decodedId.match(/^\/(?:sites|teams|personal)\/[^/]+/i)?.[0].slice(1); // remove leading /
+          const relative = idMatch[2].replace(/^\/+/, '');
+          const normalizedPath = relative.startsWith('Shared Documents/')
+            ? relative.slice('Shared Documents/'.length)
+            : relative;
+          return {
+            driveRootUrl: `https://graph.microsoft.com/v1.0/sites/${url.hostname}:/${siteRoot}:/drive`,
+            path: normalizedPath,
+          };
+        }
+      } catch {
+        // fall through to other heuristics
+      }
+    }
+
+    // If viewpath/newTargetListUrl contains the library path, prefer that
+    if (viewPathParam) {
+      try {
+        const decoded = decodeURIComponent(viewPathParam);
+        const siteRootMatch = decoded.match(/^\/(sites|teams|personal)\/[^/]+\//i);
+        if (siteRootMatch) {
+          const siteRoot = decoded.match(/^\/((?:sites|teams|personal)\/[^/]+)\//i)?.[1];
+          const relativePath = decoded.slice(siteRootMatch[0].length).replace(/^\/+/, '');
+          const normalizedPath = relativePath.startsWith('Shared Documents/')
+            ? relativePath.slice('Shared Documents/'.length)
+            : relativePath;
+          return {
+            driveRootUrl: `https://graph.microsoft.com/v1.0/sites/${url.hostname}:/${siteRoot}:/drive`,
+            path: normalizedPath,
+          };
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback: parse pathname as before
     const siteRootMatch = pathname.match(/^\/(sites|teams|personal)\/[^/]+\//i);
     if (!siteRootMatch) return null;
 
