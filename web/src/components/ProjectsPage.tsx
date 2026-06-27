@@ -91,6 +91,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     useEnglishTemplate: Partial<Record<ActionType, boolean>>;
     useAITemplate: Partial<Record<ActionType, boolean>>;
     selectedEditor?: Partial<Record<ActionType, string>>;
+    dueDays?: Partial<Record<ActionType, number>>;
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -478,7 +479,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   </div>
                   {/* Editor dropdown: show full name from editorInfoMap, default to row.editorName or sheet value */}
                   {createTasksDialog.selected[row.action] &&
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px', flexWrap: 'wrap' }}>
                       <select
                         value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
                         onChange={(e) => {
@@ -503,6 +504,28 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                           return <option key={shortName} value={shortName}>{info.print_name || pretty}</option>;
                         })}
                       </select>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#555' }}>
+                        Due in
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={createTasksDialog.dueDays?.[row.action] ?? 7}
+                          onChange={(e) => {
+                            const rawValue = e.target.value;
+                            const parsedValue = Number(rawValue);
+                            const normalizedValue = rawValue === '' || !Number.isFinite(parsedValue) || parsedValue <= 0 ? 7 : parsedValue;
+                            setCreateTasksDialog((prev) => {
+                              if (!prev) return prev;
+                              const dueDays = { ...(prev.dueDays || {}) };
+                              dueDays[row.action] = normalizedValue;
+                              return { ...prev, dueDays };
+                            });
+                          }}
+                          style={{ width: '58px', padding: '4px', fontSize: '13px' }}
+                        />
+                        day(s)
+                      </label>
                     </div>
                   }
                   {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
@@ -587,6 +610,14 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       const v = dlg.selectedEditor[k];
                       if (v) (dlg.operation as any)[k] = v;
                     }
+                  }
+                  for (const action of selectedSet) {
+                    const days = dlg.dueDays?.[action];
+                    const normalizedDays = Number.isFinite(days) && (days as number) > 0 ? days as number : 7;
+                    const dueDate = new Date();
+                    dueDate.setDate(dueDate.getDate() + normalizedDays);
+                    const dueDateValue = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+                    dlg.operation[`${action} Due Date`] = dueDateValue;
                   }
                   setCreateTasksDialog(null);
                   const ops = sheetOpsRef.current;
@@ -844,6 +875,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
                       const useAITemplate: Partial<Record<ActionType, boolean>> = {};
                       const selectedEditor: Partial<Record<ActionType, string>> = {};
+                      const dueDays: Partial<Record<ActionType, number>> = {};
                       for (const a of actions) {
                         if (a.hasAITemplate) {
                           useAITemplate[a.action] = true;
@@ -868,9 +900,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                             }
                           }
                         }
+                        dueDays[a.action] = 7;
                       }
                       //for (const a of actions) selected[a.action] = true;
-                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate, selectedEditor });
+                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate, selectedEditor, dueDays });
                     } catch (error: unknown) {
                       const err = error as { message?: string };
                       console.error('Error preparing project creation:', error);

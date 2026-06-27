@@ -26,7 +26,7 @@ export const LoginPage = ({ onGoToOneDrive }: { onGoToOneDrive?: () => void }) =
       minHeight: '100vh',
       gap: '2rem'
     }}>
-      <h1>Welcome to Enyu Auto</h1>
+      <h1>Welcome to Enyu Project Management System</h1>
       <p>Please sign in to continue</p>      
       {DoGoogleSignIn &&
         <button

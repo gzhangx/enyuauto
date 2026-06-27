@@ -1048,12 +1048,18 @@ export async function processOperation(
             const dueDateKey = `${action} Due Date` as DueDateKeys;
             const due_date = operation[dueDateKey];
 
+            const today = new Date();
+            const todayYyyyMmDd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            postParams.start_date = todayYyyyMmDd;
+
             if (due_date) {
-                // Convert due_date string to Unix timestamp (seconds)
+                postParams.time_from = "00:00";
+                postParams.time_to = "00:00";
                 const dueDateObj = new Date(due_date);
                 if (!isNaN(dueDateObj.getTime())) {
                     postParams.due_ts = Math.floor(dueDateObj.getTime() / 1000);
-                } 
+                    postParams.due_date = `${dueDateObj.getFullYear()}-${String(dueDateObj.getMonth() + 1).padStart(2, '0')}-${String(dueDateObj.getDate()).padStart(2, '0')}`;
+                }
             }
             if (editor) {
                 const userInfo = combined.userNameToInfoMap[editor];
