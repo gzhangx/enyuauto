@@ -17,8 +17,8 @@ export interface ProjectTaskParams {
     due_ts?: number;
     start_date?: string;
     due_date?: string;
-    time_from: '00:00',
-    time_to: '00:00',
+    time_from?: '00:00',
+    time_to?: '00:00',
     title?: string;
     status?: number;
     status_id?: number;

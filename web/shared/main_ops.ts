@@ -448,7 +448,7 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
         if (projectInfo && projectInfo.shortName) {
             mapping[projectInfo.shortName] = {
                 project_id: proj.project_id,
-                priority: 2,
+                priority: 2,                
             }
 
             groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {

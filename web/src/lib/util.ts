@@ -26,6 +26,8 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
                 description: params.description,
                 assignedToId: params.assigned_to_id,
                 dueDate: params.due_ts,
+                due_date: params.due_date,
+                start_date: params.start_date,
         });
         return res;
     }
