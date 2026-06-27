@@ -248,6 +248,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         }
         const attachParams: ProjectTaskParams = {
           priority: 2,
+          ...params,
         };
         if (params['description']) attachParams.description = params['description'];
         if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
