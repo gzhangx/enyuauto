@@ -13,6 +13,13 @@ if (fs.existsSync(zipName)) {
   console.log('  ✓ Removed old deployment package');
 }
 
+// Remove stale web build output before zipping
+const distWebPath = path.join(process.cwd(), 'dist', 'web');
+if (fs.existsSync(distWebPath)) {
+  fs.rmSync(distWebPath, { recursive: true, force: true });
+  console.log('  ✓ Removed stale dist/web directory');
+}
+
 // Create zip using PowerShell (Windows)
 try {
   console.log('  ⏳ Compressing files...');
