@@ -1043,7 +1043,9 @@ export async function processOperation(
             
             const postParams: ProjectTaskParams = {
                 description: template1,
-                "priority":2,
+                "priority": 2,
+                time_from: '00:00',
+                time_to: '00:00'
             };
             const dueDateKey = `${action} Due Date` as DueDateKeys;
             const due_date = operation[dueDateKey];
