@@ -8,6 +8,8 @@ console.log('📦 Creating Lambda deployment package...\n');
 const rootDir = process.cwd();
 const zipName = path.join(rootDir, 'temp', 'lambda-deployment.zip');
 const stagingDir = path.join(rootDir, 'temp', 'lambda-package');
+const functionName = process.env.LAMBDA_FUNCTION_NAME || 'enyu-auto-v2-EnyuAutoFunction-r0jJLctkXxHF';
+const awsRegion = process.env.AWS_REGION || 'us-east-1';
 
 function removeIfExists(targetPath) {
   if (fs.existsSync(targetPath)) {
@@ -35,6 +37,9 @@ try {
   fs.mkdirSync(stagingDir, { recursive: true });
   console.log('  ✓ Cleaned old packaging output');
 
+  console.log('  ⏳ Building latest Lambda code...');
+  execSync('npm run build', { stdio: 'inherit' });
+
   console.log('  ⏳ Pruning dev-only dependencies...');
   execSync('npm prune --omit=dev', { stdio: 'inherit' });
 
@@ -55,6 +60,9 @@ try {
 
   console.log(`\n✅ Deployment package created: ${zipName}`);
   console.log(`   Size: ${fileSizeMB} MB\n`);
+  console.log('📤 Uploading package to AWS Lambda...');
+  execSync(`aws lambda update-function-code --function-name ${functionName} --region ${awsRegion} --zip-file fileb://${zipName}`, { stdio: 'inherit' });
+  console.log(`\n✅ Lambda function updated: ${functionName}`);
   console.log('📤 This archive now contains only production runtime artifacts:');
   console.log('   - dist/');
   console.log('   - package.json');
