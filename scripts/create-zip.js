@@ -31,19 +31,69 @@ function copyItem(sourcePath, targetPath) {
   fs.copyFileSync(sourcePath, targetPath);
 }
 
+function copyProductionNodeModules(rootDir, stagingDir) {
+  const packageJsonPath = path.join(rootDir, 'package.json');
+  const lockJsonPath = path.join(rootDir, 'package-lock.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    return;
+  }
+
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  const dependencyNames = new Set([
+    ...Object.keys(packageJson.dependencies || {}),
+    ...Object.keys(packageJson.optionalDependencies || {}),
+  ]);
+
+  if (fs.existsSync(lockJsonPath)) {
+    const lockJson = JSON.parse(fs.readFileSync(lockJsonPath, 'utf8'));
+    const packages = lockJson.packages || {};
+    const copiedPackagePaths = new Set();
+
+    for (const [pkgPath, meta] of Object.entries(packages)) {
+      if (typeof pkgPath !== 'string' || !pkgPath.startsWith('node_modules/')) {
+        continue;
+      }
+      if (meta?.dev || pkgPath.includes('node_modules/.bin/')) {
+        continue;
+      }
+      const packagePath = path.join(rootDir, pkgPath);
+      if (!fs.existsSync(packagePath)) {
+        continue;
+      }
+      copyItem(packagePath, path.join(stagingDir, pkgPath));
+      copiedPackagePaths.add(pkgPath);
+    }
+
+    for (const dependencyName of dependencyNames) {
+      const dependencyPath = path.join(rootDir, 'node_modules', ...dependencyName.split('/'));
+      const dependencyPkgPath = path.join('node_modules', ...dependencyName.split('/'));
+      if (!fs.existsSync(dependencyPath) || copiedPackagePaths.has(dependencyPkgPath)) {
+        continue;
+      }
+      copyItem(dependencyPath, path.join(stagingDir, dependencyPkgPath));
+    }
+    return;
+  }
+
+  for (const dependencyName of dependencyNames) {
+    const dependencyPath = path.join(rootDir, 'node_modules', ...dependencyName.split('/'));
+    const dependencyPkgPath = path.join('node_modules', ...dependencyName.split('/'));
+    if (fs.existsSync(dependencyPath)) {
+      copyItem(dependencyPath, path.join(stagingDir, dependencyPkgPath));
+    }
+  }
+}
+
 try {
   removeIfExists(zipName);
   removeIfExists(stagingDir);
   fs.mkdirSync(stagingDir, { recursive: true });
   console.log('  ✓ Cleaned old packaging output');
 
-  console.log('  ⏳ Building latest Lambda code...');
-  execSync('npm run build', { stdio: 'inherit' });
+  console.log('  ⏳ Copying runtime packages...');
+  copyProductionNodeModules(rootDir, stagingDir);
 
-  console.log('  ⏳ Pruning dev-only dependencies...');
-  execSync('npm prune --omit=dev', { stdio: 'inherit' });
-
-  const runtimeEntries = ['dist', 'package.json', 'package-lock.json', 'node_modules'];
+  const runtimeEntries = ['dist', 'package.json', 'package-lock.json'];
   for (const entry of runtimeEntries) {
     const sourcePath = path.join(rootDir, entry);
     if (fs.existsSync(sourcePath)) {
