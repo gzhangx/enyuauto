@@ -1032,7 +1032,21 @@ export async function processOperation(
             //     projectGrpoup.description = template1;
             //     taskTitle = action;
             // }
-            const taskRes = await pr.createTask(projectGrpoup, taskTitle);
+            const dueDateKey = `${action} Due Date` as DueDateKeys;
+            let due_date = operation[dueDateKey];
+
+            const today = new Date();
+            const todayYyyyMmDd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+            const start_date = todayYyyyMmDd;
+
+            if (due_date) {                
+                const dueDateObj = new Date(due_date);
+                if (!isNaN(dueDateObj.getTime())) {
+                    //postParams.due_ts = Math.floor(dueDateObj.getTime() / 1000);
+                    due_date = `${dueDateObj.getFullYear()}-${String(dueDateObj.getMonth() + 1).padStart(2, '0')}-${String(dueDateObj.getDate()).padStart(2, '0')}`;
+                }
+            }
+            const taskRes = await pr.createTask(projectGrpoup, taskTitle, start_date, due_date);
             const taskId = taskRes.id.toString();
             console.log(`Created task action ${action} ${taskId} for file ${fileName}`);
             log.doLog(`processOperation: created task action ${action} ${taskId} for file ${fileName}`);
@@ -1047,22 +1061,7 @@ export async function processOperation(
                 time_from: '00:00',
                 time_to: '00:00'
             };
-            const dueDateKey = `${action} Due Date` as DueDateKeys;
-            const due_date = operation[dueDateKey];
-
-            const today = new Date();
-            const todayYyyyMmDd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-            postParams.start_date = todayYyyyMmDd;
-
-            if (due_date) {
-                postParams.time_from = "00:00";
-                postParams.time_to = "00:00";
-                const dueDateObj = new Date(due_date);
-                if (!isNaN(dueDateObj.getTime())) {
-                    postParams.due_ts = Math.floor(dueDateObj.getTime() / 1000);
-                    postParams.due_date = `${dueDateObj.getFullYear()}-${String(dueDateObj.getMonth() + 1).padStart(2, '0')}-${String(dueDateObj.getDate()).padStart(2, '0')}`;
-                }
-            }
+            
             if (editor) {
                 const userInfo = combined.userNameToInfoMap[editor];
                 if (userInfo) {

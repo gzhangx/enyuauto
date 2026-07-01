@@ -37,7 +37,7 @@ export interface CreateTaskResponse {
 
 export interface FreedCampProcessor {
     doPostAttachment: (taskId: string, params: ProjectTaskParams) => Promise<any>;
-    createTask: (projectAndGroup: ProjectTaskParams, title: string) => Promise<CreateTaskResponse>;
+    createTask: (projectAndGroup: ProjectTaskParams, title: string, start_date: string, due_date: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
     getTasksForProjects(projectId: string, pageNumber: number): Promise<IProjectTasksResult>

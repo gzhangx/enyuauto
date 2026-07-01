@@ -45,7 +45,7 @@ type FreedcampParams = {
         title?: string;
         description?: string;
         assignedToId?: string;
-        dueDate?: number;
+    dueDate?: number;
         parentId?: string;
     taskId?: string;
     start_date?: string;
