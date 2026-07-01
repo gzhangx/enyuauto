@@ -75,12 +75,14 @@ ${json}${
         });
     }
 
-    async function createTask(projectAndGroup: ProjectTaskParams, title: string): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ProjectTaskParams, title: string, start_date: string ,due_date: string): Promise<CreateTaskResponse> {
         const res = await doPostMultiPart('/iapi/tasks',
             {
                 "title": title,
                 "assigned_to_id": "0", 
                 ...projectAndGroup, 
+                start_date,
+                due_date,
                 "conditions": {"filter": {}, "order": {}, "substring": "", "f_use_and": "0"},
                 "time_on_page": 3704
             }

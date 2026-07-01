@@ -90,6 +90,9 @@ try {
   fs.mkdirSync(stagingDir, { recursive: true });
   console.log('  ✓ Cleaned old packaging output');
 
+  console.log('  ⏳ Building latest Lambda code...');
+  execSync('npm run build', { stdio: 'inherit', env: { ...process.env, AWS_PAGER: '' } });
+
   console.log('  ⏳ Copying runtime packages...');
   copyProductionNodeModules(rootDir, stagingDir);
 
