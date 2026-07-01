@@ -102,8 +102,8 @@ try {
   }
 
   console.log('  ⏳ Compressing runtime files...');
-  const command = `powershell Compress-Archive -Path "${stagingDir}\\*" -DestinationPath "${zipName}" -Force`;
-  execSync(command, { stdio: 'inherit' });
+  const command = `powershell -NoProfile -NonInteractive -Command "Compress-Archive -Path '${stagingDir}\\*' -DestinationPath '${zipName}' -Force"`;
+  execSync(command, { stdio: 'inherit', env: { ...process.env, AWS_PAGER: '' } });
 
   const stats = fs.statSync(zipName);
   const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
@@ -111,7 +111,7 @@ try {
   console.log(`\n✅ Deployment package created: ${zipName}`);
   console.log(`   Size: ${fileSizeMB} MB\n`);
   console.log('📤 Uploading package to AWS Lambda...');
-  execSync(`aws lambda update-function-code --function-name ${functionName} --region ${awsRegion} --zip-file fileb://${zipName}`, { stdio: 'inherit' });
+  execSync(`aws lambda update-function-code --function-name ${functionName} --region ${awsRegion} --zip-file fileb://${zipName} --no-cli-pager`, { stdio: 'inherit', env: { ...process.env, AWS_PAGER: '' } });
   console.log(`\n✅ Lambda function updated: ${functionName}`);
   console.log('📤 This archive now contains only production runtime artifacts:');
   console.log('   - dist/');
