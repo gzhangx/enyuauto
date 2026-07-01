@@ -255,6 +255,8 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
         if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;
         
+        delete attachParams.start_date;
+        console.log('DEBUGsubmit attachParams', attachParams)
         const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
         result = attachRes;
         log.doLog(`Updated task ${attachTaskId} with attachment/params`);

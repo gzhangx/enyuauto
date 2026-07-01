@@ -62,7 +62,7 @@ ${json}${
                 'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
             },
         });
-        console.log('DEBUGsubmit resdata', res.data)
+        console.log('DEBUGsubmit resdata ', res.data?.http_code,res.data?.msg,res.data?.data)
         return res;
     }
 
