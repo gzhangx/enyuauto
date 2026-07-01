@@ -256,7 +256,8 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         //don't expand params, way too many garbage
         if (params['description']) attachParams.description = params['description'];
         if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
-        //if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;                      
+        //if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;     
+        console.log('attach parammmmmmmmmmmmmmmmmmmmmm', attachParams);
         const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
         result = attachRes;
         log.doLog(`Updated task ${attachTaskId} with attachment/params`);
