@@ -43,7 +43,16 @@ function getProcessor(loginResponse: LoginResponse): FreedCampProcessor {
         const data = `------geckoformboundarya5436b018dcf600688cc0244d5319984\r\nContent-Disposition: form-data; name="data"\r\n
 ${json}${
             '\r\n'
-}------geckoformboundarya5436b018dcf600688cc0244d5319984--\r\n`;
+            }------geckoformboundarya5436b018dcf600688cc0244d5319984--\r\n`;
+        console.log('DEBUGsubmit data', {
+            method: 'POST',
+            url: `https://freedcamp.com${path}`,
+            data,
+            headers: {
+                Cookie: loginResponse.Cookie,                
+                'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
+            },
+        })
         const res = await gs.util.doHttpRequest({
             method: 'POST',
             url: `https://freedcamp.com${path}`,
@@ -53,6 +62,7 @@ ${json}${
                 'Content-Type': 'multipart/form-data; boundary=----geckoformboundarya5436b018dcf600688cc0244d5319984',
             },
         });
+        console.log('DEBUGsubmit resdata', res.data)
         return res;
     }
 

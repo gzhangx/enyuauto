@@ -235,6 +235,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         break;
         
       case 'doPostAttachment':
+        log.doLog('Operation doPostAttachment ==============================================');
         const attachTaskId = params['taskId'];
         if (!attachTaskId) {
           return {
