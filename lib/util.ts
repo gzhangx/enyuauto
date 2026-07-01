@@ -85,6 +85,7 @@ ${json}${
             }
         );
         const result = res.data;
+        console.log('DEBUGsubmit create task resdata ', res.data?.http_code,res.data?.msg,res.data?.data)
         return {
             result,
             id: result.data.tasks[0].id,

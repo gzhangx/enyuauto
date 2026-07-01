@@ -211,7 +211,9 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         if (params['assignedToId']) taskParams.assigned_to_id = params['assignedToId'];
         if (params['dueDate']) taskParams.due_ts = params['dueDate'] as unknown as number;
         if (params['parentId']) taskParams.h_parent_id = params['parentId'];
-        
+        if (params['due_date']) taskParams.due_date = params['due_date'];
+        console.log('creating task params', params)
+
         const createRes = await processor.createTask(taskParams, title);
         result = createRes;
         log.doLog(`Created task with ID: ${createRes.id}`);
@@ -254,11 +256,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         //don't expand params, way too many garbage
         if (params['description']) attachParams.description = params['description'];
         if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
-        if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;
-        if (params['due_date']) attachParams.due_date = params['due_date'];
-        
-        delete attachParams.start_date;
-        console.log('DEBUGsubmit attachParams', attachParams)
+        if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;                      
         const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
         result = attachRes;
         log.doLog(`Updated task ${attachTaskId} with attachment/params`);
