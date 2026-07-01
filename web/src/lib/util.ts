@@ -32,7 +32,7 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
         return res;
     }
 
-    async function createTask(projectAndGroup: ProjectTaskParams, title: string, start_date: string, due_date): Promise<CreateTaskResponse> {
+    async function createTask(projectAndGroup: ProjectTaskParams, title: string, start_date: string, due_date:string): Promise<CreateTaskResponse> {
         const res = await freedcampApi<CreateTaskResponse>({
             subAction: 'createTask',
                 cookies: loginToken.Cookie,
