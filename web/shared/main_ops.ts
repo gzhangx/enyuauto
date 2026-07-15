@@ -365,7 +365,7 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
                 positionToNameMap[index] = 'group'; //校对/二校 etc
                 break;            
             case 'Name on FreedCamp':
-                positionToNameMap[index] = 'shortName';
+                positionToNameMap[index] = 'shortNameOnFreedCamp';
                 break;
             case 'Title':
                 positionToNameMap[index] = 'title';
@@ -382,8 +382,8 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
                     hasInfo = true;
                 }
             });
-            if (hasInfo && editor.shortName) {
-                editorInfoMap[editor.shortName] = editor; //ling_q=>printName:令琪
+            if (hasInfo && editor.shortNameOnFreedCamp) {
+                editorInfoMap[editor.shortNameOnFreedCamp] = editor; //ling_q=>printName:令琪
             }
         }
     }
@@ -415,7 +415,7 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
     values.forEach(row => {
         if (row[0] === 'mapping') {
             configMap.taskLongToShortNameMapping[row[1]] = {
-                shortName: row[2].trim() as ActionType,
+                shortNameOnFreedCamp: row[2].trim() as ActionType,
                 copyFileFrom: row[3]?.trim(),
                 copyFileTo: row[4]?.trim(),
                 replaceInTemplateCopiedFile: row[5]?.trim(),
@@ -445,13 +445,13 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
     const mapping = {} as IActionToProjectIdMapping;
     userData.data.projects.forEach(proj => {
         const projectInfo = groupAndMainProjectMapping.taskLongToShortNameMapping[proj.project_name.trim()]; ////文字校对 (Editorial and Translation team) : 校对
-        if (projectInfo && projectInfo.shortName) {
-            mapping[projectInfo.shortName] = {
+        if (projectInfo && projectInfo.shortNameOnFreedCamp) {
+            mapping[projectInfo.shortNameOnFreedCamp] = {
                 project_id: proj.project_id,
                 priority: 2,                
             }
 
-            groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortName] = {
+            groupAndMainProjectMapping.shortProjectNameToProjectId[projectInfo.shortNameOnFreedCamp] = {
                 project_id: proj.project_id,
                 mappingConfig: projectInfo,
                 // ========== COMMENTED OUT: isTaskEnabledForEnglish check - now using hasEnglishTemplate from UI checkbox instead ==========
@@ -468,8 +468,8 @@ function getActionToProjectIdMapping(userData: ICurrentSessionData, groupAndMain
     // Validate that all required mappings are present
     const missingKeys: string[] = [];
     for (const [longName, projectInfo] of Object.entries(groupAndMainProjectMapping.taskLongToShortNameMapping)) {
-        if (projectInfo.shortName && !mapping[projectInfo.shortName]) {
-            missingKeys.push(`${longName} (shortName: ${projectInfo.shortName})`);
+        if (projectInfo.shortNameOnFreedCamp && !mapping[projectInfo.shortNameOnFreedCamp]) {
+            missingKeys.push(`${longName} (shortNameOnFreedCamp: ${projectInfo.shortNameOnFreedCamp})`);
         }
     }
     
@@ -503,7 +503,7 @@ export function getFreeCampAndUpdateOperations(freedCampOps: FreedCampOps): Free
 export interface ICombinedOpsAndFreeCampData {
     opsConfig: IOpsConfig;
     userData: ICurrentSessionData;
-    userNameToInfoMap: { [shortName: string]: IUserInfo };
+    userNameToInfoMap: { [shortNameOnFreedCamp: string]: IUserInfo };
     userIdToInfoMap: { [userId: string]: IUserInfo };
     projectGroupMapping: IActionToProjectIdMapping;
     loginToken: LoginResponse;
@@ -774,7 +774,7 @@ function getEditorNameForAction(
         return '';
     }
 
-    const prettyName = editorLookup.fullNamePN || editorLookup.shortName;
+    const prettyName = editorLookup.fullNamePN || editorLookup.shortNameOnFreedCamp;
     const isEnglishOnly = isEditorEnglish(editorLookup);
     return isEnglishOnly
         ? `${editorLookup.title} ${prettyName}`

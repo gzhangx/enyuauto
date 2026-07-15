@@ -105,7 +105,7 @@ export type Templates = {
 };
 
 export interface ProjectActionMappingConfig {
-    shortName: ActionType; //文字校对 (Editorial and Translation team) : 校对
+    shortNameOnFreedCamp: ActionType; //文字校对 (Editorial and Translation team) : 校对
     copyFileFrom?: string;                  //文章链接 copyFromColumnName
     copyFileTo?: string;                    //2 Second Proofread
     replaceInTemplateCopiedFile?: string;   //article
@@ -144,7 +144,7 @@ export interface OperationAndTemplates {
 
 export interface IEditorInfo {
     title: string;   //if title is brother then it is english
-    shortName: string;
+    shortNameOnFreedCamp: string;
     group: string; //校对/二校
     fullNamePN: string; //the full chinese name for printing
 }
