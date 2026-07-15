@@ -496,12 +496,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         <option value="">(select editor)</option>
                         {Object.entries(combinedOpsAndData.opsConfig.editorInfoMap).filter(([,info])=>info.group?.indexOf(row.action)>=0).map(([shortName, info]) => {
                           const pretty = (() => {
-                            const prettyName = info.print_name || info.shortName || '';
+                            const prettyName = info.fullNamePN || info.shortName || '';
                             const normalizedTitle = (info.title || '').toLowerCase();
                             const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
                             return isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
                           })();
-                          return <option key={shortName} value={shortName}>{info.print_name || pretty}</option>;
+                          return <option key={shortName} value={shortName}>{info.fullNamePN || pretty}</option>;
                         })}
                       </select>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#555' }}>
@@ -890,7 +890,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                           // try to find a matching shortName by comparing pretty display name
                           const entries = Object.entries(combinedOpsAndData.opsConfig.editorInfoMap);
                           for (const [shortName, info] of entries) {
-                            const prettyName = info.print_name || info.shortName || '';
+                            const prettyName = info.fullNamePN || info.shortName || '';
                             const normalizedTitle = (info.title || '').toLowerCase();
                             const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
                             const display = isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;

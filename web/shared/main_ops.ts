@@ -82,7 +82,7 @@ const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 //     shortName: string;
 //     email: string;
 //     task: string;
-//     print_name: string; //the full chinese name for printing
+//     fullNamePN: string; //the full chinese name for printing
 // }
 
 // interface IOpsConfig {
@@ -359,7 +359,7 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
     (values.find(row => row[0] === 'EditorNameColumn') || []).forEach((name, index) => {
         switch (name) {
             case 'Full Name':
-                positionToNameMap[index] = 'print_name';
+                positionToNameMap[index] = 'fullNamePN';
                 break;
             case 'Group':
                 positionToNameMap[index] = 'group'; //校对/二校 etc
@@ -387,7 +387,7 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
             }
         }
     }
-    //Name on FreedCamp (ric.m etc)->{print_name, group, shortName, title}
+    //Name on FreedCamp (ric.m etc)->{fullNamePN, group, shortName, title}
     return editorInfoMap;
 }
 
@@ -774,7 +774,7 @@ function getEditorNameForAction(
         return '';
     }
 
-    const prettyName = editorLookup.print_name || editorLookup.shortName;
+    const prettyName = editorLookup.fullNamePN || editorLookup.shortName;
     const isEnglishOnly = isEditorEnglish(editorLookup);
     return isEnglishOnly
         ? `${editorLookup.title} ${prettyName}`
