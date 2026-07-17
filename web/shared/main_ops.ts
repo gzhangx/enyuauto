@@ -289,20 +289,38 @@ export async function loadMainData(ops: ISheetDataOps) {
     return { operationList, headers };
 }
 
-async function getOnLeaveData(ops: ISheetDataOps, log: DebugLog): Promise<IOnLeaveData[]> {
+function excelToJSDate(excelSerial: number) {
+    // Excel erroneously treats 1900 as a leap year, so the base offset is 25569 days to Unix epoch
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    return new Date((excelSerial - 25569) * MS_PER_DAY);
+}
+
+async function getOnLeaveData(ops: ISheetDataOps, editorInfoAry: IEditorInfo[], log: DebugLog): Promise<IOnLeaveData[]> {
     //const ops = await getSheetOps(token);
     log.doLog('getOpsAndMainList: got onLeave data');
     const onLeaveData = await ops.readData('OnLeave');
-    const onLeaves: IOnLeaveData[] = onLeaveData.values.map(v => {
-        if (v[0]) {
-            const ret: IOnLeaveData = {
-                name: v[0],
-                startDate: new Date(v[1]),
-                endDate: new Date(v[2]),
+    const onLeaves: IOnLeaveData[] = onLeaveData.values.map((v, idx) => {        
+        const name = v[0];
+        if (name) {
+            const matched = editorInfoAry.find(e => e.fullNamePN === name || e.shortNameOnFreedCamp === name);
+            if (!matched) {
+                if (idx === 0) return;
+                log.doLog(`Warning, onLeave name ${name} does not match anytthing!!!!!`)
+                return;
             }
+            const ret: IOnLeaveData = {
+                name: matched.fullNamePN,
+                startDate: excelToJSDate(v[1] as unknown as number),
+                endDate: excelToJSDate(v[2] as unknown as number),
+            }
+            if (ret.endDate < ret.startDate) {
+                log.doLog(`Invalid date range for ${ret.name}: End date cannot be before start date. ${ret.startDate} ${ret.endDate}`);
+                // Handle the error here (e.g., throw an error, skip the record, or set a fallback)
+            }   
+            //console.log(name, matched.fullNamePN, v[1], v[2], ret.startDate.toISOString(), ret.endDate.toISOString());
             return ret;
         }
-    }).filter(x=>x) as IOnLeaveData[];
+    }).filter(x => x) as IOnLeaveData[];        
     return onLeaves;
 
 }
@@ -359,7 +377,7 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
     }
 
     //
-    const onLeaveData = await getOnLeaveData(ops, log);
+    const onLeaveData = await getOnLeaveData(ops, editorInfoAry, log);
     return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates, onLeaveData };
 }
 
