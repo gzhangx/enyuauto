@@ -37,6 +37,60 @@ type UseLoggerResult = {
   closeCriticalError: () => void;
 } & DebugLog;
 
+const toDateOnly = (value: Date): Date => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const formatDateLabel = (value: Date): string => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getOnLeaveWarning = ({
+  selectedEditor,
+  dueDays,
+  editorInfoAry,
+  onLeaveData,
+}: {
+  selectedEditor?: string;
+  dueDays?: number;
+  editorInfoAry: Array<{ fullNamePN?: string; shortNameOnFreedCamp?: string }>;
+  onLeaveData: Array<{ name: string; startDate: Date; endDate: Date }>;
+}): string | null => {
+  if (!selectedEditor || !Number.isFinite(dueDays) || (dueDays as number) <= 0) {
+    return null;
+  }
+
+  const editorInfo = editorInfoAry.find((info) => info.shortNameOnFreedCamp === selectedEditor);
+  const editorNames = [editorInfo?.fullNamePN, editorInfo?.shortNameOnFreedCamp, selectedEditor]
+    .filter(Boolean)
+    .map((value) => value?.toLowerCase());
+
+  const startDate = toDateOnly(new Date());
+  const endDate = toDateOnly(new Date());
+  endDate.setDate(startDate.getDate() + (dueDays as number));
+
+  const overlap = onLeaveData.find((item) => {
+    const leaveName = item.name?.toLowerCase();
+    if (!leaveName || !editorNames.includes(leaveName)) {
+      return false;
+    }
+    const leaveStart = toDateOnly(item.startDate);
+    const leaveEnd = toDateOnly(item.endDate);
+    return leaveStart <= endDate && leaveEnd >= startDate;
+  });
+
+  if (!overlap) {
+    return null;
+  }
+
+  return `Warning: ${editorInfo?.fullNamePN || selectedEditor} is on leave from ${formatDateLabel(overlap.startDate)} to ${formatDateLabel(overlap.endDate)} and that period overlaps the due-date window.`;
+};
+
 const useLogger = (displayDuration = 60000): UseLoggerResult => {
   const [logMessages, setLogMessages] = useState<LogMessage[]>([]);
   const [criticalError, setCriticalError] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
@@ -526,6 +580,19 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         />
                         day(s)
                       </label>
+                      {(() => {
+                        const warning = getOnLeaveWarning({
+                          selectedEditor: createTasksDialog.selectedEditor?.[row.action],
+                          dueDays: createTasksDialog.dueDays?.[row.action],
+                          editorInfoAry: combinedOpsAndData?.opsConfig?.editorInfoAry ?? opsConfig?.editorInfoAry ?? [],
+                          onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
+                        });
+                        return warning ? (
+                          <div style={{ width: '100%', color: '#b45309', fontSize: '12px', marginTop: '2px' }}>
+                            {warning}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   }
                   {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
