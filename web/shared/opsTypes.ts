@@ -104,6 +104,12 @@ export type Templates = {
     }
 };
 
+export interface IOnLeaveData {
+    name: string;
+    startDate: Date;
+    endDate: Date;
+}
+
 export interface ProjectActionMappingConfig {
     shortNameOnFreedCamp: ActionType; //文字校对 (Editorial and Translation team) : 校对
     copyFileFrom?: string;                  //文章链接 copyFromColumnName
@@ -157,6 +163,7 @@ export interface IOpsConfig {
     editorInfoAry: IEditorInfo[];
     headers: string[];
     templates: Templates;    
+    onLeaveData: IOnLeaveData[];
 }
 
 

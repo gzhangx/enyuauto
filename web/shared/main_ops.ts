@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
-import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOnLeaveData, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
 import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
@@ -288,6 +288,25 @@ export async function loadMainData(ops: ISheetDataOps) {
     });
     return { operationList, headers };
 }
+
+async function getOnLeaveData(ops: ISheetDataOps, log: DebugLog): Promise<IOnLeaveData[]> {
+    //const ops = await getSheetOps(token);
+    log.doLog('getOpsAndMainList: got onLeave data');
+    const onLeaveData = await ops.readData('OnLeave');
+    const onLeaves: IOnLeaveData[] = onLeaveData.values.map(v => {
+        if (v[0]) {
+            const ret: IOnLeaveData = {
+                name: v[0],
+                startDate: new Date(v[1]),
+                endDate: new Date(v[2]),
+            }
+            return ret;
+        }
+    }).filter(x=>x) as IOnLeaveData[];
+    return onLeaves;
+
+}
+
 export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Promise<IOpsConfig> {
     //const ops = await getSheetOps(token);
     log.doLog('getOpsAndMainList: got sheet ops');
@@ -340,7 +359,8 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
     }
 
     //
-    return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates };
+    const onLeaveData = await getOnLeaveData(ops, log);
+    return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates, onLeaveData };
 }
 
 
