@@ -132,12 +132,13 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
     };
 }
 
-export interface IEditorInfoMap { [key: string]: IEditorInfo };
+//export interface IEditorInfoMap { [key: string]: IEditorInfo };
 export interface OperationAndTemplates {
     validOperation: IOperationWithLineNumberAndParentTaskId;
     templates: Templates;
     ops: ISheetDataOps;
-    editorInfoMap: IEditorInfoMap;
+    //editorInfoMap: IEditorInfoMap;
+    editorInfoAry: IEditorInfo[];
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
 }
 
@@ -152,7 +153,8 @@ export interface IEditorInfo {
 export interface IOpsConfig {
     operationList: IOperationWithLineNumberAndParentTaskId[];
     groupAndMainProjectMapping: IGroupAndMainProjectLongToShortNameMapping;
-    editorInfoMap: IEditorInfoMap;
+    //editorInfoMap: IEditorInfoMap;
+    editorInfoAry: IEditorInfo[];
     headers: string[];
     templates: Templates;    
 }

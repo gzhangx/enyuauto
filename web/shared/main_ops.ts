@@ -2,7 +2,7 @@
 import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
-import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IEditorInfoMap, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
+import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
 import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
@@ -299,7 +299,7 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
     log.doLog('getOperationAndTemplates: got config lines ' + configLines.values.length);
     const groupAndMainProjectMapping = getConfigMapping(configLines.values, log);
     
-    const editorInfoMap = getEditorInfoMap(configLines.values);
+    const editorInfoAry = getEditorInfoAry(configLines.values);
 
     const templateRows = await ops.readData('templates');
     log.doLog('getOpsAndLine: got template rows');
@@ -340,7 +340,7 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
     }
 
     //
-    return { operationList,groupAndMainProjectMapping,editorInfoMap, headers, templates };
+    return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates };
 }
 
 
@@ -353,8 +353,8 @@ export function getOperationFromLineNumber(operationList: IOperationWithLineNumb
 
 
 
-function getEditorInfoMap(values: string[][]): IEditorInfoMap {
-    const editorInfoMap: IEditorInfoMap = {};
+function getEditorInfoAry(values: string[][]): IEditorInfo[] {
+    const editorInfoAry: IEditorInfo[] = [];
     const positionToNameMap: { [key: number]: string } = {};
     (values.find(row => row[0] === 'EditorNameColumn') || []).forEach((name, index) => {
         switch (name) {
@@ -383,12 +383,13 @@ function getEditorInfoMap(values: string[][]): IEditorInfoMap {
                 }
             });
             if (hasInfo && editor.shortNameOnFreedCamp) {
-                editorInfoMap[editor.shortNameOnFreedCamp] = editor; //ling_q=>printName:令琪
+                //editorInfoMap[editor.shortNameOnFreedCamp] = editor; //ling_q=>printName:令琪
+                editorInfoAry.push(editor);
             }
         }
     }
     //Name on FreedCamp (ric.m etc)->{fullNamePN, group, shortName, title}
-    return editorInfoMap;
+    return editorInfoAry;
 }
 
 function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjectLongToShortNameMapping {
@@ -769,7 +770,8 @@ function getEditorNameForAction(
     combined: ICombinedOpsAndFreeCampData,
 ): string {
     //const editor = operation[action];
-    const editorLookup = combined.opsConfig.editorInfoMap[editor];
+    //here editor is shortNameOnFreedCamp
+    const editorLookup = combined.opsConfig.editorInfoAry.find(e=>e.shortNameOnFreedCamp === editor);
     if (!editorLookup) {
         return '';
     }
