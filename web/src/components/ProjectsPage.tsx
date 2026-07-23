@@ -976,7 +976,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       console.error('Error preparing project creation:', error);
                       setErrorDialog({
                         show: true,
-                        message: `Failed to prepare project creation:\n${err.message || String(error)}`,
+                        message: `Failed to prepare project creation:\n${err.message || String(error)}\nPlease make sure main folder exists
+                        ${p.mainFolder}`,
                       });
                     } finally {
                       setIsLoading(prev => ({ ...prev, projectButtonAction: '' }));
