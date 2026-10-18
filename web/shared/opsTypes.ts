@@ -31,6 +31,7 @@ export type ISyncFreeCampToSheetData = {
 export interface Operation {
     '文件': string;
     '作者': string;
+    '称呼': string;
     '文章名': string;
     '文章链接': string;
     '作者电邮': string;

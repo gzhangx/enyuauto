@@ -239,6 +239,33 @@ export async function updateDoneColumn(
 }
 
 
+const NEW_PROJECT_COLUMNS = ['文件', 'mainFolder', '作者', '称呼', '作者电邮', '文章类别', '文章名', '文章链接', 'slug'] as const;
+
+/** Appends one main-sheet row after the last row that already has a 文件 or 文章名. Returns the 1-based data row written. */
+export async function appendMainSheetRow(
+    ops: ISheetDataOps,
+    headers: string[],
+    existingRows: { itemPositionOnSheet: number; 文件?: string; 文章名?: string }[],
+    values: Record<string, string>,
+    log: DebugLog,
+): Promise<number> {
+    const missing = NEW_PROJECT_COLUMNS.filter(name => !headers.includes(name));
+    if (missing.length > 0) {
+        throw new Error(`Main sheet is missing columns: ${missing.join(', ')}`);
+    }
+    let last = 0;
+    for (const row of existingRows) {
+        if ((row.文件 || '').trim() || (row.文章名 || '').trim()) {
+            last = Math.max(last, row.itemPositionOnSheet);
+        }
+    }
+    const lineNumber = last + 1;
+    const rowValues = headers.map(header => values[header] ?? '');
+    log.doLog(`append main row at line ${lineNumber}: ${values['文件'] || ''}`);
+    await ops.autoUpdateValues('main', [rowValues], { row: lineNumber, col: 0 });
+    return lineNumber;
+}
+
 export async function updateAnyColumn(
     ops: ISheetDataOps,
     opsConfig: IOpsConfig,

@@ -14,11 +14,13 @@ import {
   completeDateUpdater,  
   updateDoneParentIds,
   updateDoneColumn,
+  appendMainSheetRow,
   type IOneDriveDirInfo,
   createMsExcelDataOps,
 } from '../../shared/main_ops';
 import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
+import { AddProjectDialog, type NewProjectValues } from './AddProjectDialog';
 import { freedCampOps } from '../lib/util';
 import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
@@ -157,6 +159,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(3);
   const [doneColumnSavingLine, setDoneColumnSavingLine] = useState<number | null>(null);
   const [ownerInfoDialog, setOwnerInfoDialog] = useState<{ title: string; entries: OwnerInfoEntry[] } | null>(null);
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [addingProject, setAddingProject] = useState(false);
 
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
 
@@ -419,6 +423,31 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       </div>
     );
   }
+
+  const handleAddProject = async (values: NewProjectValues) => {
+    const ops = sheetOpsRef.current;
+    if (!ops || !opsConfig) {
+      setErrorDialog({ show: true, message: 'Sheet is not loaded yet.' });
+      return;
+    }
+    const duplicate = fullProjectList.some(row => (row.文件 || '').trim() === values.文件);
+    if (duplicate) {
+      setErrorDialog({ show: true, message: `A row already uses 文件:\n${values.文件}` });
+      return;
+    }
+    setAddingProject(true);
+    try {
+      await appendMainSheetRow(ops, opsConfig.headers, fullProjectList, values, { doLog });
+      setShowAddProject(false);
+      await fetchData(freedCampCredentials, false);
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      setErrorDialog({ show: true, message: `Failed to add project:\n${err.message || String(error)}` });
+    } finally {
+      setAddingProject(false);
+    }
+  };
+
   return (
     <>
       <ErrorDialog 
@@ -820,8 +849,18 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         }
       `}</style>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px' }}>
-        <h1 style={{ margin: 0 }}>Enyu Site</h1>        
+      {showAddProject && (
+        <AddProjectDialog
+          projects={fullProjectList}
+          saving={addingProject}
+          onClose={() => { if (!addingProject) setShowAddProject(false); }}
+          onSave={handleAddProject}
+        />
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        <h1 style={{ margin: 0 }}>Enyu Site</h1>
+        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials, true)}>Reload All</button>
         {hasAnySyncable && (
