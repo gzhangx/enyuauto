@@ -104,6 +104,7 @@ export async function getSheetOps(creds: gs.gsAccount.IServiceAccountCreds, cach
 export function wrapGoogleSheetOps(ops: gs.gsAccount.IGetSheetOpsReturn): ISheetDataOps {
     return {
         readData: (sheet) => ops.readData(sheet),
+        readRange: (sheet, address) => ops.readData(`${sheet}!${address}`),
         autoUpdateValues: async (sheet, values, pos) => { await ops.autoUpdateValues(sheet, values, pos); },
     };
 }
@@ -151,6 +152,19 @@ export function createMsExcelDataOps(msToken: string): ISheetDataOps {
             }
             const data = await res.json() as { values?: string[][] };
             return { values: (data.values ?? [])};
+        },
+        async readRange(sheetName: string, address: string) {
+            const baseUrl = await getBaseUrl();
+            const res = await fetch(
+                `${baseUrl}/workbook/worksheets('${encodeURIComponent(sheetName)}')/range(address='${address}')`,
+                { headers: jsonHeaders() }
+            );
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                throw new Error((body as any)?.error?.message || res.statusText);
+            }
+            const data = await res.json() as { values?: string[][] };
+            return { values: data.values ?? [] };
         },
         async autoUpdateValues(sheetName: string, values: string[][], pos: { row: number; col: number }) {
             const baseUrl = await getBaseUrl();
@@ -405,7 +419,55 @@ export async function getOpsAndMainList(ops: ISheetDataOps, log: DebugLog): Prom
 
     //
     const onLeaveData = await getOnLeaveData(ops, editorInfoAry, log);
-    return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates, onLeaveData };
+    const { categories, titles } = await getCategorySheetLists(ops, log);
+    return { operationList,groupAndMainProjectMapping,editorInfoAry, headers, templates, onLeaveData, categories, titles };
+}
+
+const CATEGORY_SHEET_NAMES = ['categories', 'catgegories', 'categogires'];
+
+function normalizeListLabel(value: string): string {
+    return value.normalize('NFKC').replace(/[\u200b\u200c\u200d\ufeff]/g, '').trim().replace(/\s+/g, ' ');
+}
+
+function uniqueColumn(values: string[][], column: number, foldTraditionalShi: boolean): string[] {
+    const result: string[] = [];
+    const seen = new Set<string>();
+    for (const row of values) {
+        let name = normalizeListLabel(String(row?.[column] ?? ''));
+        if (foldTraditionalShi) {
+            name = name.replace(/師/g, '师');
+        }
+        const key = name.toLowerCase();
+        if (!name || seen.has(key)) {
+            continue;
+        }
+        seen.add(key);
+        result.push(name);
+    }
+    return result;
+}
+
+/** Categories in A2:A11 and 称呼 in E2:E11. Sheet order is kept. */
+async function getCategorySheetLists(ops: ISheetDataOps, log: DebugLog): Promise<{ categories: string[]; titles: string[] }> {
+    let values: string[][] | null = null;
+    for (const sheetName of CATEGORY_SHEET_NAMES) {
+        try {
+            const data = await ops.readRange(sheetName, 'A2:E11');
+            values = data.values;
+            log.doLog(`getCategorySheetLists: read ${values.length} rows from ${sheetName}!A2:E11`);
+            break;
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            log.doLog(`getCategorySheetLists: ${sheetName} not read (${message})`);
+        }
+    }
+    if (!values) {
+        return { categories: [], titles: [] };
+    }
+    return {
+        categories: uniqueColumn(values, 0, false),
+        titles: uniqueColumn(values, 4, true),
+    };
 }
 
 

@@ -1,11 +1,9 @@
 import { useMemo, useState } from 'react';
 import {
     categoryLetter,
-    categoryOptions,
     findAuthorEmail,
     nextSlug,
     parseFileInput,
-    titleOptions,
     toSheetFileName,
     type SlugSourceRow,
 } from '../lib/newProjectForm';
@@ -23,6 +21,8 @@ export type NewProjectValues = {
 };
 
 type AddProjectDialogProps = {
+    categories: string[];
+    titles: string[];
     projects: SlugSourceRow[];
     saving: boolean;
     onClose: () => void;
@@ -42,24 +42,19 @@ const emptyForm = {
     date: '',
 };
 
-export function AddProjectDialog({ projects, saving, onClose, onSave }: AddProjectDialogProps) {
+export function AddProjectDialog({ categories, titles, projects, saving, onClose, onSave }: AddProjectDialogProps) {
     const [form, setForm] = useState(emptyForm);
     const [parseNote, setParseNote] = useState('');
     const [emailNote, setEmailNote] = useState('');
 
     const options = useMemo(() => {
-        const fromRows = projects.map(row => row.文章类别 || '');
-        const base = categoryOptions(fromRows);
-        if (form.category && !base.includes(form.category)) {
-            return [...base, form.category];
+        if (form.category && !categories.some(category => category.toLowerCase() === form.category.toLowerCase())) {
+            return [...categories, form.category];
         }
-        return base;
-    }, [projects, form.category]);
+        return categories;
+    }, [categories, form.category]);
 
-    const addressOptions = useMemo(
-        () => titleOptions(projects.map(row => row.称呼 || '')),
-        [projects],
-    );
+    const addressOptions = titles;
 
     const sheetFileName = toSheetFileName(form.date, form.category, form.author, form.title);
 
@@ -71,14 +66,15 @@ export function AddProjectDialog({ projects, saving, onClose, onSave }: AddProje
             return;
         }
         setParseNote('');
+        const category = categories.find(item => item.toLowerCase() === parsed.category.toLowerCase()) ?? parsed.category;
         setForm(prev => ({
             ...prev,
             fileInput,
-            category: parsed.category,
+            category,
             author: parsed.author,
             title: parsed.title,
             date: parsed.date,
-            slug: nextSlug(parsed.date, parsed.category, projects),
+            slug: nextSlug(parsed.date, category, projects),
         }));
     };
 
@@ -124,55 +120,22 @@ export function AddProjectDialog({ projects, saving, onClose, onSave }: AddProje
         });
     };
 
-    const fieldStyle = { display: 'flex', flexDirection: 'column' as const, gap: '0.35rem', textAlign: 'left' as const };
-    const inputStyle = {
-        width: '100%',
-        boxSizing: 'border-box' as const,
-        padding: '0.5rem',
-        border: '1px solid #ced4da',
-        borderRadius: '4px',
-        fontSize: '14px',
-        backgroundColor: '#fff',
-        color: '#212529',
-        colorScheme: 'light' as const,
-    };
-
     return (
-        <div
-            style={{
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 2100,
-                padding: '1rem',
-            }}
-            onClick={onClose}
-        >
-            <div
-                style={{
-                    backgroundColor: 'white',
-                    padding: '1.5rem',
-                    borderRadius: '8px',
-                    width: 'min(640px, 100%)',
-                    maxHeight: '90vh',
-                    overflow: 'auto',
-                    textAlign: 'left',
-                    color: '#212529',
-                }}
-                onClick={(event) => event.stopPropagation()}
-            >
-                <h2 style={{ margin: '0 0 1rem 0' }}>Add a New project</h2>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                    <label style={fieldStyle}>
+        <div className="add-project-backdrop" onClick={onClose}>
+            <div className="add-project-dialog" onClick={(event) => event.stopPropagation()}>
+                <div className="add-project-header">
+                    <div>
+                        <h2>Add a New Project</h2>
+                        <p>Leave 文件 to fill the article, author, and slug.</p>
+                    </div>
+                    <button type="button" className="add-project-close" onClick={onClose} disabled={saving} aria-label="Close">×</button>
+                </div>
+
+                <section>
+                    <h3>稿件</h3>
+                    <label className="add-project-field add-project-span">
                         文件
                         <input
-                            style={inputStyle}
                             value={form.fileInput}
                             autoFocus
                             onChange={(event) => {
@@ -183,74 +146,221 @@ export function AddProjectDialog({ projects, saving, onClose, onSave }: AddProje
                             onBlur={(event) => onFileInput(event.target.value)}
                         />
                     </label>
-                    {parseNote && <div style={{ color: '#856404', fontSize: '13px' }}>{parseNote}</div>}
-                    <label style={fieldStyle}>
-                        mainFolder
-                        <input style={inputStyle} value={form.mainFolder} onChange={(event) => setForm(prev => ({ ...prev, mainFolder: event.target.value }))} />
-                    </label>
-                    <label style={fieldStyle}>
-                        作者
-                        <input style={inputStyle} value={form.author} onChange={(event) => setForm(prev => ({ ...prev, author: event.target.value }))} />
-                    </label>
-                    <label style={fieldStyle}>
-                        称呼
-                        <input style={inputStyle} list="author-title-options" value={form.titleOfAddress} onChange={(event) => setForm(prev => ({ ...prev, titleOfAddress: event.target.value }))} />
-                        <datalist id="author-title-options">
-                            {addressOptions.map(option => <option key={option} value={option} />)}
-                        </datalist>
-                    </label>
-                    <div style={fieldStyle}>
-                        <span>作者电邮</span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <input style={{ ...inputStyle, flex: 1 }} value={form.email} onChange={(event) => { setForm(prev => ({ ...prev, email: event.target.value })); setEmailNote(''); }} />
-                            <button type="button" onClick={searchEmail} style={{ padding: '0.5rem 0.9rem', borderRadius: '4px', border: '1px solid #ced4da', background: 'white', color: '#212529', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                                Search
-                            </button>
-                        </div>
-                        {emailNote && <div style={{ color: '#856404', fontSize: '13px' }}>{emailNote}</div>}
+                    {parseNote && <div className="add-project-note add-project-span">{parseNote}</div>}
+                    <div className="add-project-preview add-project-span">
+                        <span>Saved 文件</span>
+                        <strong>{sheetFileName || '—'}</strong>
                     </div>
-                    <label style={fieldStyle}>
+                    <label className="add-project-field add-project-span">
+                        mainFolder
+                        <input value={form.mainFolder} onChange={(event) => setForm(prev => ({ ...prev, mainFolder: event.target.value }))} />
+                    </label>
+                </section>
+
+                <section>
+                    <h3>文章</h3>
+                    <label className="add-project-field">
                         文章类别
-                        <select style={inputStyle} value={form.category} onChange={(event) => onCategory(event.target.value)}>
+                        <select value={form.category} onChange={(event) => onCategory(event.target.value)}>
                             <option value="">Select a category</option>
                             {options.map(option => (
                                 <option key={option} value={option}>{option}</option>
                             ))}
                         </select>
                     </label>
-                    {!form.category || categoryLetter(form.category) ? null : (
-                        <div style={{ color: '#856404', fontSize: '13px' }}>This category has no slug letter. Type the slug yourself.</div>
-                    )}
-                    <label style={fieldStyle}>
-                        文章名
-                        <input style={inputStyle} value={form.title} onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))} />
-                    </label>
-                    <label style={fieldStyle}>
-                        文章链接
-                        <input style={inputStyle} value={form.link} onChange={(event) => setForm(prev => ({ ...prev, link: event.target.value }))} />
-                    </label>
-                    <label style={fieldStyle}>
+                    <label className="add-project-field">
                         slug
-                        <input
-                            style={inputStyle}
-                            value={form.slug}
-                            onChange={(event) => setForm(prev => ({ ...prev, slug: event.target.value }))}
-                        />
+                        <input value={form.slug} onChange={(event) => setForm(prev => ({ ...prev, slug: event.target.value }))} />
                     </label>
-                    <div style={{ background: '#f8f9fa', borderRadius: '4px', padding: '0.75rem', fontSize: '14px' }}>
-                        <div style={{ color: '#6c757d', marginBottom: '0.25rem' }}>Saved 文件</div>
-                        <div>{sheetFileName || '—'}</div>
+                    {!form.category || categoryLetter(form.category) ? null : (
+                        <div className="add-project-note add-project-span">This category has no slug letter. Type the slug yourself.</div>
+                    )}
+                    <label className="add-project-field add-project-span">
+                        文章名
+                        <input value={form.title} onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))} />
+                    </label>
+                    <label className="add-project-field add-project-span">
+                        文章链接
+                        <input value={form.link} onChange={(event) => setForm(prev => ({ ...prev, link: event.target.value }))} />
+                    </label>
+                </section>
+
+                <section>
+                    <h3>作者</h3>
+                    <label className="add-project-field">
+                        作者
+                        <input value={form.author} onChange={(event) => setForm(prev => ({ ...prev, author: event.target.value }))} />
+                    </label>
+                    <label className="add-project-field">
+                        称呼
+                        <input list="author-title-options" value={form.titleOfAddress} onChange={(event) => setForm(prev => ({ ...prev, titleOfAddress: event.target.value }))} />
+                        <datalist id="author-title-options">
+                            {addressOptions.map(option => <option key={option} value={option} />)}
+                        </datalist>
+                    </label>
+                    <div className="add-project-field add-project-span">
+                        <span>作者电邮</span>
+                        <div className="add-project-email">
+                            <input value={form.email} onChange={(event) => { setForm(prev => ({ ...prev, email: event.target.value })); setEmailNote(''); }} />
+                            <button type="button" onClick={searchEmail}>Search</button>
+                        </div>
+                        {emailNote && <div className="add-project-note">{emailNote}</div>}
                     </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1.25rem' }}>
-                    <button type="button" onClick={onClose} disabled={saving} style={{ padding: '0.5rem 1rem', borderRadius: '4px', border: '1px solid #ced4da', background: 'white', cursor: 'pointer' }}>
-                        Cancel
-                    </button>
-                    <button type="button" className="btn btn-create" onClick={save} disabled={!canSave}>
-                        {saving ? 'Saving…' : 'Save'}
-                    </button>
+                </section>
+
+                <div className="add-project-actions">
+                    <button type="button" className="add-project-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+                    <button type="button" className="btn btn-create" onClick={save} disabled={!canSave}>{saving ? 'Saving…' : 'Save'}</button>
                 </div>
             </div>
+            <style>{`
+                .add-project-backdrop {
+                    position: fixed;
+                    inset: 0;
+                    background: rgba(33, 37, 41, 0.45);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 2100;
+                    padding: 1.25rem;
+                }
+                .add-project-dialog {
+                    width: min(760px, 100%);
+                    max-height: 90vh;
+                    overflow: auto;
+                    background: #fff;
+                    color: #212529;
+                    border-radius: 12px;
+                    padding: 1.35rem 1.5rem 1.15rem;
+                    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+                    text-align: left;
+                }
+                .add-project-header {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 1rem;
+                    align-items: flex-start;
+                    margin-bottom: 1rem;
+                }
+                .add-project-header h2 {
+                    margin: 0;
+                    font-size: 1.35rem;
+                    line-height: 1.3;
+                }
+                .add-project-header p {
+                    margin: 0.3rem 0 0;
+                    color: #6c757d;
+                    font-size: 0.9rem;
+                }
+                .add-project-close {
+                    border: none;
+                    background: transparent;
+                    color: #6c757d;
+                    font-size: 1.6rem;
+                    line-height: 1;
+                    padding: 0 0.15rem;
+                    cursor: pointer;
+                }
+                .add-project-dialog section {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 0.85rem 1rem;
+                    margin: 0 0 1.1rem;
+                    padding-top: 0.15rem;
+                }
+                .add-project-dialog h3 {
+                    grid-column: 1 / -1;
+                    margin: 0;
+                    font-size: 0.78rem;
+                    letter-spacing: 0.04em;
+                    text-transform: uppercase;
+                    color: #6c757d;
+                }
+                .add-project-field {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 0.3rem;
+                    font-size: 0.86rem;
+                    font-weight: 600;
+                }
+                .add-project-span { grid-column: 1 / -1; }
+                .add-project-dialog input,
+                .add-project-dialog select {
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 0.55rem 0.65rem;
+                    border: 1px solid #dee2e6;
+                    border-radius: 6px;
+                    font-size: 0.95rem;
+                    font-weight: 400;
+                    background: #fff;
+                    color: #212529;
+                    color-scheme: light;
+                }
+                .add-project-dialog input:focus,
+                .add-project-dialog select:focus {
+                    outline: 2px solid rgba(76, 175, 80, 0.25);
+                    border-color: #4caf50;
+                }
+                .add-project-email {
+                    display: flex;
+                    gap: 0.5rem;
+                }
+                .add-project-email button {
+                    padding: 0.55rem 0.9rem;
+                    border-radius: 6px;
+                    border: 1px solid #ced4da;
+                    background: #f8f9fa;
+                    color: #212529;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .add-project-preview {
+                    background: #f4f7f4;
+                    border: 1px solid #e3eee3;
+                    border-radius: 8px;
+                    padding: 0.7rem 0.8rem;
+                }
+                .add-project-preview span {
+                    display: block;
+                    color: #6c757d;
+                    font-size: 0.78rem;
+                    margin-bottom: 0.15rem;
+                }
+                .add-project-preview strong {
+                    font-weight: 600;
+                    line-height: 1.4;
+                }
+                .add-project-note {
+                    color: #8a6d3b;
+                    background: #fff8e8;
+                    border-radius: 6px;
+                    padding: 0.4rem 0.6rem;
+                    font-size: 0.82rem;
+                }
+                .add-project-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.55rem;
+                    padding-top: 0.2rem;
+                }
+                .add-project-cancel {
+                    padding: 0.5rem 1rem;
+                    border-radius: 6px;
+                    border: 1px solid #ced4da;
+                    background: #fff;
+                    color: #212529;
+                    cursor: pointer;
+                }
+                .add-project-actions .btn:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
+                }
+                @media (max-width: 680px) {
+                    .add-project-dialog section { grid-template-columns: 1fr; }
+                    .add-project-span { grid-column: auto; }
+                }
+            `}</style>
         </div>
     );
 }

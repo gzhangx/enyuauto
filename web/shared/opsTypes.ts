@@ -6,6 +6,8 @@ import type { ProjectTaskParams } from "./freedcampTypes";
 /** Abstract sheet/workbook data-access layer — implemented by GoogleSheetDataOps or MsExcelDataOps. */
 export interface ISheetDataOps {
     readData(sheetName: string): Promise<{ values: string[][] }>;
+    /** Read one range, such as `A2:A11`, without the rest of the sheet. */
+    readRange(sheetName: string, address: string): Promise<{ values: string[][] }>;
     /**
      * Write `values` to a single rectangular block.
      * @param row  1-indexed data row (0 = header row, 1 = first data row).
@@ -165,6 +167,10 @@ export interface IOpsConfig {
     headers: string[];
     templates: Templates;    
     onLeaveData: IOnLeaveData[];
+    /** Category names from the categories sheet, A2:A11, in sheet order. */
+    categories: string[];
+    /** 称呼 values from the categories sheet, E2:E11, in sheet order. */
+    titles: string[];
 }
 
 

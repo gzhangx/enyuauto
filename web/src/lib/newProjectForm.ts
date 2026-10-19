@@ -34,20 +34,6 @@ export type SlugSourceRow = {
     称呼?: string;
 };
 
-const COMMON_TITLES = ['弟兄', '姐妹', '长老'];
-
-export function titleOptions(existing: string[]): string[] {
-    const values = new Set(COMMON_TITLES);
-    for (const value of existing) {
-        const trimmed = value.trim();
-        if (trimmed) {
-            values.add(trimmed);
-        }
-    }
-    const extras = Array.from(values).filter(value => !COMMON_TITLES.includes(value)).sort((a, b) => a.localeCompare(b, 'zh-CN'));
-    return [...COMMON_TITLES, ...extras];
-}
-
 function normalizeAuthorName(name: string): string {
     return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
@@ -91,29 +77,6 @@ export function categoryLetter(category: string): string {
     const chinese = canonicalChinese(category);
     const found = CATEGORY_ALIASES.find(alias => alias.chinese === chinese);
     return found?.letter ?? '';
-}
-
-function isChineseCategory(value: string): boolean {
-    return /[\u4e00-\u9fff]/.test(value);
-}
-
-export function categoryOptions(existing: string[]): string[] {
-    const chinese = new Set(CATEGORY_ALIASES.map(alias => alias.chinese));
-    const english = new Set(CATEGORY_ALIASES.map(alias => alias.english));
-    for (const value of existing) {
-        const trimmed = value.trim();
-        if (!trimmed || chinese.has(trimmed) || english.has(trimmed)) {
-            continue;
-        }
-        if (isChineseCategory(trimmed)) {
-            chinese.add(trimmed);
-        } else {
-            english.add(trimmed);
-        }
-    }
-    const chineseNames = Array.from(chinese).sort((a, b) => a.localeCompare(b, 'zh-CN'));
-    const englishNames = Array.from(english).sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
-    return [...chineseNames, ...englishNames];
 }
 
 function isCjkToken(token: string): boolean {

@@ -399,13 +399,16 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   };
 
   const stickyHeaderCellStyle = {
-    border: '1px solid #ddd',
-    padding: '12px',
+    padding: '12px 14px',
     textAlign: 'left' as const,
     position: 'sticky' as const,
     top: 0,
     zIndex: 900,
-    backgroundColor: '#fff'
+    backgroundColor: '#1f4b7a',
+    color: '#fff',
+    fontWeight: 600,
+    border: '1px solid #8eafd4',
+    whiteSpace: 'nowrap' as const,
   };
 
   if (!freedCampCredentials) {
@@ -437,9 +440,20 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     }
     setAddingProject(true);
     try {
-      await appendMainSheetRow(ops, opsConfig.headers, fullProjectList, values, { doLog });
+      const lineNumber = await appendMainSheetRow(ops, opsConfig.headers, fullProjectList, values, { doLog });
+      const newRow = { isFinished: false, noNeedToCreate: false, publishCompleted: false, itemPositionOnSheet: lineNumber } as IOperationWithLineNumberAndParentTaskId;
+      const savedValues = values as unknown as Record<string, string>;
+      for (const header of opsConfig.headers) {
+        (newRow as unknown as Record<string, string>)[header] = savedValues[header] ?? '';
+      }
+      if (combinedOpsAndData) {
+        updateDoneParentIds(combinedOpsAndData, [newRow], { doLog });
+      }
+      setFullProjectList(prev => {
+        const rest = prev.filter(row => row.itemPositionOnSheet !== lineNumber);
+        return [...rest, newRow].sort((a, b) => a.itemPositionOnSheet - b.itemPositionOnSheet);
+      });
       setShowAddProject(false);
-      await fetchData(freedCampCredentials, false);
     } catch (error: unknown) {
       const err = error as { message?: string };
       setErrorDialog({ show: true, message: `Failed to add project:\n${err.message || String(error)}` });
@@ -847,10 +861,68 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             opacity: 1;
           }
         }
+        .projects-heading {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 14px;
+          margin-bottom: 1.25rem;
+        }
+        .projects-heading h1 {
+          margin: 0;
+          font-size: 1.85rem;
+          line-height: 1.2;
+          color: #1f4b7a;
+          letter-spacing: 0.01em;
+        }
+        .projects-toolbar {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .projects-toolbar label,
+        .projects-toolbar input {
+          color: #212529;
+        }
+        .projects-table {
+          width: 100%;
+          border-collapse: collapse;
+          background: #fff;
+          color: #212529;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 2px 10px rgba(31, 75, 122, 0.12);
+        }
+        .projects-table td {
+          padding: 10px 14px;
+          border: 1px solid #c5d0dc;
+          text-align: left;
+          vertical-align: middle;
+        }
+        .projects-table tbody tr:nth-child(odd) {
+          background-color: #ffffff;
+        }
+        .projects-table tbody tr:nth-child(even) {
+          background-color: #eef4fb;
+        }
+        .projects-table tbody tr:hover {
+          background-color: #dce9f7;
+        }
+        .projects-table a {
+          color: #1a56a0;
+        }
+        .projects-table .file-col {
+          min-width: 28rem;
+          width: 28rem;
+        }
       `}</style>
 
       {showAddProject && (
         <AddProjectDialog
+          categories={opsConfig?.categories ?? combinedOpsAndData?.opsConfig.categories ?? []}
+          titles={opsConfig?.titles ?? combinedOpsAndData?.opsConfig.titles ?? []}
           projects={fullProjectList}
           saving={addingProject}
           onClose={() => { if (!addingProject) setShowAddProject(false); }}
@@ -858,9 +930,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         />
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
-        <h1 style={{ margin: 0 }}>Enyu Site</h1>
-        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New project</button>
+      <div className="projects-heading">
+        <h1>Enyu Project Manager Site</h1>
+        <div className="projects-toolbar">
+        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials, true)}>Reload All</button>
         {hasAnySyncable && (
@@ -901,16 +974,15 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             const v = parseInt(e.target.value, 10);
             if (!isNaN(v) && v >= 0 && v <= 10) setDaysShowAlertAfterComplete(v);
           }}
-          style={{ width: '60px', fontSize: '14px', padding: '2px 6px' }}
+          style={{ width: '60px', fontSize: '14px', padding: '2px 6px', background: '#fff', border: '1px solid #c5d4e6', borderRadius: '4px' }}
         />
+        </div>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '2rem' }}>
+      <table className="projects-table">
         <thead>
           <tr>
             <th style={stickyHeaderCellStyle}>Action</th>
-            <th style={stickyHeaderCellStyle}>文件</th>
-            <th style={stickyHeaderCellStyle}>文章名</th>
-            <th style={stickyHeaderCellStyle}>作者</th>
+            <th className="file-col" style={stickyHeaderCellStyle}>文件</th>
             {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
               <th key={action} style={stickyHeaderCellStyle}>
                 <button
@@ -947,8 +1019,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         <tbody>
           {
             projectList.map((p,idx) => {
-              return <tr key={p.文章名+idx}>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
+              return <tr key={`${p.itemPositionOnSheet}-${idx}`}>
+                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
                   async () => {
                     if (opsConfig === null) {
                       setResponseData('Operation data not loaded yet.');
@@ -1023,19 +1095,17 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     }
                   }
                 }>Create</button>}</td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>
+                <td className="file-col">
                   {p.mainFolder
                     ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
                     : p.文件}
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.文章名}</td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.作者}</td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
-                  <td key={action} style={{ border: '1px solid #ddd', padding: '12px' }}>
+                  <td key={action}>
                     {renderActionCell(p, action, actionCellDeps)}
                   </td>
                 ))}
-                <td style={{ border: '1px solid #ddd', padding: '12px', textAlign: 'center' }}>
+                <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"
                     title='Maps to sheet column "done": Y hides this row from the default list.'
@@ -1071,7 +1141,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     }}
                   />
                 </td>
-                <td style={{ border: '1px solid #ddd', padding: '12px' }}>{p.itemPositionOnSheet}
+                <td>{p.itemPositionOnSheet}
                   { renderSyncActionCell(p, freedCampCredentials, actionCellDeps, 'Sync from FreedCamp') }
                 </td>
               </tr>
