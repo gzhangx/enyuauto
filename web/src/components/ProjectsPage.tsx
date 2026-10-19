@@ -892,7 +892,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           background: #fff;
           color: #212529;
           border-radius: 10px;
-          overflow: hidden;
           box-shadow: 0 2px 10px rgba(31, 75, 122, 0.12);
         }
         .projects-table td {
@@ -917,6 +916,36 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           min-width: 28rem;
           width: 28rem;
         }
+        .file-tip {
+          display: inline;
+        }
+        .file-tip-card {
+          display: none;
+          position: fixed;
+          top: var(--tip-top, 0);
+          left: var(--tip-left, 0);
+          z-index: 40;
+          min-width: 22rem;
+          max-width: 36rem;
+          padding: 10px 12px;
+          background: #fff;
+          color: #212529;
+          border: 1px solid #c5d0dc;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(31, 75, 122, 0.2);
+          text-align: left;
+          line-height: 1.45;
+          white-space: normal;
+        }
+        .file-tip:hover .file-tip-card,
+        .file-tip:focus-within .file-tip-card {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .file-tip-card a {
+          word-break: break-all;
+        }
       `}</style>
 
       {showAddProject && (
@@ -931,7 +960,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       )}
 
       <div className="projects-heading">
-        <h1>Enyu Project Manager Site</h1>
+        <h1>Enyu Project Management Site</h1>
         <div className="projects-toolbar">
         <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
@@ -1096,9 +1125,26 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   }
                 }>Create</button>}</td>
                 <td className="file-col">
-                  {p.mainFolder
-                    ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
-                    : p.文件}
+                  <span
+                    className="file-tip"
+                    onMouseEnter={(event) => {
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      const left = Math.min(Math.max(8, rect.left), window.innerWidth - 380);
+                      event.currentTarget.style.setProperty('--tip-top', `${rect.bottom + 6}px`);
+                      event.currentTarget.style.setProperty('--tip-left', `${left}px`);
+                    }}
+                  >
+                    {p.mainFolder
+                      ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
+                      : p.文件}
+                    <span className="file-tip-card">
+                      <span>{p.文章名 || '—'}</span>
+                      <span>{p.作者 || '—'}</span>
+                      {p.slug?.trim()
+                        ? <a href={`http://www.enyu.acccn.org/editing/${encodeURIComponent(p.slug.trim())}`} target="_blank" rel="noreferrer">{`http://www.enyu.acccn.org/editing/${p.slug.trim()}`}</a>
+                        : <span>—</span>}
+                    </span>
+                  </span>
                 </td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action}>
