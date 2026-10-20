@@ -1276,7 +1276,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       <div className="projects-heading">
         <h1>Enyu Project Management</h1>
         <div className="projects-toolbar">
-        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New Project</button>
+        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials, true)}>Reload All</button>
         {hasAnySyncable && (

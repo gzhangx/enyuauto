@@ -125,12 +125,13 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
             <div className="add-project-dialog" onClick={(event) => event.stopPropagation()}>
                 <div className="add-project-header">
                     <div>
-                        <h2>Add a New Project</h2>
+                        <h2>Add New Project</h2>
                         <p>Leave 文件 to fill the article, author, and slug.</p>
                     </div>
                     <button type="button" className="add-project-close" onClick={onClose} disabled={saving} aria-label="Close">×</button>
                 </div>
 
+                <div className="add-project-body">
                 <section>
                     <h3>稿件</h3>
                     <label className="add-project-field add-project-span">
@@ -207,6 +208,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                         {emailNote && <div className="add-project-note">{emailNote}</div>}
                     </div>
                 </section>
+                </div>
 
                 <div className="add-project-actions">
                     <button type="button" className="add-project-cancel" onClick={onClose} disabled={saving}>Cancel</button>
@@ -225,56 +227,81 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                     padding: 1.25rem;
                 }
                 .add-project-dialog {
+                    display: flex;
+                    flex-direction: column;
                     width: min(760px, 100%);
                     max-height: 90vh;
-                    overflow: auto;
+                    overflow: hidden;
                     background: #fff;
                     color: #212529;
                     border-radius: 12px;
-                    padding: 1.35rem 1.5rem 1.15rem;
-                    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+                    box-shadow: 0 12px 40px rgba(15, 40, 70, 0.35);
                     text-align: left;
                 }
                 .add-project-header {
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 1rem;
-                    align-items: flex-start;
-                    margin-bottom: 1rem;
+                    position: relative;
+                    background: linear-gradient(135deg, #1f4b7a, #2f6aa8);
+                    color: #fff;
+                    padding: 1.1rem 3rem;
+                    text-align: center;
                 }
                 .add-project-header h2 {
                     margin: 0;
                     font-size: 1.35rem;
+                    letter-spacing: 0.02em;
                     line-height: 1.3;
                 }
                 .add-project-header p {
-                    margin: 0.3rem 0 0;
-                    color: #6c757d;
-                    font-size: 0.9rem;
+                    margin: 6px 0 0;
+                    font-size: 0.95rem;
+                    opacity: 0.92;
                 }
                 .add-project-close {
+                    position: absolute;
+                    top: 0.7rem;
+                    right: 0.9rem;
                     border: none;
                     background: transparent;
-                    color: #6c757d;
+                    color: rgba(255, 255, 255, 0.85);
                     font-size: 1.6rem;
                     line-height: 1;
                     padding: 0 0.15rem;
                     cursor: pointer;
                 }
+                .add-project-close:hover {
+                    color: #fff;
+                }
+                .add-project-body {
+                    flex: 1;
+                    overflow-y: auto;
+                    background: #f4f7fb;
+                    padding: 1rem 1.25rem;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 10px;
+                }
                 .add-project-dialog section {
                     display: grid;
                     grid-template-columns: 1fr 1fr;
-                    gap: 0.85rem 1rem;
-                    margin: 0 0 1.1rem;
-                    padding-top: 0.15rem;
+                    gap: 0.75rem 1rem;
+                    margin: 0;
+                    padding: 0.85rem 1rem 1rem;
+                    background: #fff;
+                    border: 1px solid #dde5ee;
+                    border-left: 4px solid #2f6aa8;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(31, 75, 122, 0.08);
                 }
                 .add-project-dialog h3 {
                     grid-column: 1 / -1;
+                    justify-self: start;
                     margin: 0;
-                    font-size: 0.78rem;
+                    padding: 2px 12px;
+                    border-radius: 999px;
+                    background: #1f4b7a;
+                    color: #fff;
+                    font-size: 0.85rem;
                     letter-spacing: 0.04em;
-                    text-transform: uppercase;
-                    color: #6c757d;
                 }
                 .add-project-field {
                     display: flex;
@@ -282,6 +309,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                     gap: 0.3rem;
                     font-size: 0.86rem;
                     font-weight: 600;
+                    color: #1f4b7a;
                 }
                 .add-project-span { grid-column: 1 / -1; }
                 .add-project-dialog input,
@@ -289,7 +317,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                     width: 100%;
                     box-sizing: border-box;
                     padding: 0.55rem 0.65rem;
-                    border: 1px solid #dee2e6;
+                    border: 1px solid #c5d0dc;
                     border-radius: 6px;
                     font-size: 0.95rem;
                     font-weight: 400;
@@ -299,8 +327,9 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                 }
                 .add-project-dialog input:focus,
                 .add-project-dialog select:focus {
-                    outline: 2px solid rgba(76, 175, 80, 0.25);
-                    border-color: #4caf50;
+                    outline: none;
+                    border-color: #2f6aa8;
+                    box-shadow: 0 0 0 2px rgba(47, 106, 168, 0.2);
                 }
                 .add-project-email {
                     display: flex;
@@ -309,15 +338,19 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                 .add-project-email button {
                     padding: 0.55rem 0.9rem;
                     border-radius: 6px;
-                    border: 1px solid #ced4da;
-                    background: #f8f9fa;
-                    color: #212529;
+                    border: 1px solid #2f6aa8;
+                    background: #e3edf8;
+                    color: #1f4b7a;
+                    font-weight: 600;
                     cursor: pointer;
                     white-space: nowrap;
                 }
+                .add-project-email button:hover {
+                    background: #d3e3f5;
+                }
                 .add-project-preview {
-                    background: #f4f7f4;
-                    border: 1px solid #e3eee3;
+                    background: #eef4fb;
+                    border: 1px solid #dde5ee;
                     border-radius: 8px;
                     padding: 0.7rem 0.8rem;
                 }
@@ -329,28 +362,37 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                 }
                 .add-project-preview strong {
                     font-weight: 600;
+                    color: #1f4b7a;
                     line-height: 1.4;
                 }
                 .add-project-note {
-                    color: #8a6d3b;
-                    background: #fff8e8;
+                    color: #8a4b00;
+                    background: #fff7e6;
+                    border: 1px solid #f5c26b;
                     border-radius: 6px;
+                    font-weight: 400;
                     padding: 0.4rem 0.6rem;
                     font-size: 0.82rem;
                 }
                 .add-project-actions {
                     display: flex;
                     justify-content: flex-end;
-                    gap: 0.55rem;
-                    padding-top: 0.2rem;
+                    gap: 10px;
+                    padding: 0.85rem 1.25rem;
+                    border-top: 1px solid #dde5ee;
+                    background: #fff;
                 }
                 .add-project-cancel {
-                    padding: 0.5rem 1rem;
+                    padding: 8px 18px;
                     border-radius: 6px;
-                    border: 1px solid #ced4da;
+                    border: 1px solid #c5d0dc;
                     background: #fff;
-                    color: #212529;
+                    color: #374151;
                     cursor: pointer;
+                    font-size: 14px;
+                }
+                .add-project-cancel:hover {
+                    background: #f1f4f8;
                 }
                 .add-project-actions .btn:disabled {
                     opacity: 0.55;

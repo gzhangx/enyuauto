@@ -920,6 +920,14 @@ function getEditorNameForAction(
         : `${prettyName}${editorLookup.title}`;
 }
 
+/** `{voice}` in a template becomes 男 or 女 from 称呼; other titles leave the choice to the editor. */
+function voiceForTitleOfAddress(titleOfAddress: string | undefined): string {
+    const title = (titleOfAddress || '').trim().toLowerCase();
+    if (title === '弟兄' || title === 'brother') return '男';
+    if (title === '姐妹' || title === 'sister') return '女';
+    return '男/女';
+}
+
 function personKey(value: string): string {
     return value.normalize('NFKC').replace(/[.\s]/g, '').toLowerCase();
 }
@@ -1203,6 +1211,7 @@ export async function processOperation(
                 //console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
+            template1 = template1.replaceAll('{voice}', voiceForTitleOfAddress(operation['称呼']));
             //if (link) {
             //    template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             //}
