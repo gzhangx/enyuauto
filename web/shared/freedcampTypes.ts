@@ -24,6 +24,8 @@ export interface ProjectTaskParams {
     status_id?: number;
     status_title?: string; //'Completed': 1, No Progress: 0
     completed_ts?: number;
+    created_ts?: number;
+    start_ts?: number;
     assigned_to_fullname?: string;
     app_id?: string; //2
     "priority": 2;

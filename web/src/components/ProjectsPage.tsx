@@ -17,6 +17,7 @@ import {
   appendMainSheetRow,
   type IOneDriveDirInfo,
   createMsExcelDataOps,
+  getEditorWorkload,
 } from '../../shared/main_ops';
 import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
@@ -52,6 +53,41 @@ const formatDateLabel = (value: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
+/** Group cell `语音制作 Human` marks someone who records with a human voice for that action. */
+const isHumanForAction = (group: string | undefined, action: string): boolean =>
+  (group || '').split('/').some((part) => part.trim() === `${action} Human`);
+
+const findLeaveOverlap = ({
+  editor,
+  dueDays,
+  editorInfoAry,
+  onLeaveData,
+}: {
+  editor: string;
+  dueDays: number;
+  editorInfoAry: Array<{ fullNamePN?: string; shortNameOnFreedCamp?: string }>;
+  onLeaveData: Array<{ name: string; startDate: Date; endDate: Date }>;
+}) => {
+  const editorInfo = editorInfoAry.find((info) => info.shortNameOnFreedCamp === editor);
+  const editorNames = [editorInfo?.fullNamePN, editorInfo?.shortNameOnFreedCamp, editor]
+    .filter(Boolean)
+    .map((value) => value?.toLowerCase());
+
+  const startDate = toDateOnly(new Date());
+  const endDate = toDateOnly(new Date());
+  endDate.setDate(startDate.getDate() + dueDays);
+
+  return onLeaveData.find((item) => {
+    const leaveName = item.name?.toLowerCase();
+    if (!leaveName || !editorNames.includes(leaveName)) {
+      return false;
+    }
+    const leaveStart = toDateOnly(item.startDate);
+    const leaveEnd = toDateOnly(item.endDate);
+    return leaveStart <= endDate && leaveEnd >= startDate;
+  });
+};
+
 const getOnLeaveWarning = ({
   selectedEditor,
   dueDays,
@@ -68,24 +104,7 @@ const getOnLeaveWarning = ({
   }
 
   const editorInfo = editorInfoAry.find((info) => info.shortNameOnFreedCamp === selectedEditor);
-  const editorNames = [editorInfo?.fullNamePN, editorInfo?.shortNameOnFreedCamp, selectedEditor]
-    .filter(Boolean)
-    .map((value) => value?.toLowerCase());
-
-  const startDate = toDateOnly(new Date());
-  const endDate = toDateOnly(new Date());
-  endDate.setDate(startDate.getDate() + (dueDays as number));
-
-  const overlap = onLeaveData.find((item) => {
-    const leaveName = item.name?.toLowerCase();
-    if (!leaveName || !editorNames.includes(leaveName)) {
-      return false;
-    }
-    const leaveStart = toDateOnly(item.startDate);
-    const leaveEnd = toDateOnly(item.endDate);
-    return leaveStart <= endDate && leaveEnd >= startDate;
-  });
-
+  const overlap = findLeaveOverlap({ editor: selectedEditor, dueDays: dueDays as number, editorInfoAry, onLeaveData });
   if (!overlap) {
     return null;
   }
@@ -163,6 +182,87 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [addingProject, setAddingProject] = useState(false);
 
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+
+  const getEligibleEditors = (row: { action: ActionType; hasAITemplate?: boolean }) => {
+    if (!combinedOpsAndData) return [];
+    const aiOn = row.hasAITemplate && createTasksDialog?.useAITemplate[row.action] !== false;
+    return combinedOpsAndData.opsConfig.editorInfoAry.filter((info) =>
+      info.group?.indexOf(row.action) >= 0 && !(aiOn && isHumanForAction(info.group, row.action)));
+  };
+
+  const renderWorkloadTable = (row: { action: ActionType; hasAITemplate?: boolean }) => {
+    if (!combinedOpsAndData) return null;
+    const rows = getEligibleEditors(row).map((info) => ({
+      info,
+      load: getEditorWorkload(info.shortNameOnFreedCamp, row.action, combinedOpsAndData),
+    }));
+    if (rows.length === 0) return null;
+    rows.sort((a, b) => b.load.lastAssignedTs - a.load.lastAssignedTs);
+    const selectedName = createTasksDialog?.selectedEditor?.[row.action];
+    const dueDays = createTasksDialog?.dueDays?.[row.action] ?? 7;
+    const onLeaveData = combinedOpsAndData.opsConfig.onLeaveData ?? opsConfig?.onLeaveData ?? [];
+    return (
+      <table className="ctd-workload">
+        <thead>
+          <tr>
+            <th>Editor</th>
+            <th>Open now</th>
+            <th>Last assigned</th>
+            <th>Last completed</th>
+            <th>Done in total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ info, load }) => {
+            const leave = findLeaveOverlap({
+              editor: info.shortNameOnFreedCamp,
+              dueDays,
+              editorInfoAry: combinedOpsAndData.opsConfig.editorInfoAry,
+              onLeaveData,
+            });
+            return (
+            <tr
+              key={info.shortNameOnFreedCamp}
+              title={leave ? `On leave ${formatDateLabel(leave.startDate)} – ${formatDateLabel(leave.endDate)}` : undefined}
+              className={[
+                'ctd-row-pickable',
+                info.shortNameOnFreedCamp === selectedName ? 'ctd-row-selected' : '',
+                leave ? 'ctd-row-leave' : '',
+              ].join(' ').trim()}
+              onClick={() => {
+                setCreateTasksDialog((prev) => {
+                  if (!prev) return prev;
+                  const selectedEditor = { ...(prev.selectedEditor || {}) };
+                  selectedEditor[row.action] = info.shortNameOnFreedCamp;
+                  return { ...prev, selectedEditor };
+                });
+              }}
+            >
+              <td>
+                {info.fullNamePN || info.shortNameOnFreedCamp}
+                {leave && <span className="ctd-leave-tag">on leave until {formatDateLabel(leave.endDate)}</span>}
+              </td>
+              {load.matchedUser ? (
+                <>
+                  <td>
+                    <span className={`ctd-open-badge${leave ? '' : load.openCount > 0 ? ' ctd-open-busy' : ' ctd-open-free'}`}>
+                      {load.openCount}
+                    </span>
+                  </td>
+                  <td>{load.lastAssignedTs ? formatLocalDateYyyyMmDd(load.lastAssignedTs) : <span className="ctd-never">never</span>}</td>
+                  <td>{load.lastCompletedTs ? formatLocalDateYyyyMmDd(load.lastCompletedTs) : '—'}</td>
+                  <td>{load.completedCount}</td>
+                </>
+              ) : (
+                <td className="ctd-muted" colSpan={4}>not found in FreedCamp</td>
+              )}
+            </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    );
+  };
 
   const closeOwnerInfoDialog = () => setOwnerInfoDialog(null);
   const getOwnerInfoEntriesForAction = (action: ActionType): OwnerInfoEntry[] => {
@@ -248,8 +348,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             if (actionInfo) {
               setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
               const prjs = await pr.getTasksForProjects(actionInfo.project_id, 1);
-              combined.freedCampTasksByAction[action] = prjs;
-            }
+              combined.freedCampTasksByAction[action] = prjs;            }
           }
           setCombinedOpsAndData(combined);
           updateDoneParentIds(combined, res.operationList, logParam);
@@ -492,36 +591,18 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           }}
           onClick={() => setCreateTasksDialog(null)}
         >
-          <div
-            style={{
-              backgroundColor: 'white',
-              padding: '1.5rem',
-              borderRadius: '8px',
-              maxWidth: '520px',
-              width: '92%',
-              maxHeight: '80vh',
-              overflow: 'auto',
-              boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 style={{ margin: '0 0 0.75rem 0', fontSize: '1.15rem' }}>
-              Create FreedCamp tasks — {createTasksDialog.operation['文件']}
-            </h2>            
-            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 1.25rem 0' }}>
+          <div className="ctd-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="ctd-header">
+              <h2>Create FreedCamp Task</h2>
+              <div className="ctd-project">{createTasksDialog.operation['文件']}</div>
+            </div>
+            <ul className="ctd-body">
               {createTasksDialog.actions.map((row) => (
                 <li
                   key={row.action}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    padding: '8px 0',
-                    borderBottom: '1px solid #eee',
-                    fontSize: '14px',
-                  }}
+                  className={`ctd-card${createTasksDialog.selected[row.action] ? ' ctd-card-selected' : ''}`}
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div className="ctd-card-head">
                     <input
                       type="checkbox"
                       id={`create-task-${row.action}`}
@@ -564,10 +645,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         });
                       }}
                     />
-                    <label htmlFor={`create-task-${row.action}`} style={{ cursor: 'pointer', flex: 1 }}>
-                      <strong>{row.action}</strong>
-                      <span 
-                        style={{ color: '#666', marginLeft: '8px' }} 
+                    <label htmlFor={`create-task-${row.action}`} className="ctd-card-label">
+                      <span className="ctd-action">{row.action}</span>
+                      <span
+                        className="ctd-editor-name"
                         title={`Due: ${createTasksDialog.operation[`${row.action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as string || 'N/A'}`}
                       >
                         {row.editorName}
@@ -576,8 +657,9 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   </div>
                   {/* Editor dropdown: show full name from editorInfoMap, default to row.editorName or sheet value */}
                   {createTasksDialog.selected[row.action] &&
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px', flexWrap: 'wrap' }}>
+                    <div className="ctd-controls">
                       <select
+                        className="ctd-input"
                         value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -588,10 +670,9 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                             return { ...prev, selectedEditor };
                           });
                         }}
-                        style={{ marginLeft: '8px', fontSize: '13px', padding: '4px' }}
                       >
                         <option value="">(select editor)</option>
-                        {(combinedOpsAndData.opsConfig.editorInfoAry).filter((info)=>info.group?.indexOf(row.action)>=0).map((info) => {
+                        {getEligibleEditors(row).map((info) => {
                           const pretty = (() => {
                             const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
                             const normalizedTitle = (info.title || '').toLowerCase();
@@ -601,9 +682,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                           return <option key={info.shortNameOnFreedCamp} value={info.shortNameOnFreedCamp}>{info.fullNamePN || pretty}</option>;
                         })}
                       </select>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#555' }}>
+                      <label className="ctd-due">
                         Due in
                         <input
+                          className="ctd-input"
                           type="number"
                           min="1"
                           step="1"
@@ -619,7 +701,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                               return { ...prev, dueDays };
                             });
                           }}
-                          style={{ width: '58px', padding: '4px', fontSize: '13px' }}
+                          style={{ width: '58px' }}
                         />
                         day(s)
                       </label>
@@ -631,15 +713,16 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                           onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
                         });
                         return warning ? (
-                          <div style={{ width: '100%', color: '#b45309', fontSize: '12px', marginTop: '2px' }}>
+                          <div className="ctd-warning">
                             {warning}
                           </div>
                         ) : null;
                       })()}
+                      {renderWorkloadTable(row)}
                     </div>
                   }
                   {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                    <div className="ctd-option">
                       <input
                         type="checkbox"
                         id={`use-english-${row.action}`}
@@ -654,13 +737,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                           });
                         }}
                       />
-                      <label htmlFor={`use-english-${row.action}`} style={{ cursor: 'pointer', color: '#555', fontSize: '13px' }}>
+                      <label htmlFor={`use-english-${row.action}`}>
                         Use English template
                       </label>                      
                     </div>
                   )}
                   {row.hasAITemplate && createTasksDialog.selected[row.action] && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginLeft: '20px' }}>
+                    <div className="ctd-option">
                       <input
                         type="checkbox"
                         id={`use-ai-${row.action}`}
@@ -671,11 +754,17 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                             if (!prev) return prev;
                             const useAITemplate = { ...prev.useAITemplate };
                             useAITemplate[row.action] = checked;
-                            return { ...prev, useAITemplate };
+                            const selectedEditor = { ...(prev.selectedEditor || {}) };
+                            const current = selectedEditor[row.action];
+                            const currentInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === current);
+                            if (checked && current && isHumanForAction(currentInfo?.group, row.action)) {
+                              selectedEditor[row.action] = '';
+                            }
+                            return { ...prev, useAITemplate, selectedEditor };
                           });
                         }}
                       />
-                      <label htmlFor={`use-ai-${row.action}`} style={{ cursor: 'pointer', color: '#555', fontSize: '13px' }}>
+                      <label htmlFor={`use-ai-${row.action}`}>
                         Use AI template
                       </label>
                     </div>
@@ -683,18 +772,11 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                 </li>
               ))}
             </ul>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <div className="ctd-footer">
               <button
                 type="button"
+                className="ctd-cancel"
                 onClick={() => setCreateTasksDialog(null)}
-                style={{
-                  padding: '8px 18px',
-                  borderRadius: '4px',
-                  border: '1px solid #ccc',
-                  background: '#f5f5f5',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                }}
               >
                 Cancel
               </button>
@@ -734,9 +816,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   if (!ops) return;
                   setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Creating project...' }));
                   const logs: DebugLog = {
-                    doLog: (msg) => {
+                    doLog: (msg, critical = false) => {
                       console.log('doLog',msg);
                       setProgressText(msg);
+                      if (critical) {
+                        setErrorDialog({ show: true, message: msg });
+                      }
                     },
                   };
                   try {
@@ -870,7 +955,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         }
         .projects-heading h1 {
           margin: 0;
-          font-size: 1.85rem;
+          font-size: 2.35rem;
           line-height: 1.2;
           color: #1f4b7a;
           letter-spacing: 0.01em;
@@ -916,35 +1001,264 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           min-width: 28rem;
           width: 28rem;
         }
-        .file-tip {
-          display: inline;
+        .projects-table a.file-preview {
+          display: block;
+          margin-top: 4px;
+          font-size: 0.85rem;
+          color: #e67e00;
         }
-        .file-tip-card {
-          display: none;
-          position: fixed;
-          top: var(--tip-top, 0);
-          left: var(--tip-left, 0);
-          z-index: 40;
-          min-width: 22rem;
-          max-width: 36rem;
-          padding: 10px 12px;
-          background: #fff;
-          color: #212529;
-          border: 1px solid #c5d0dc;
-          border-radius: 8px;
-          box-shadow: 0 8px 24px rgba(31, 75, 122, 0.2);
-          text-align: left;
-          line-height: 1.45;
-          white-space: normal;
+        .projects-table a.file-preview:hover {
+          color: #c65d00;
         }
-        .file-tip:hover .file-tip-card,
-        .file-tip:focus-within .file-tip-card {
+        .projects-table a.file-live {
+          display: block;
+          margin-top: 4px;
+          font-size: 0.85rem;
+          color: #e67e00;
+        }
+        .projects-table a.file-live:hover {
+          color: #c65d00;
+        }
+        .ctd-dialog {
           display: flex;
           flex-direction: column;
-          gap: 4px;
+          background: #fff;
+          color: #212529;
+          border-radius: 12px;
+          width: 92%;
+          max-width: 760px;
+          max-height: 86vh;
+          overflow: hidden;
+          box-shadow: 0 12px 40px rgba(15, 40, 70, 0.35);
         }
-        .file-tip-card a {
-          word-break: break-all;
+        .ctd-header {
+          background: linear-gradient(135deg, #1f4b7a, #2f6aa8);
+          color: #fff;
+          padding: 1.1rem 1.5rem;
+          text-align: center;
+        }
+        .ctd-header h2 {
+          margin: 0;
+          font-size: 1.35rem;
+          letter-spacing: 0.02em;
+        }
+        .ctd-project {
+          margin-top: 6px;
+          font-size: 0.95rem;
+          opacity: 0.92;
+        }
+        .ctd-body {
+          list-style: none;
+          margin: 0;
+          padding: 1rem 1.25rem;
+          overflow-y: auto;
+          flex: 1;
+          background: #f4f7fb;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .ctd-card {
+          background: #fff;
+          border: 1px solid #dde5ee;
+          border-radius: 8px;
+          padding: 8px 12px;
+          font-size: 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .ctd-card:hover {
+          border-color: #9fbbe0;
+        }
+        .ctd-card-selected {
+          border-color: #2f6aa8;
+          border-left: 4px solid #2f6aa8;
+          box-shadow: 0 2px 8px rgba(31, 75, 122, 0.12);
+        }
+        .ctd-card-head {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .ctd-card-head input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          accent-color: #2f6aa8;
+          cursor: pointer;
+        }
+        .ctd-card-label {
+          flex: 1;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          cursor: pointer;
+        }
+        .ctd-action {
+          display: inline-block;
+          min-width: 4.5em;
+          padding: 2px 10px;
+          border-radius: 999px;
+          background: #e3edf8;
+          color: #1f4b7a;
+          font-weight: 700;
+          text-align: center;
+        }
+        .ctd-card-selected .ctd-action {
+          background: #1f4b7a;
+          color: #fff;
+        }
+        .ctd-editor-name {
+          color: #6b7785;
+        }
+        .ctd-controls {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex-wrap: wrap;
+          padding-left: 26px;
+        }
+        .ctd-input {
+          padding: 5px 8px;
+          font-size: 13px;
+          border: 1px solid #c5d0dc;
+          border-radius: 6px;
+          background: #fff;
+          color: #212529;
+        }
+        .ctd-input:focus {
+          outline: none;
+          border-color: #2f6aa8;
+          box-shadow: 0 0 0 2px rgba(47, 106, 168, 0.2);
+        }
+        .ctd-due {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 13px;
+          color: #555;
+        }
+        .ctd-warning {
+          width: 100%;
+          padding: 6px 10px;
+          border-radius: 6px;
+          background: #fff7e6;
+          border: 1px solid #f5c26b;
+          color: #8a4b00;
+          font-size: 12px;
+        }
+        .ctd-option {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          padding-left: 26px;
+          font-size: 13px;
+          color: #555;
+        }
+        .ctd-option input[type="checkbox"] {
+          accent-color: #2f6aa8;
+        }
+        .ctd-option label {
+          cursor: pointer;
+        }
+        .ctd-workload {
+          width: 100%;
+          border-collapse: separate;
+          border-spacing: 0;
+          font-size: 12px;
+          color: #3a4552;
+          border: 1px solid #dde5ee;
+          border-radius: 6px;
+          overflow: hidden;
+        }
+        .ctd-workload th {
+          background: #eef4fb;
+          color: #1f4b7a;
+          font-weight: 600;
+          text-align: left;
+          padding: 5px 8px;
+          border-bottom: 1px solid #dde5ee;
+        }
+        .ctd-workload td {
+          padding: 4px 8px;
+          border-bottom: 1px solid #eef1f5;
+          text-align: left;
+        }
+        .ctd-workload tbody tr:last-child td {
+          border-bottom: none;
+        }
+        .ctd-workload tbody tr:nth-child(even) {
+          background: #fafcfe;
+        }
+        .ctd-workload tr.ctd-row-pickable {
+          cursor: pointer;
+        }
+        .ctd-workload tbody tr.ctd-row-pickable:hover {
+          background: #dce9f7;
+        }
+        .ctd-workload tr.ctd-row-selected,
+        .ctd-workload tbody tr.ctd-row-selected:hover {
+          background: #fff4e0;
+          box-shadow: inset 3px 0 0 #e67e00;
+          font-weight: 600;
+        }
+        .ctd-workload tr.ctd-row-leave {
+          background: #fdecea;
+          color: #c62828;
+        }
+        .ctd-leave-tag {
+          display: inline-block;
+          margin-left: 6px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #c62828;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 600;
+        }
+        .ctd-open-badge {
+          display: inline-block;
+          min-width: 1.6em;
+          padding: 0 6px;
+          border-radius: 999px;
+          text-align: center;
+          font-weight: 700;
+        }
+        .ctd-open-free {
+          background: #e6f4ea;
+          color: #2e7d32;
+        }
+        .ctd-open-busy {
+          background: #fff1dc;
+          color: #b45309;
+        }
+        .ctd-never {
+          color: #2f6aa8;
+          font-style: italic;
+        }
+        .ctd-muted {
+          color: #999;
+        }
+        .ctd-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          padding: 0.85rem 1.25rem;
+          border-top: 1px solid #dde5ee;
+          background: #fff;
+        }
+        .ctd-cancel {
+          padding: 8px 18px;
+          border-radius: 6px;
+          border: 1px solid #c5d0dc;
+          background: #fff;
+          color: #374151;
+          cursor: pointer;
+          font-size: 14px;
+        }
+        .ctd-cancel:hover {
+          background: #f1f4f8;
         }
       `}</style>
 
@@ -960,7 +1274,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       )}
 
       <div className="projects-heading">
-        <h1>Enyu Project Management Site</h1>
+        <h1>Enyu Project Management</h1>
         <div className="projects-toolbar">
         <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add a New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
@@ -1107,6 +1421,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                             }
                           }
                         }
+                        if (useAITemplate[a.action] && selectedEditor[a.action]) {
+                          const chosen = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === selectedEditor[a.action]);
+                          if (isHumanForAction(chosen?.group, a.action)) {
+                            delete selectedEditor[a.action];
+                          }
+                        }
                         dueDays[a.action] = 7;
                       }
                       //for (const a of actions) selected[a.action] = true;
@@ -1125,26 +1445,31 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   }
                 }>Create</button>}</td>
                 <td className="file-col">
-                  <span
-                    className="file-tip"
-                    onMouseEnter={(event) => {
-                      const rect = event.currentTarget.getBoundingClientRect();
-                      const left = Math.min(Math.max(8, rect.left), window.innerWidth - 380);
-                      event.currentTarget.style.setProperty('--tip-top', `${rect.bottom + 6}px`);
-                      event.currentTarget.style.setProperty('--tip-left', `${left}px`);
-                    }}
-                  >
+                  <div>
                     {p.mainFolder
                       ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
                       : p.文件}
-                    <span className="file-tip-card">
-                      <span>{p.文章名 || '—'}</span>
-                      <span>{p.作者 || '—'}</span>
-                      {p.slug?.trim()
-                        ? <a href={`http://www.enyu.acccn.org/editing/${encodeURIComponent(p.slug.trim())}`} target="_blank" rel="noreferrer">{`http://www.enyu.acccn.org/editing/${p.slug.trim()}`}</a>
-                        : <span>—</span>}
-                    </span>
-                  </span>
+                  </div>
+                  {p.slug?.trim() && (p.done || '').toUpperCase() === 'Y' && (
+                    <a
+                      className="file-live"
+                      href={`http://www.enyu.acccn.org/editing/${encodeURIComponent(p.slug.trim())}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      view on website
+                    </a>
+                  )}
+                  {p.publishCompleted && p.slug?.trim() && (p.done || '').toUpperCase() !== 'Y' && (
+                    <a
+                      className="file-preview"
+                      href={`http://www.enyu.acccn.org/editing/${encodeURIComponent(p.slug.trim())}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      preview
+                    </a>
+                  )}
                 </td>
                 {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
                   <td key={action}>

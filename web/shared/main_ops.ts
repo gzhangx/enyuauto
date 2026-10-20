@@ -531,9 +531,15 @@ function getConfigMapping(values: string[][],log: DebugLog): IGroupAndMainProjec
             }; //populated later after we login to freedcamp
         },
         actionExcludes: {},
+        autoAssign: [],
     }
     configMap.groupName = values.find(row => row[0] === 'groupName')?.[1] || '';
     configMap.actions = values.find(row => row[0] === 'operations')?.[1].split(',').map(item => item.trim() as ActionType) || [];
+    configMap.autoAssign = (values.find(row => (row[0] || '').trim() === 'autoAssign')?.[1] || '')
+        .split('/')
+        .map(item => item.trim() as ActionType)
+        .filter(Boolean);
+    log.doLog(`getConfigMapping: autoAssign ${configMap.autoAssign.join('/') || '(none)'}`);
     if (!configMap.groupName) { 
         log.doLog('getConfigMapping: Warning groupName not found in config');
     }
@@ -845,7 +851,11 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
                         if (!warnSTr) {
                             warnSTr = 'itm.文件 is empty';
                         }
-                        log.doLog(`Warning: multiple FreedCamp tasks found for '${warnSTr}' in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
+                        // Known leftover: 发布 titles (二) and (三) both contain this 文件, and the tasks are no longer findable in FreedCamp.
+                        const knownQuietDuplicate = (itm.文件 || '').includes('行走在圣经的字里行间');
+                        if (!knownQuietDuplicate) {
+                            log.doLog(`Warning: multiple FreedCamp tasks found for '${warnSTr}' in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
+                        }
                     } else {
                         itm[`${action} FreeCamp Item`] = freedCampTsks[0];
                     }
@@ -908,6 +918,60 @@ function getEditorNameForAction(
     return isEnglishOnly
         ? `${editorLookup.title} ${prettyName}`
         : `${prettyName}${editorLookup.title}`;
+}
+
+function personKey(value: string): string {
+    return value.normalize('NFKC').replace(/[.\s]/g, '').toLowerCase();
+}
+
+function findFreedCampUserForEditor(editor: string, combined: ICombinedOpsAndFreeCampData): IUserInfo | undefined {
+    const direct = combined.userNameToInfoMap[editor];
+    if (direct) {
+        return direct;
+    }
+    const editorLookup = combined.opsConfig.editorInfoAry.find(info => info.shortNameOnFreedCamp === editor || info.fullNamePN === editor);
+    const candidates = [editor];
+    if (editorLookup?.fullNamePN) {
+        candidates.push(editorLookup.fullNamePN);
+    }
+    if (editorLookup?.shortNameOnFreedCamp) {
+        candidates.push(editorLookup.shortNameOnFreedCamp);
+        const displayName = getEditorNameForAction(editorLookup.shortNameOnFreedCamp, combined);
+        if (displayName) {
+            candidates.push(displayName);
+        }
+    }
+    const keys = new Set(candidates.map(personKey).filter(Boolean));
+    return Object.values(combined.userNameToInfoMap).find(user => keys.has(personKey(user.full_name)));
+}
+
+export interface IEditorWorkload {
+    openCount: number;
+    completedCount: number;
+    lastAssignedTs: number;
+    lastCompletedTs: number;
+    matchedUser: boolean;
+}
+
+export function getEditorWorkload(editor: string, action: ActionType, combined: ICombinedOpsAndFreeCampData): IEditorWorkload {
+    const workload: IEditorWorkload = { openCount: 0, completedCount: 0, lastAssignedTs: 0, lastCompletedTs: 0, matchedUser: false };
+    const user = findFreedCampUserForEditor(editor, combined);
+    if (!user) return workload;
+    workload.matchedUser = true;
+    const DEFAULT_DUE_DAYS_SECONDS = 7 * 24 * 60 * 60;
+    for (const task of combined.freedCampTasksByAction[action]?.tasks || []) {
+        if (task.assigned_to_id !== user.user_id) continue;
+        const assignedTs = Number(task.created_ts) || Number(task.start_ts)
+            || (Number(task.due_ts) ? Number(task.due_ts) - DEFAULT_DUE_DAYS_SECONDS : 0);
+        workload.lastAssignedTs = Math.max(workload.lastAssignedTs, assignedTs);
+        if (task.status_title === 'Completed') {
+            workload.completedCount++;
+            workload.lastCompletedTs = Math.max(workload.lastCompletedTs, Number(task.completed_ts) || 0);
+        } else {
+            workload.openCount++;
+        }
+    }
+    return workload;
 }
 
 function isEditorEnglish(editorLookup: IEditorInfo): boolean {
@@ -1191,13 +1255,16 @@ export async function processOperation(
                 time_to: '00:00'
             };
             
-            if (editor) {
-                const userInfo = combined.userNameToInfoMap[editor];
-                if (userInfo) {
-                    //DEBUG don't assign it sends email
-                    //postParams.assigned_to_id = userInfo.user_id;
-                    if (debug_Prefix) {
-                        //postParams.assigned_to_id = '1320079';
+            if (groupAndMainProjectMapping.autoAssign.includes(action)) {
+                if (!editor) {
+                    log.doLog(`processOperation: autoAssign ${action} has no editor on the row. Task left unassigned.`, true);
+                } else {
+                    const userInfo = findFreedCampUserForEditor(editor, combined);
+                    if (userInfo) {
+                        postParams.assigned_to_id = userInfo.user_id;
+                        log.doLog(`processOperation: autoAssign ${action} to ${userInfo.full_name}`);
+                    } else {
+                        log.doLog(`processOperation: autoAssign ${action} could not match a FreedCamp user for '${editor}'. Task left unassigned.`, true);
                     }
                 }
             }            

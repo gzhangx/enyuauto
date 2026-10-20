@@ -139,6 +139,8 @@ export interface IGroupAndMainProjectLongToShortNameMapping {
     actionExcludes: {
         [key in ActionType]?: ActionType[]; //if actionExcludes['语音制作 AI'] = ['语音编辑'], it means if 语音制作 AI Exists, then we should exclude 语音编辑
     };
+    /** Actions that set FreedCamp's assignee when the task is created. Edited on the config sheet row `autoAssign`. */
+    autoAssign: ActionType[];
 }
 
 //export interface IEditorInfoMap { [key: string]: IEditorInfo };
