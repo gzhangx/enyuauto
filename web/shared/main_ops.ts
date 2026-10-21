@@ -1280,7 +1280,12 @@ export async function processOperation(
                 ? ((operation as any)[filePlan.sourceColumn] as string | undefined)?.trim()
                 : '';
             if ((filePlan?.sourceFolders?.length || filePlan?.sourceColumn) && !pickedSource && !sourceValue) {
-                log.doLog(`processOperation: ${action} has no file picked. Falling back to 文章链接.`, true);
+                log.doLog(
+                    filePlan?.linkPlaceholder
+                        ? `processOperation: ${action} has no file picked. {${filePlan.linkPlaceholder}} will be left empty.`
+                        : `processOperation: ${action} has no file picked.`,
+                    true,
+                );
             }
             let copyLink = sourceValue
                 || (mappingConfig?.replaceInTemplateCopiedFile ? operation['文章链接'] : '');

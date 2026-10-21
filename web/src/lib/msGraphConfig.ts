@@ -21,6 +21,10 @@ export const SP_ENYU_GRAPH_DRIVE_ROOT =
 /** Sub-folder inside the document library where EnYu working files live. */
 export const SP_ENYU_GENERAL_FOLDER = 'General/Website Dev/ENYU Co-workers Resources/Projects';
 
+/** Sharing link for enyustatus.xlsx. Used first so a folder rename does not break lookup. */
+export const SP_ENYU_EXCEL_SHARING_URL =
+  'https://acccnusa.sharepoint.com/:x:/s/enyueditors/IQBWLGK2yYQ8RqFLigv4EauzAaib1Db6wZUQ9ICM5-u9gc0';
+
 const SP_ENYU_SITE_GRAPH_URL = 'https://graph.microsoft.com/v1.0/sites/acccnusa.sharepoint.com:/sites/enyueditors';
 let _resolvedDriveRoot: string | null = null;
 
@@ -49,6 +53,27 @@ export async function resolveSiteGraphDriveRoot(msToken: string): Promise<string
  * If not found and `buildContent` is provided, creates the file with that content.
  * Returns `{ itemId, driveRoot }` for immediate use in subsequent Graph calls.
  */
+async function searchDriveForNamedFile(
+  driveRoot: string,
+  msToken: string,
+  fileName: string,
+): Promise<{ id: string; parentPath: string } | null> {
+  const res = await fetch(
+    `${driveRoot}/root/search(q='${encodeURIComponent(fileName)}')?$select=id,name,parentReference&$top=25`,
+    { headers: { Authorization: `Bearer ${msToken}` } },
+  );
+  if (!res.ok) return null;
+  const data = await res.json() as {
+    value?: Array<{ id: string; name: string; parentReference?: { path?: string } }>;
+  };
+  const match = (data.value || []).find((item) => item.name.toLowerCase() === fileName.toLowerCase());
+  if (!match) return null;
+  const parentPath = (match.parentReference?.path || '')
+    .replace(/^\/drives?\/[^/]+\/root:/, '')
+    .replace(/^\/+/, '');
+  return { id: match.id, parentPath };
+}
+
 export async function findOrCreateExcelFile(
   msToken: string,
   log: (s: string) => void = () => {},
@@ -57,6 +82,14 @@ export async function findOrCreateExcelFile(
   const { MS_MAIN_EXCEL_FILE_NAME } = await import('./freedCampCredentials');
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
   const authHeaders = { Authorization: `Bearer ${msToken}` };
+
+  try {
+    const shared = await resolveSharePointSharingUrl(msToken, SP_ENYU_EXCEL_SHARING_URL);
+    log(`Found existing file via sharing link: ${shared.name} (id: ${shared.id})`);
+    return { itemId: shared.id, driveRoot };
+  } catch (error) {
+    log(`Sharing link for ${MS_MAIN_EXCEL_FILE_NAME} failed: ${(error as Error)?.message || String(error)}. Trying the folder path…`);
+  }
 
   const findRes = await fetch(
     `${driveRoot}/root:/${SP_ENYU_GENERAL_FOLDER}/${MS_MAIN_EXCEL_FILE_NAME}`,
@@ -67,9 +100,19 @@ export async function findOrCreateExcelFile(
     log(`Found existing file: ${MS_MAIN_EXCEL_FILE_NAME} (id: ${item.id})`);
     return { itemId: item.id as string, driveRoot };
   }
-  if (findRes.status !== 404 || !buildContent) {
+
+  log(`${MS_MAIN_EXCEL_FILE_NAME} was not at ${SP_ENYU_GENERAL_FOLDER}. Searching the library by file name…`);
+  const found = await searchDriveForNamedFile(driveRoot, msToken, MS_MAIN_EXCEL_FILE_NAME);
+  if (found) {
+    log(`Found existing file: ${MS_MAIN_EXCEL_FILE_NAME} under ${found.parentPath || '(library root)'} (id: ${found.id})`);
+    return { itemId: found.id, driveRoot };
+  }
+
+  if (!buildContent) {
     const body = await findRes.json().catch(() => ({}));
-    throw new Error((body as any)?.error?.message || findRes.statusText);
+    throw new Error(
+      `Could not find ${MS_MAIN_EXCEL_FILE_NAME}. It is no longer at ${SP_ENYU_GENERAL_FOLDER}, and a library search found no file with that name. ${(body as any)?.error?.message || findRes.statusText}`,
+    );
   }
 
   log(`File not found, creating ${MS_MAIN_EXCEL_FILE_NAME}…`);

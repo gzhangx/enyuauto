@@ -298,7 +298,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       return (
         <div className="ctd-source">
           <span className="ctd-source-label">{label}</span>
-          <span className="ctd-warning">Could not list the files: {pick.error} The task will use 文章链接 instead.</span>
+          <span className="ctd-warning">
+            Could not list the files: {pick.error}
+            {plan?.linkPlaceholder
+              ? ` {${plan.linkPlaceholder}} will be left empty in the task description.`
+              : ''}
+          </span>
         </div>
       );
     }
