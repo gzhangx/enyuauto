@@ -319,6 +319,88 @@ async function getDriveItemByPath(msToken: string, driveRoot: string, itemPath: 
   return await res.json() as { id: string; name: string; webUrl: string };
 }
 
+export interface SharePointFileRef {
+  driveId: string;
+  itemId: string;
+  name: string;
+  webUrl?: string;
+  folderName?: string;
+}
+
+export interface SiblingFileInfo extends SharePointFileRef {
+  webUrl: string;
+  lastModified: string;
+  lastModifiedBy?: string;
+  folderName?: string;
+}
+
+/** Files in the same folder as `fileUrl`, newest first. `currentName` is the file the link points to. */
+export async function listSiblingFiles(msToken: string, fileUrl: string): Promise<{ files: SiblingFileInfo[]; currentName: string }> {
+  const resolved = await resolveSharePointPath(fileUrl, msToken);
+  const segments = resolved.path.replace(/^\/+|\/+$/g, '').split('/');
+  const currentName = segments.pop() || '';
+  const files = await listFilesInResolvedFolder(msToken, { ...resolved, path: segments.join('/') });
+  return { files, currentName };
+}
+
+/** Files in `subFolder` under `mainFolder` (a SharePoint link or path), newest first. */
+export async function listFolderFiles(msToken: string, mainFolder: string, subFolder: string): Promise<SiblingFileInfo[]> {
+  const resolved = await joinSharePointPath(msToken, mainFolder, subFolder);
+  return listFilesInResolvedFolder(msToken, resolved);
+}
+
+/** Files from several article subfolders. A missing or empty folder is skipped. */
+export async function listFoldersFiles(msToken: string, mainFolder: string, subFolders: string[]): Promise<SiblingFileInfo[]> {
+  const groups = await Promise.all(subFolders.map(async (subFolder) => {
+    try {
+      const files = await listFolderFiles(msToken, mainFolder, subFolder);
+      return files.map((file) => ({ ...file, folderName: subFolder }));
+    } catch {
+      return [] as SiblingFileInfo[];
+    }
+  }));
+  return groups.flat();
+}
+
+async function listFilesInResolvedFolder(msToken: string, resolved: ResolvedSharePointPath): Promise<SiblingFileInfo[]> {
+  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+  const folderPath = resolved.path.replace(/^\/+|\/+$/g, '');
+  const base = resolved.driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(resolved.driveId)}`
+    : resolved.driveRootUrl ?? driveRoot;
+  const folderUrl = folderPath ? `${base}/root:/${encodeURI(folderPath)}:/children` : `${base}/root/children`;
+  const res = await fetch(`${folderUrl}?$select=id,name,webUrl,lastModifiedDateTime,lastModifiedBy,file,parentReference&$top=200`, {
+    headers: { Authorization: `Bearer ${msToken}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  const data = await res.json() as {
+    value: Array<{
+      id: string;
+      name: string;
+      webUrl: string;
+      lastModifiedDateTime: string;
+      lastModifiedBy?: { user?: { displayName?: string } };
+      file?: unknown;
+      parentReference?: { driveId?: string };
+    }>;
+  };
+  const files = data.value
+    .filter((item) => item.file && !item.name.startsWith('~$'))
+    .map((item) => ({
+      driveId: item.parentReference?.driveId || resolved.driveId || '',
+      itemId: item.id,
+      name: item.name,
+      webUrl: item.webUrl,
+      lastModified: item.lastModifiedDateTime,
+      lastModifiedBy: item.lastModifiedBy?.user?.displayName,
+    }))
+    .sort((a, b) => b.lastModified.localeCompare(a.lastModified));
+  return files;
+}
+
 async function resolveDriveIdForRoot(msToken: string, driveRootUrl: string): Promise<string> {
   const res = await fetch(`${driveRootUrl}?$select=id`, {
     headers: { Authorization: `Bearer ${msToken}` },
@@ -374,24 +456,50 @@ interface DebugLog {
 
 export async function copySharePointFile(
   msToken: string,
-  sourceFileUrl: string,
+  sourceFile: string | SharePointFileRef,
   destinationFolderUrl: string,
   log: DebugLog
 ): Promise<string> {
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
-  const sourcePathResult = await resolveSharePointPath(sourceFileUrl, msToken);
+  const sourceFileUrl = typeof sourceFile === 'string' ? sourceFile : sourceFile.name;
   const destinationPathResult = await resolveSharePointPath(destinationFolderUrl, msToken);
   const destPath = destinationPathResult.path.replace(/\/+$/, '');
 
-  const sourceItem = await getDriveItemByPath(
-    msToken,
-    driveRoot,
-    sourcePathResult.path,
-    sourcePathResult.driveId,
-    sourcePathResult.driveRootUrl,
-  );
+  let sourceItem: { id: string; name: string };
+  let sourceDriveRoot: string;
+  if (typeof sourceFile === 'string') {
+    const sourcePathResult = await resolveSharePointPath(sourceFile, msToken);
+    sourceItem = await getDriveItemByPath(
+      msToken,
+      driveRoot,
+      sourcePathResult.path,
+      sourcePathResult.driveId,
+      sourcePathResult.driveRootUrl,
+    );
+    sourceDriveRoot = sourcePathResult.driveId
+      ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(sourcePathResult.driveId)}`
+      : sourcePathResult.driveRootUrl ?? driveRoot;
+  } else {
+    sourceItem = { id: sourceFile.itemId, name: sourceFile.name };
+    sourceDriveRoot = sourceFile.driveId
+      ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(sourceFile.driveId)}`
+      : driveRoot;
+  }
 
   log.doLog(`Copy share point file ${sourceFileUrl} to ${destinationFolderUrl} resolved sourceItem ${sourceItem?.name}`);
+
+  const sourceInfoRes = await fetch(`${sourceDriveRoot}/items/${encodeURIComponent(sourceItem.id)}?$select=webUrl,parentReference`, {
+    headers: { Authorization: `Bearer ${msToken}` },
+  });
+  if (sourceInfoRes.ok) {
+    const sourceInfo = await sourceInfoRes.json() as { webUrl: string; parentReference?: { path?: string } };
+    const sourceFolder = decodeURIComponent(sourceInfo.parentReference?.path ?? '')
+      .replace(/^\/drives?\/[^/]+\/root:/, '').replace(/^\/drive\/root:/, '').replace(/^\/+|\/+$/g, '');
+    if (sourceFolder && sourceFolder.toLowerCase() === destPath.replace(/^\/+/, '').toLowerCase()) {
+      log.doLog(`Copy share point file: ${sourceItem.name} is already in ${destPath}, using it without copying`);
+      return sourceInfo.webUrl;
+    }
+  }
 
   const destinationDriveId = destinationPathResult.driveId
     ?? (destinationPathResult.driveRootUrl ? await resolveDriveIdForRoot(msToken, destinationPathResult.driveRootUrl) : undefined);
@@ -399,9 +507,6 @@ export async function copySharePointFile(
     driveId: destinationDriveId,
     path: destPath ? `/drive/root:/${destPath}` : '/drive/root:',
   };
-  const sourceDriveRoot = sourcePathResult.driveId
-    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(sourcePathResult.driveId)}`
-    : sourcePathResult.driveRootUrl ?? driveRoot;
   const copyRes = await fetch(`${sourceDriveRoot}/items/${encodeURIComponent(sourceItem.id)}/copy?@microsoft.graph.conflictBehavior=replace`, {
     method: 'POST',
     headers: {

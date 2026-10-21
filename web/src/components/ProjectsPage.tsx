@@ -18,6 +18,7 @@ import {
   type IOneDriveDirInfo,
   createMsExcelDataOps,
   getEditorWorkload,
+  getActionFilePlan,
 } from '../../shared/main_ops';
 import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
@@ -27,6 +28,7 @@ import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcamp
 import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 import { fetchOneDriveChildren } from './MicrosoftOneDrivePage';
+import { listFoldersFiles, listSiblingFiles, type SiblingFileInfo } from '../lib/msGraphConfig';
 
 
 type LogMessage = {
@@ -167,6 +169,16 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     useAITemplate: Partial<Record<ActionType, boolean>>;
     selectedEditor?: Partial<Record<ActionType, string>>;
     dueDays?: Partial<Record<ActionType, number>>;
+    sourceFiles?: Partial<Record<ActionType, SourceFilePick>>;
+  };
+  type SourceFilePick = {
+    status: 'loading' | 'ready' | 'error';
+    sourceColumn: string;
+    destFolder?: string;
+    files: SiblingFileInfo[];
+    currentName?: string;
+    selectedItemId?: string;
+    error?: string;
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
@@ -182,6 +194,139 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [addingProject, setAddingProject] = useState(false);
 
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
+
+  const getFilePlan = (action: ActionType) => {
+    if (!combinedOpsAndData || !createTasksDialog) return undefined;
+    return getActionFilePlan(
+      action,
+      createTasksDialog.operation,
+      combinedOpsAndData.opsConfig,
+      !!createTasksDialog.selected['教审' as ActionType],
+    );
+  };
+
+  useEffect(() => {
+    if (!createTasksDialog || !msToken || !combinedOpsAndData) return;
+    const creatingDoctrineReview = !!createTasksDialog.selected['教审' as ActionType];
+    const toLoad = createTasksDialog.actions
+      .map((row) => row.action)
+      .filter((action) => {
+        if (!createTasksDialog.selected[action]) return false;
+        const plan = getActionFilePlan(action, createTasksDialog.operation, combinedOpsAndData.opsConfig, creatingDoctrineReview);
+        if (!plan) return false;
+        const existing = createTasksDialog.sourceFiles?.[action];
+        const sourceKey = [...(plan.sourceFolders || []), ...(plan.fallbackFolders || [])].join('|') || plan.sourceColumn || '';
+        return !existing || existing.sourceColumn !== sourceKey || (existing.destFolder || '') !== (plan.destFolder || '');
+      });
+    if (toLoad.length === 0) return;
+    const operation = createTasksDialog.operation;
+    const setPick = (action: ActionType, pick: SourceFilePick) => {
+      setCreateTasksDialog((prev) => prev && prev.operation === operation
+        ? { ...prev, sourceFiles: { ...(prev.sourceFiles || {}), [action]: pick } }
+        : prev);
+    };
+    for (const action of toLoad) {
+      const plan = getActionFilePlan(action, operation, combinedOpsAndData.opsConfig, creatingDoctrineReview)!;
+      const sourceColumn = [...(plan.sourceFolders || []), ...(plan.fallbackFolders || [])].join('|') || plan.sourceColumn || '';
+      const destFolder = plan.destFolder;
+      if (plan.sourceFolders?.length) {
+        if (!operation.mainFolder?.trim()) {
+          setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: 'mainFolder is empty on the sheet.' });
+          continue;
+        }
+        setPick(action, { status: 'loading', sourceColumn, destFolder, files: [] });
+        const mainFolder = operation.mainFolder.trim();
+        listFoldersFiles(msToken, mainFolder, plan.sourceFolders)
+          .then(async (files) => {
+            const raw = files.length > 0 || !plan.fallbackFolders?.length
+              ? files
+              : await listFoldersFiles(msToken, mainFolder, plan.fallbackFolders);
+            const listed = plan.fileExtensions?.length
+              ? raw.filter((file) => plan.fileExtensions!.some((ext) => file.name.toLowerCase().endsWith(ext.toLowerCase())))
+              : raw;
+            const destFile = destFolder ? listed.find((file) => file.folderName === destFolder) : undefined;
+            setPick(action, listed.length > 0
+              ? { status: 'ready', sourceColumn, destFolder, files: listed, selectedItemId: (destFile ?? listed[0]).itemId }
+              : { status: 'error', sourceColumn, destFolder, files: [], error: plan.fileExtensions?.length
+                ? `No ${plan.fileExtensions.join(', ')} file in ${plan.sourceFolders?.join(' or ')}.`
+                : `No files in ${[...(plan.sourceFolders || []), ...(plan.fallbackFolders || [])].join(' or ')}.` });
+          })
+          .catch((error: unknown) => {
+            setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: (error as Error)?.message || String(error) });
+          });
+        continue;
+      }
+      const link = ((operation as any)[sourceColumn] as string | undefined)?.trim();
+      if (!link) {
+        setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: `${sourceColumn} is empty on the sheet.` });
+        continue;
+      }
+      setPick(action, { status: 'loading', sourceColumn, destFolder, files: [] });
+      listSiblingFiles(msToken, link)
+        .then(({ files, currentName }) => {
+          const current = files.find((file) => file.name === currentName);
+          setPick(action, {
+            status: 'ready',
+            sourceColumn,
+            destFolder,
+            files,
+            currentName,
+            selectedItemId: (current ?? files[0])?.itemId,
+          });
+        })
+        .catch((error: unknown) => {
+          setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: (error as Error)?.message || String(error) });
+        });
+    }
+  }, [createTasksDialog, msToken, combinedOpsAndData]);
+
+  const renderSourceFilePicker = (action: ActionType) => {
+    const pick = createTasksDialog?.sourceFiles?.[action];
+    if (!pick) return null;
+    const plan = getFilePlan(action);
+    const label = plan?.linkPlaceholder === 'voice_file'
+      ? 'Select 语音 file'
+      : (plan?.sourceFolders?.length || 0) > 1
+      ? 'Select file'
+      : (pick.destFolder || plan?.destFolder)
+        ? `Copy to ${pick.destFolder || plan?.destFolder}`
+        : `File from ${plan?.sourceFolders?.[0] || pick.sourceColumn || 'folder'}`;
+    if (pick.status === 'loading') {
+      return <div className="ctd-source"><span className="ctd-source-label">{label}</span><span className="ctd-muted">Loading files…</span></div>;
+    }
+    if (pick.status === 'error') {
+      return (
+        <div className="ctd-source">
+          <span className="ctd-source-label">{label}</span>
+          <span className="ctd-warning">Could not list the files: {pick.error} The task will use 文章链接 instead.</span>
+        </div>
+      );
+    }
+    const selected = pick.files.find((file) => file.itemId === pick.selectedItemId);
+    return (
+      <div className="ctd-source">
+        <span className="ctd-source-label">{label}</span>
+        <select
+          className="ctd-input ctd-source-select"
+          value={pick.selectedItemId ?? ''}
+          onChange={(e) => {
+            const itemId = e.target.value;
+            setCreateTasksDialog((prev) => {
+              if (!prev?.sourceFiles?.[action]) return prev;
+              return { ...prev, sourceFiles: { ...prev.sourceFiles, [action]: { ...prev.sourceFiles[action]!, selectedItemId: itemId } } };
+            });
+          }}
+        >
+          {pick.files.map((file) => (
+            <option key={file.itemId} value={file.itemId}>
+              {file.folderName ? `/${file.folderName}/${file.name}` : file.name}
+            </option>
+          ))}
+        </select>
+        {selected && <a href={selected.webUrl} target="_blank" rel="noreferrer">open</a>}
+      </div>
+    );
+  };
 
   const getEligibleEditors = (row: { action: ActionType; hasAITemplate?: boolean }) => {
     if (!combinedOpsAndData) return [];
@@ -655,118 +800,134 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       </span>
                     </label>
                   </div>
-                  {/* Editor dropdown: show full name from editorInfoMap, default to row.editorName or sheet value */}
-                  {createTasksDialog.selected[row.action] &&
-                    <div className="ctd-controls">
-                      <select
-                        className="ctd-input"
-                        value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setCreateTasksDialog((prev) => {
-                            if (!prev) return prev;
-                            const selectedEditor = { ...(prev.selectedEditor || {}) };
-                            selectedEditor[row.action] = val;
-                            return { ...prev, selectedEditor };
-                          });
-                        }}
-                      >
-                        <option value="">(select editor)</option>
-                        {getEligibleEditors(row).map((info) => {
-                          const pretty = (() => {
-                            const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
-                            const normalizedTitle = (info.title || '').toLowerCase();
-                            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
-                            return isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
-                          })();
-                          return <option key={info.shortNameOnFreedCamp} value={info.shortNameOnFreedCamp}>{info.fullNamePN || pretty}</option>;
-                        })}
-                      </select>
-                      <label className="ctd-due">
-                        Due in
-                        <input
-                          className="ctd-input"
-                          type="number"
-                          min="1"
-                          step="1"
-                          value={createTasksDialog.dueDays?.[row.action] ?? 7}
-                          onChange={(e) => {
-                            const rawValue = e.target.value;
-                            const parsedValue = Number(rawValue);
-                            const normalizedValue = rawValue === '' || !Number.isFinite(parsedValue) || parsedValue <= 0 ? 7 : parsedValue;
-                            setCreateTasksDialog((prev) => {
-                              if (!prev) return prev;
-                              const dueDays = { ...(prev.dueDays || {}) };
-                              dueDays[row.action] = normalizedValue;
-                              return { ...prev, dueDays };
+                  {createTasksDialog.selected[row.action] && (
+                    <div className="ctd-sections">
+                      {(createTasksDialog.sourceFiles?.[row.action] || getFilePlan(row.action)) && (
+                        <section className="ctd-section">
+                          <h4>1. File selection</h4>
+                          {renderSourceFilePicker(row.action) || <div className="ctd-muted">Loading files…</div>}
+                        </section>
+                      )}
+                      <section className="ctd-section">
+                        <h4>2. Editor selection</h4>
+                        <div className="ctd-controls">
+                          <select
+                            className="ctd-input"
+                            value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setCreateTasksDialog((prev) => {
+                                if (!prev) return prev;
+                                const selectedEditor = { ...(prev.selectedEditor || {}) };
+                                selectedEditor[row.action] = val;
+                                return { ...prev, selectedEditor };
+                              });
+                            }}
+                          >
+                            <option value="">(select editor)</option>
+                            {getEligibleEditors(row).map((info) => {
+                              const pretty = (() => {
+                                const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
+                                const normalizedTitle = (info.title || '').toLowerCase();
+                                const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
+                                return isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
+                              })();
+                              return <option key={info.shortNameOnFreedCamp} value={info.shortNameOnFreedCamp}>{info.fullNamePN || pretty}</option>;
+                            })}
+                          </select>
+                          <label className="ctd-due">
+                            Due in
+                            <input
+                              className="ctd-input"
+                              type="number"
+                              min="1"
+                              step="1"
+                              value={createTasksDialog.dueDays?.[row.action] ?? 7}
+                              onChange={(e) => {
+                                const rawValue = e.target.value;
+                                const parsedValue = Number(rawValue);
+                                const normalizedValue = rawValue === '' || !Number.isFinite(parsedValue) || parsedValue <= 0 ? 7 : parsedValue;
+                                setCreateTasksDialog((prev) => {
+                                  if (!prev) return prev;
+                                  const dueDays = { ...(prev.dueDays || {}) };
+                                  dueDays[row.action] = normalizedValue;
+                                  return { ...prev, dueDays };
+                                });
+                              }}
+                              style={{ width: '58px' }}
+                            />
+                            day(s)
+                          </label>
+                          {(() => {
+                            const warning = getOnLeaveWarning({
+                              selectedEditor: createTasksDialog.selectedEditor?.[row.action],
+                              dueDays: createTasksDialog.dueDays?.[row.action],
+                              editorInfoAry: combinedOpsAndData?.opsConfig?.editorInfoAry ?? opsConfig?.editorInfoAry ?? [],
+                              onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
                             });
-                          }}
-                          style={{ width: '58px' }}
-                        />
-                        day(s)
-                      </label>
-                      {(() => {
-                        const warning = getOnLeaveWarning({
-                          selectedEditor: createTasksDialog.selectedEditor?.[row.action],
-                          dueDays: createTasksDialog.dueDays?.[row.action],
-                          editorInfoAry: combinedOpsAndData?.opsConfig?.editorInfoAry ?? opsConfig?.editorInfoAry ?? [],
-                          onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
-                        });
-                        return warning ? (
-                          <div className="ctd-warning">
-                            {warning}
+                            return warning ? (
+                              <div className="ctd-warning">
+                                {warning}
+                              </div>
+                            ) : null;
+                          })()}
+                          {renderWorkloadTable(row)}
+                        </div>
+                      </section>
+                      {row.hasEnglishTemplate && (
+                        <section className="ctd-section">
+                          <h4>3. Use English template</h4>
+                          <div className="ctd-option">
+                            <input
+                              type="checkbox"
+                              id={`use-english-${row.action}`}
+                              checked={createTasksDialog.useEnglishTemplate[row.action] === true}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setCreateTasksDialog((prev) => {
+                                  if (!prev) return prev;
+                                  const useEnglishTemplate = { ...prev.useEnglishTemplate };
+                                  useEnglishTemplate[row.action] = checked;
+                                  return { ...prev, useEnglishTemplate };
+                                });
+                              }}
+                            />
+                            <label htmlFor={`use-english-${row.action}`}>
+                              Use English template
+                            </label>
                           </div>
-                        ) : null;
-                      })()}
-                      {renderWorkloadTable(row)}
-                    </div>
-                  }
-                  {row.hasEnglishTemplate && createTasksDialog.selected[row.action] && (
-                    <div className="ctd-option">
-                      <input
-                        type="checkbox"
-                        id={`use-english-${row.action}`}
-                        checked={createTasksDialog.useEnglishTemplate[row.action] === true}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setCreateTasksDialog((prev) => {
-                            if (!prev) return prev;
-                            const useEnglishTemplate = { ...prev.useEnglishTemplate };
-                            useEnglishTemplate[row.action] = checked;
-                            return { ...prev, useEnglishTemplate };
-                          });
-                        }}
-                      />
-                      <label htmlFor={`use-english-${row.action}`}>
-                        Use English template
-                      </label>                      
-                    </div>
-                  )}
-                  {row.hasAITemplate && createTasksDialog.selected[row.action] && (
-                    <div className="ctd-option">
-                      <input
-                        type="checkbox"
-                        id={`use-ai-${row.action}`}
-                        checked={createTasksDialog.useAITemplate[row.action] !== false}
-                        onChange={(e) => {
-                          const checked = e.target.checked;
-                          setCreateTasksDialog((prev) => {
-                            if (!prev) return prev;
-                            const useAITemplate = { ...prev.useAITemplate };
-                            useAITemplate[row.action] = checked;
-                            const selectedEditor = { ...(prev.selectedEditor || {}) };
-                            const current = selectedEditor[row.action];
-                            const currentInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === current);
-                            if (checked && current && isHumanForAction(currentInfo?.group, row.action)) {
-                              selectedEditor[row.action] = '';
-                            }
-                            return { ...prev, useAITemplate, selectedEditor };
-                          });
-                        }}
-                      />
-                      <label htmlFor={`use-ai-${row.action}`}>
-                        Use AI template
-                      </label>
+                        </section>
+                      )}
+                      {row.hasAITemplate && (
+                        <section className="ctd-section">
+                          <h4>{row.hasEnglishTemplate ? '4. Use AI template' : '3. Use AI template'}</h4>
+                          <div className="ctd-option">
+                            <input
+                              type="checkbox"
+                              id={`use-ai-${row.action}`}
+                              checked={createTasksDialog.useAITemplate[row.action] !== false}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setCreateTasksDialog((prev) => {
+                                  if (!prev) return prev;
+                                  const useAITemplate = { ...prev.useAITemplate };
+                                  useAITemplate[row.action] = checked;
+                                  const selectedEditor = { ...(prev.selectedEditor || {}) };
+                                  const current = selectedEditor[row.action];
+                                  const currentInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === current);
+                                  if (checked && current && isHumanForAction(currentInfo?.group, row.action)) {
+                                    selectedEditor[row.action] = '';
+                                  }
+                                  return { ...prev, useAITemplate, selectedEditor };
+                                });
+                              }}
+                            />
+                            <label htmlFor={`use-ai-${row.action}`}>
+                              Use AI template
+                            </label>
+                          </div>
+                        </section>
+                      )}
                     </div>
                   )}
                 </li>
@@ -831,6 +992,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                         useAITemplateMap.set(action, true);
                       }
                     }
+                    const sourceFileOverride = new Map<ActionType, SiblingFileInfo>();
+                    for (const [action, pick] of Object.entries(dlg.sourceFiles || {}) as [ActionType, SourceFilePick][]) {
+                      const file = pick.files.find((item) => item.itemId === pick.selectedItemId);
+                      if (pick.status === 'ready' && file && selectedSet.has(action)) {
+                        sourceFileOverride.set(action, file);
+                      }
+                    }
                     const useEnglishTemplateMap = new Map<ActionType, boolean>();
                     for (const action of Object.keys(dlg.useEnglishTemplate) as ActionType[]) {
                       if (dlg.useEnglishTemplate[action]) {
@@ -849,6 +1017,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       useAITemplateMap,
                       useEnglishTemplateMap,
                       msToken || undefined,
+                      sourceFileOverride,
                     );
                   } catch (error: unknown) {
                     const err = error as { message?: string };
@@ -1112,12 +1281,30 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .ctd-editor-name {
           color: #6b7785;
         }
+        .ctd-sections {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding-left: 26px;
+        }
+        .ctd-section {
+          background: #f7fafd;
+          border: 1px solid #e3eaf3;
+          border-radius: 8px;
+          padding: 8px 10px;
+        }
+        .ctd-section h4 {
+          margin: 0 0 8px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #1f4b7a;
+          letter-spacing: 0.02em;
+        }
         .ctd-controls {
           display: flex;
           align-items: center;
           gap: 12px;
           flex-wrap: wrap;
-          padding-left: 26px;
         }
         .ctd-input {
           padding: 5px 8px;
@@ -1139,6 +1326,25 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           font-size: 13px;
           color: #555;
         }
+        .ctd-source {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+        }
+        .ctd-source-label {
+          color: #555;
+          white-space: nowrap;
+        }
+        .ctd-source-select {
+          flex: 1;
+          min-width: 0;
+        }
+        .ctd-source a {
+          color: #e67e00;
+          white-space: nowrap;
+        }
         .ctd-warning {
           width: 100%;
           padding: 6px 10px;
@@ -1152,7 +1358,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           display: flex;
           align-items: center;
           gap: 8px;
-          padding-left: 26px;
           font-size: 13px;
           color: #555;
         }

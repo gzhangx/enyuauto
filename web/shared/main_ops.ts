@@ -3,7 +3,7 @@ import * as gs from '@gzhangx/googleapi';
 import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOnLeaveData, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
-import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath } from '../src/lib/msGraphConfig';
+import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath, type SharePointFileRef } from '../src/lib/msGraphConfig';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -675,13 +675,112 @@ export async function combineOpsConfigWithFreedCampData(opsConfig: IOpsConfig, f
 }
 
 
+/** SharePoint subfolders under each article's mainFolder. Names must match the library exactly. */
+export const SHAREPOINT_ARTICLE_FOLDERS = {
+    original: '0. Original Materials',
+    firstProof: '1 Text Editor & First Proofread',
+    secondProof: '2 Second Proofread',
+    artEditor: '3 Art Editor',
+    media: '5 Media',
+} as const;
+
+/** A mapping row's copy-from value is a main-sheet column (old style) or a folder under mainFolder. */
+export function isCopySourceFolder(opsConfig: IOpsConfig, copyFileFrom: string): boolean {
+    return !opsConfig.headers.includes(copyFileFrom.trim());
+}
+
+export function rowHasDoctrineReview(
+    operation: IOperationWithLineNumberAndParentTaskId,
+    creatingDoctrineReview?: boolean,
+): boolean {
+    if (creatingDoctrineReview) return true;
+    const taskId = String(operation[getTaskIdColumnName('教审' as ActionType)] || '').trim();
+    if (taskId && taskId !== 'TaskIsEnglishAndIsDisabledForEnglish') return true;
+    return !!(operation as IOperationWithLineNumberAndParentTaskId & { [key: string]: unknown })['教审 FreeCamp Item'];
+}
+
+export type ActionFilePlan = {
+    sourceFolders?: string[];
+    fallbackFolders?: string[];
+    sourceColumn?: string;
+    destFolder?: string;
+    /** When false, the picked file is not used as {article}. Use linkPlaceholder instead. */
+    usePickedAsArticle?: boolean;
+    linkPlaceholder?: string;
+    fileExtensions?: string[];
+};
+
+/** Where the Create dialog lists files, and whether creating the task should copy one. */
+export function getActionFilePlan(
+    action: ActionType,
+    _operation: IOperationWithLineNumberAndParentTaskId,
+    opsConfig: IOpsConfig,
+    _creatingDoctrineReview?: boolean,
+): ActionFilePlan | undefined {
+    if ((action as string) === '教审') {
+        return { sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.original] };
+    }
+    if ((action as string) === '校对') {
+        return {
+            sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.original, SHAREPOINT_ARTICLE_FOLDERS.firstProof],
+            destFolder: SHAREPOINT_ARTICLE_FOLDERS.firstProof,
+        };
+    }
+    if ((action as string) === '二校') {
+        return {
+            sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.firstProof, SHAREPOINT_ARTICLE_FOLDERS.secondProof],
+            destFolder: SHAREPOINT_ARTICLE_FOLDERS.secondProof,
+        };
+    }
+    if ((action as string) === '美编') {
+        return {
+            sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.secondProof],
+            fallbackFolders: [SHAREPOINT_ARTICLE_FOLDERS.firstProof],
+            destFolder: SHAREPOINT_ARTICLE_FOLDERS.artEditor,
+        };
+    }
+    if ((action as string) === '语审') {
+        return {
+            sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.media],
+            usePickedAsArticle: false,
+            linkPlaceholder: 'voice_file',
+            fileExtensions: ['.mp3'],
+        };
+    }
+    const mapping = opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.mappingConfig;
+    const name = mapping?.copyFileFrom?.trim();
+    if (!name) return undefined;
+    if (isCopySourceFolder(opsConfig, name)) {
+        return { sourceFolders: [name], destFolder: mapping.copyFileTo?.trim() || undefined };
+    }
+    if (mapping.copyFileTo) {
+        return { sourceColumn: name, destFolder: mapping.copyFileTo.trim() };
+    }
+    return undefined;
+}
+
+function isChineseTitle(title: string): boolean {
+    return /[\u4e00-\u9fff]/.test(title);
+}
+
+/** English titles go in front ("Brother John"), Chinese titles after ("陈华弟兄"). */
+function authorWithTitle(author: string | undefined, titleOfAddress: string | undefined): string {
+    const name = (author || '').trim();
+    const title = (titleOfAddress || '').trim();
+    if (!name || !title) return name;
+    if (isChineseTitle(title)) {
+        return name.endsWith(title) ? name : `${name}${title}`;
+    }
+    return name.toLowerCase().startsWith(title.toLowerCase()) ? name : `${title} ${name}`;
+}
+
 function getOperationInfo(
     operation: IOperationWithLineNumberAndParentTaskId,
 ) {
     const article = operation['文章名'];
     //const fileName = operation['文件'];
-    const infos: OperationInfo = {        
-        author: operation['作者'],
+    const infos: OperationInfo = {
+        author: authorWithTitle(operation['作者'], operation['称呼']),
         slug: operation['slug'],
             article,
             //link: operation['文章链接'],
@@ -1096,6 +1195,8 @@ export async function processOperation(
     useAITemplateMap?: Map<ActionType, boolean>,
     useEnglishTemplateMap?: Map<ActionType, boolean>,
     msToken?: string,
+    /** File picked in the Create dialog to copy for an action, in place of the copy-from column's link. */
+    sourceFileOverride?: Map<ActionType, SharePointFileRef>,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
@@ -1173,30 +1274,48 @@ export async function processOperation(
             }            
 
             const mappingConfig = actionConfig.mappingConfig;
-            let copyLink = mappingConfig?.copyFileFrom && mappingConfig.replaceInTemplateCopiedFile && operation['文章链接'];
-            if (mappingConfig?.copyFileFrom && mappingConfig.copyFileTo) {
-                const sourceValue = (operation as any)[mappingConfig.copyFileFrom] as string | undefined;
+            const filePlan = getActionFilePlan(action, operation, combined.opsConfig, selectedActions?.has('教审' as ActionType));
+            const pickedSource = sourceFileOverride?.get(action);
+            const sourceValue = filePlan?.sourceColumn
+                ? ((operation as any)[filePlan.sourceColumn] as string | undefined)?.trim()
+                : '';
+            if ((filePlan?.sourceFolders?.length || filePlan?.sourceColumn) && !pickedSource && !sourceValue) {
+                log.doLog(`processOperation: ${action} has no file picked. Falling back to 文章链接.`, true);
+            }
+            let copyLink = sourceValue
+                || (mappingConfig?.replaceInTemplateCopiedFile ? operation['文章链接'] : '');
+            if (pickedSource?.webUrl && !filePlan?.destFolder && filePlan?.usePickedAsArticle !== false) {
+                copyLink = pickedSource.webUrl;
+            }
+            const destFolder = filePlan?.destFolder || mappingConfig?.copyFileTo;
+            if (destFolder && (pickedSource || sourceValue)) {
                 const destValue = operation.mainFolder
-                    ? await joinSharePointPath(msToken!, operation.mainFolder, mappingConfig.copyFileTo)
+                    ? await joinSharePointPath(msToken!, operation.mainFolder, destFolder)
                     : undefined;
-                if (sourceValue?.trim() && destValue?.path?.trim()) {
+                if (destValue?.path?.trim()) {
                     if (!msToken) {
                         throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
                     }
-                    const copiedFileWebUrl = await copySharePointFile(msToken, sourceValue.trim(), destValue.path.trim(), log);
+                    if (pickedSource) {
+                        log.doLog(`processOperation: ${action} copies ${pickedSource.name} to ${destFolder}`);
+                    }
+                    const copiedFileWebUrl = await copySharePointFile(msToken, pickedSource ?? sourceValue!, destValue.path.trim(), log);
                     if (copiedFileWebUrl) {
-                        if (mappingConfig.updateCopiedFileToColumnName) {
-                            operation[mappingConfig.updateCopiedFileToColumnName as ActionType] = copiedFileWebUrl; //二校文章链接
+                        if (mappingConfig?.updateCopiedFileToColumnName) {
+                            operation[mappingConfig.updateCopiedFileToColumnName as ActionType] = copiedFileWebUrl;
                             await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
                         }
-                        if (mappingConfig.replaceInTemplateCopiedFile) {
-                            //template1 = template1.replaceAll(`{${mappingConfig.replaceInTemplateCopiedFile}}`, `<a href="${copiedFileWebUrl}">${infos['article']}</a>`);
-                            copyLink = copiedFileWebUrl;
-                        }
+                        copyLink = copiedFileWebUrl;
                     }
                 }
             }
 
+            const titleOfAddress = (operation['称呼'] || '').trim();
+            if (titleOfAddress) {
+                template1 = isChineseTitle(titleOfAddress)
+                    ? template1.replaceAll(`{author}${titleOfAddress}`, '{author}')
+                    : template1.replaceAll(`${titleOfAddress} {author}`, '{author}');
+            }
             //the above do action mapping article replacements, 
             for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
                 //!link because if it is link it is done below with link
@@ -1212,6 +1331,13 @@ export async function processOperation(
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
             template1 = template1.replaceAll('{voice}', voiceForTitleOfAddress(operation['称呼']));
+            if (pickedSource?.webUrl && filePlan?.linkPlaceholder) {
+                const voiceLink = `<a href="${pickedSource.webUrl}">${pickedSource.name}</a>`;
+                template1 = template1.replaceAll(`{${filePlan.linkPlaceholder}}`, voiceLink);
+                if (pickedSource.folderName) {
+                    template1 = template1.replace(new RegExp(`\\{media_link:${pickedSource.folderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}`, 'g'), pickedSource.webUrl);
+                }
+            }
             //if (link) {
             //    template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
             //}
