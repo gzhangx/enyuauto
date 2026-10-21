@@ -4,6 +4,7 @@ import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOnLeaveData, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
 import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath, type SharePointFileRef } from '../src/lib/msGraphConfig';
+import { detectArticleLanguage, findRelatedEnyuArticles, formatRelatedArticlesHtml } from '../src/lib/enyuRelatedArticles';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -681,6 +682,7 @@ export const SHAREPOINT_ARTICLE_FOLDERS = {
     firstProof: '1 Text Editor & First Proofread',
     secondProof: '2 Second Proofread',
     artEditor: '3 Art Editor',
+    publish: '4 Publish',
     media: '5 Media',
 } as const;
 
@@ -1336,6 +1338,57 @@ export async function processOperation(
                 template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
             }
             template1 = template1.replaceAll('{voice}', voiceForTitleOfAddress(operation['称呼']));
+            const needsRelated = template1.includes('{相关文章}');
+            const needsAbstract = template1.includes('{文章摘要}');
+            if (needsRelated || needsAbstract) {
+                let searchTerms: string[] = [];
+                let relatedLanguage = detectArticleLanguage(infos.article, fileName);
+                const articleMeta = {
+                    title: infos.article,
+                    author: infos.author,
+                    category: infos.category,
+                };
+                const {
+                    readPublishArticleText,
+                    extractArticleSearchTerms,
+                    extractArticleAbstract,
+                    formatArticleAbstractHtml,
+                } = await import('../src/lib/readPublishArticle');
+                if (msToken && operation.mainFolder) {
+                    try {
+                        const article = await readPublishArticleText(msToken, operation.mainFolder, log);
+                        relatedLanguage = detectArticleLanguage(article.text);
+                        searchTerms = extractArticleSearchTerms(article.text, articleMeta);
+                        log.doLog(`processOperation: related-article search from ${article.source} (${article.text.length} chars, ${relatedLanguage}): ${searchTerms.join(' | ')}`);
+                        if (needsAbstract) {
+                            const { abstract, foundParagraph } = extractArticleAbstract(article.text, articleMeta);
+                            template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml(abstract));
+                            log.doLog(`processOperation: {文章摘要} ${foundParagraph ? 'picked from article' : 'written'} (${abstract.length} chars)`);
+                        }
+                    } catch (error) {
+                        const reason = (error as Error)?.message || String(error);
+                        log.doLog(`processOperation: could not read publish 文章: ${reason}`, true);
+                        if (needsAbstract) {
+                            template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
+                        }
+                    }
+                } else if (needsAbstract) {
+                    template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
+                }
+                if (needsRelated) {
+                    try {
+                        const related = searchTerms.length
+                            ? await findRelatedEnyuArticles(searchTerms, infos.slug, 5, relatedLanguage)
+                            : [];
+                        log.doLog(`processOperation: related-article language ${relatedLanguage}`);
+                        template1 = template1.replaceAll('{相关文章}', formatRelatedArticlesHtml(related));
+                        log.doLog(`processOperation: {相关文章} filled with ${related.length} post(s) for ${action}`);
+                    } catch (error) {
+                        log.doLog(`processOperation: could not look up 相关文章: ${(error as Error)?.message || String(error)}`, true);
+                        template1 = template1.replaceAll('{相关文章}', '（未能查找相关文章）');
+                    }
+                }
+            }
             if (pickedSource?.webUrl && filePlan?.linkPlaceholder) {
                 const voiceLink = `<a href="${pickedSource.webUrl}">${pickedSource.name}</a>`;
                 template1 = template1.replaceAll(`{${filePlan.linkPlaceholder}}`, voiceLink);

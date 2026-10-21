@@ -11,6 +11,7 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
     { chinese: '感恩见证', english: 'Thanksgiving Testimonies', letter: 'g' },
     { chinese: '牧者的话', english: 'Pastrol & Elder Messages', letter: 'm' },
     { chinese: '宣教无国界', english: 'Missions Beyond Borders', letter: 'x' },
+    { chinese: '佳作分享', english: 'Shared Book Passages', letter: 'j' },
 ];
 
 const EXTRA_ENGLISH_ALIASES: { english: string; chinese: string }[] = [
@@ -73,6 +74,11 @@ function canonicalChinese(category: string): string {
     return '';
 }
 
+/** 佳作分享 is a book passage, so it has no 文章名. */
+export function categoryHasNoArticleTitle(category: string): boolean {
+    return canonicalChinese(category) === '佳作分享';
+}
+
 export function categoryLetter(category: string): string {
     const chinese = canonicalChinese(category);
     const found = CATEGORY_ALIASES.find(alias => alias.chinese === chinese);
@@ -99,7 +105,8 @@ export function parseFileInput(input: string): ParsedFileInput | null {
     }
     const category = text.slice(0, match.index).trim();
     const tokens = text.slice(match.index + match[0].length).trim().split(/\s+/).filter(Boolean);
-    if (!category || tokens.length < 2) {
+    const noTitle = categoryHasNoArticleTitle(category);
+    if (!category || tokens.length < 1 || (!noTitle && tokens.length < 2)) {
         return null;
     }
     let authorCount = 1;
@@ -108,29 +115,33 @@ export function parseFileInput(input: string): ParsedFileInput | null {
         while (authorCount < tokens.length && isLatinNameToken(tokens[authorCount])) {
             authorCount += 1;
         }
-        if (authorCount === 0 || authorCount >= tokens.length) {
+        if (authorCount === 0 || (!noTitle && authorCount >= tokens.length)) {
             return null;
         }
     }
     const author = tokens.slice(0, authorCount).join(' ');
     const title = tokens.slice(authorCount).join(' ');
-    if (!author || !title) {
+    if (!author || (!noTitle && !title)) {
         return null;
     }
     const date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
     return { category, date, author, title };
 }
 
-/** Sheet form: `{y}-{m}-{d} {文章类别}{作者} {文章名}`, with no leading zeros on month or day. */
+/** Sheet form: `{y}-{m}-{d} {文章类别} {作者} {文章名}`, with no leading zeros on month or day. */
 export function toSheetFileName(date: string, category: string, author: string, title: string): string {
     const match = date.trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
     const categoryText = category.trim();
     const authorText = author.trim();
     const titleText = title.trim();
-    if (!match || !categoryText || !authorText || !titleText) {
+    if (!match || !categoryText || !authorText) {
         return '';
     }
-    return `${match[1]}-${Number(match[2])}-${Number(match[3])} ${categoryText}${authorText} ${titleText}`;
+    if (!titleText && !categoryHasNoArticleTitle(categoryText)) {
+        return '';
+    }
+    const prefix = `${match[1]}-${Number(match[2])}-${Number(match[3])} ${categoryText} ${authorText}`;
+    return titleText ? `${prefix} ${titleText}` : prefix;
 }
 
 function yearMonthInText(text: string): { year: string; month: string } | null {

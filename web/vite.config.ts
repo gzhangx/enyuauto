@@ -5,4 +5,14 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: '/enyuauto/',
+  server: {
+    proxy: {
+      // Public enyu.acccn.org search RSS (the WP REST API is locked).
+      '/enyu-search': {
+        target: 'https://enyu.acccn.org',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/enyu-search/, ''),
+      },
+    },
+  },
 })

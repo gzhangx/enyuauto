@@ -40,6 +40,9 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
     if (body.action === 'wordpress') {
       return doWordpressAction(body, log);
     }
+    if (body.action === 'searchEnyuSite') {
+      return doSearchEnyuSite(body, log);
+    }
     //action below are no longer used.
     //const ops = await mainOps.getSheetOps(secs.gsAuth);
     const params = event.queryStringParameters || {};
@@ -293,6 +296,46 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
 }
 
 const WP_BASE_URL = 'https://enyu.acccn.org/wp-json/wp/v2';
+const ENYU_SITE = 'https://enyu.acccn.org';
+
+async function doSearchEnyuSite(params: { [key: string]: string }, log: mainOps.DebugLog): Promise<LambdaResponse> {
+  const query = (params['query'] || '').trim();
+  if (!query) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ message: 'Missing query' }),
+    };
+  }
+  try {
+    const url = `${ENYU_SITE}/search/${encodeURIComponent(query)}/feed/rss2/`;
+    const res = await fetch(url);
+    const xml = await res.text();
+    if (!res.ok) {
+      log.doLog(`enyu site search failed: ${res.status}`);
+      return {
+        statusCode: 502,
+        headers,
+        body: JSON.stringify({ message: `Site search failed (${res.status})` }),
+      };
+    }
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ xml }),
+    };
+  } catch (error) {
+    log.doLog(`enyu site search error: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        message: 'Site search failed',
+        error: error instanceof Error ? error.message : String(error),
+      }),
+    };
+  }
+}
 
 // action: wordpress
 // subAction: uploadMedia, createPost

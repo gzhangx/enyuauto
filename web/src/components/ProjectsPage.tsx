@@ -1478,6 +1478,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           titles={opsConfig?.titles ?? combinedOpsAndData?.opsConfig.titles ?? []}
           projects={fullProjectList}
           saving={addingProject}
+          msToken={msToken || undefined}
           onClose={() => { if (!addingProject) setShowAddProject(false); }}
           onSave={handleAddProject}
         />

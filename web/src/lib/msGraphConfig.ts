@@ -48,6 +48,46 @@ export async function resolveSiteGraphDriveRoot(msToken: string): Promise<string
   return _resolvedDriveRoot;
 }
 
+export type SharePointFolderChild = {
+  name: string;
+  webUrl: string;
+};
+
+export async function listSharePointFolder(
+  msToken: string,
+  folderPath: string,
+): Promise<{ name: string; webUrl: string; folders: SharePointFolderChild[]; files: SharePointFolderChild[] }> {
+  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+  const path = folderPath.replace(/^\/+|\/+$/g, '');
+  const base = `${driveRoot}/root:/${encodeURI(path)}`;
+  const headers = { Authorization: `Bearer ${msToken}` };
+  const [folderRes, kidsRes] = await Promise.all([
+    fetch(`${base}?$select=name,webUrl`, { headers }),
+    fetch(`${base}:/children?$select=name,webUrl,folder,file&$top=200`, { headers }),
+  ]);
+  if (!folderRes.ok) {
+    const body = await folderRes.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || folderRes.statusText);
+  }
+  if (!kidsRes.ok) {
+    const body = await kidsRes.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || kidsRes.statusText);
+  }
+  const folder = await folderRes.json() as { name: string; webUrl: string };
+  const kids = await kidsRes.json() as { value: Array<{ name: string; webUrl: string; folder?: unknown; file?: unknown }> };
+  const byName = (a: SharePointFolderChild, b: SharePointFolderChild) =>
+    a.name.localeCompare(b.name, undefined, { numeric: true });
+  const folders = (kids.value || [])
+    .filter((item) => item.folder)
+    .map((item) => ({ name: item.name, webUrl: item.webUrl }))
+    .sort(byName);
+  const files = (kids.value || [])
+    .filter((item) => item.file && !item.name.startsWith('~$'))
+    .map((item) => ({ name: item.name, webUrl: item.webUrl }))
+    .sort(byName);
+  return { name: folder.name, webUrl: folder.webUrl, folders, files };
+}
+
 /**
  * Finds the Excel workbook (MS_MAIN_EXCEL_FILE_NAME) in SP_ENYU_GENERAL_FOLDER.
  * If not found and `buildContent` is provided, creates the file with that content.
@@ -403,6 +443,52 @@ export async function listFoldersFiles(msToken: string, mainFolder: string, subF
     }
   }));
   return groups.flat();
+}
+
+/** Files in the first child folder of `mainFolder` whose name matches `folderMatch`. */
+export async function listMatchingSubfolderFiles(
+  msToken: string,
+  mainFolder: string,
+  folderMatch: RegExp,
+): Promise<SiblingFileInfo[]> {
+  const resolved = await resolveSharePointPath(mainFolder, msToken);
+  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+  const folderPath = resolved.path.replace(/^\/+|\/+$/g, '');
+  const base = resolved.driveId
+    ? `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(resolved.driveId)}`
+    : resolved.driveRootUrl ?? driveRoot;
+  const folderUrl = folderPath ? `${base}/root:/${encodeURI(folderPath)}:/children` : `${base}/root/children`;
+  const res = await fetch(`${folderUrl}?$select=id,name,folder,parentReference&$top=200`, {
+    headers: { Authorization: `Bearer ${msToken}` },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  const data = await res.json() as {
+    value: Array<{ name: string; folder?: unknown }>;
+  };
+  const match = (data.value || []).find((item) => item.folder && folderMatch.test(item.name));
+  if (!match) {
+    throw new Error(`No folder matching ${folderMatch} under article folder`);
+  }
+  return listFilesInResolvedFolder(msToken, {
+    ...resolved,
+    path: `${folderPath}/${match.name}`.replace(/^\/+/, ''),
+  });
+}
+
+export async function downloadDriveItemContent(msToken: string, file: SharePointFileRef): Promise<ArrayBuffer> {
+  if (!file.driveId || !file.itemId) {
+    throw new Error(`Cannot download ${file.name || 'file'}: missing drive/item id`);
+  }
+  const url = `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(file.driveId)}/items/${encodeURIComponent(file.itemId)}/content`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${msToken}` } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as any)?.error?.message || res.statusText);
+  }
+  return res.arrayBuffer();
 }
 
 async function listFilesInResolvedFolder(msToken: string, resolved: ResolvedSharePointPath): Promise<SiblingFileInfo[]> {

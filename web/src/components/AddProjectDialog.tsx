@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
+import { listSharePointFolder } from '../lib/msGraphConfig';
 import {
+    categoryHasNoArticleTitle,
     categoryLetter,
     findAuthorEmail,
     nextSlug,
@@ -20,11 +22,14 @@ export type NewProjectValues = {
     slug: string;
 };
 
+const SHAREPOINT_START_FOLDER = 'General';
+
 type AddProjectDialogProps = {
     categories: string[];
     titles: string[];
     projects: SlugSourceRow[];
     saving: boolean;
+    msToken?: string;
     onClose: () => void;
     onSave: (values: NewProjectValues) => void;
 };
@@ -42,10 +47,21 @@ const emptyForm = {
     date: '',
 };
 
-export function AddProjectDialog({ categories, titles, projects, saving, onClose, onSave }: AddProjectDialogProps) {
+export function AddProjectDialog({ categories, titles, projects, saving, msToken, onClose, onSave }: AddProjectDialogProps) {
     const [form, setForm] = useState(emptyForm);
     const [parseNote, setParseNote] = useState('');
     const [emailNote, setEmailNote] = useState('');
+    const [selectedFolderPath, setSelectedFolderPath] = useState('');
+    const [browser, setBrowser] = useState<{
+        mode: 'folder' | 'file';
+        path: string;
+        name: string;
+        webUrl: string;
+        folders: { name: string; webUrl: string }[];
+        files: { name: string; webUrl: string }[];
+        loading: boolean;
+        error: string;
+    } | null>(null);
 
     const options = useMemo(() => {
         if (form.category && !categories.some(category => category.toLowerCase() === form.category.toLowerCase())) {
@@ -93,6 +109,61 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
         setEmailNote('');
     };
 
+    const openFolder = async (path: string, mode: 'folder' | 'file' = browser?.mode || 'folder') => {
+        if (!msToken) {
+            setParseNote('Sign in with Microsoft first to browse SharePoint.');
+            return;
+        }
+        setBrowser((prev) => ({
+            mode,
+            path,
+            name: prev?.name || path.split('/').pop() || path,
+            webUrl: prev?.webUrl || '',
+            folders: prev?.folders || [],
+            files: prev?.files || [],
+            loading: true,
+            error: '',
+        }));
+        try {
+            const listing = await listSharePointFolder(msToken, path);
+            setBrowser({
+                mode,
+                path,
+                name: listing.name,
+                webUrl: listing.webUrl,
+                folders: listing.folders,
+                files: listing.files,
+                loading: false,
+                error: '',
+            });
+        } catch (error) {
+            setBrowser({
+                mode,
+                path,
+                name: path.split('/').pop() || path,
+                webUrl: '',
+                folders: [],
+                files: [],
+                loading: false,
+                error: (error as Error)?.message || String(error),
+            });
+        }
+    };
+
+    const useCurrentFolder = () => {
+        if (!browser?.name) return;
+        setSelectedFolderPath(browser.path);
+        setForm(prev => ({ ...prev, mainFolder: browser.webUrl }));
+        onFileInput(browser.name);
+        setBrowser(null);
+    };
+
+    const useFile = (file: { name: string; webUrl: string }) => {
+        setForm(prev => ({ ...prev, link: file.webUrl }));
+        setSelectedFolderPath(browser?.path || selectedFolderPath);
+        setBrowser(null);
+    };
+
     const onCategory = (category: string) => {
         setForm(prev => ({
             ...prev,
@@ -100,6 +171,58 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
             slug: nextSlug(prev.date, category, projects),
         }));
     };
+
+    const renderBrowser = () => browser && (
+                        <div className="add-project-browser add-project-span">
+                            <div className="add-project-crumbs">
+                                {browser.path.split('/').filter(Boolean).map((part, index, parts) => {
+                                    const path = parts.slice(0, index + 1).join('/');
+                                    return (
+                                        <span key={path}>
+                                            {index > 0 && <span className="add-project-crumb-sep"> / </span>}
+                                            <button type="button" onClick={() => openFolder(path, browser.mode)} disabled={browser.loading}>
+                                                {part}
+                                            </button>
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                            {browser.loading && <div className="add-project-note">Loading…</div>}
+                            {browser.error && <div className="add-project-note">{browser.error}</div>}
+                            {!browser.loading && !browser.error && (
+                                <ul className="add-project-folder-list">
+                                    {browser.folders.length === 0 && (browser.mode === 'folder' || browser.files.length === 0) && (
+                                        <li className="add-project-empty">{browser.mode === 'file' ? 'No files or folders here.' : 'No subfolders here.'}</li>
+                                    )}
+                                    {browser.folders.map((folder) => (
+                                        <li key={folder.webUrl}>
+                                            <button
+                                                type="button"
+                                                onClick={() => openFolder(`${browser.path.replace(/\/+$/, '')}/${folder.name}`, browser.mode)}
+                                            >
+                                                {folder.name}/
+                                            </button>
+                                        </li>
+                                    ))}
+                                    {browser.mode === 'file' && browser.files.map((file) => (
+                                        <li key={file.webUrl}>
+                                            <button type="button" className="add-project-file" onClick={() => useFile(file)}>
+                                                {file.name}
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                            <div className="add-project-browser-actions">
+                                <button type="button" onClick={() => setBrowser(null)}>Close</button>
+                                {browser.mode === 'folder' && (
+                                    <button type="button" disabled={!browser.webUrl || browser.loading} onClick={useCurrentFolder}>
+                                        Use this folder
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+    );
 
     const canSave = Boolean(sheetFileName && form.slug.trim() && !saving);
 
@@ -136,17 +259,27 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                     <h3>稿件</h3>
                     <label className="add-project-field add-project-span">
                         文件
-                        <input
-                            value={form.fileInput}
-                            autoFocus
-                            onChange={(event) => {
-                                const value = event.target.value;
-                                setForm(prev => ({ ...prev, fileInput: value }));
-                                if (parseNote) setParseNote('');
-                            }}
-                            onBlur={(event) => onFileInput(event.target.value)}
-                        />
+                        <div className="add-project-email">
+                            <input
+                                value={form.fileInput}
+                                autoFocus
+                                onChange={(event) => {
+                                    const value = event.target.value;
+                                    setForm(prev => ({ ...prev, fileInput: value }));
+                                    if (parseNote) setParseNote('');
+                                }}
+                                onBlur={(event) => onFileInput(event.target.value)}
+                            />
+                            <button
+                                type="button"
+                                disabled={!msToken || saving}
+                                onClick={() => openFolder(SHAREPOINT_START_FOLDER, 'folder')}
+                            >
+                                Browse SharePoint
+                            </button>
+                        </div>
                     </label>
+                    {browser?.mode === 'folder' && renderBrowser()}
                     {parseNote && <div className="add-project-note add-project-span">{parseNote}</div>}
                     <div className="add-project-preview add-project-span">
                         <span>Saved 文件</span>
@@ -178,12 +311,29 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                     )}
                     <label className="add-project-field add-project-span">
                         文章名
-                        <input value={form.title} onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))} />
+                        <input
+                            value={form.title}
+                            placeholder={categoryHasNoArticleTitle(form.category) ? 'Not needed for 佳作分享' : ''}
+                            onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))}
+                        />
                     </label>
+                    {categoryHasNoArticleTitle(form.category) && (
+                        <div className="add-project-note add-project-span">佳作分享 is a book passage, so 文章名 can be left empty.</div>
+                    )}
                     <label className="add-project-field add-project-span">
                         文章链接
-                        <input value={form.link} onChange={(event) => setForm(prev => ({ ...prev, link: event.target.value }))} />
+                        <div className="add-project-email">
+                            <input value={form.link} onChange={(event) => setForm(prev => ({ ...prev, link: event.target.value }))} />
+                            <button
+                                type="button"
+                                disabled={!msToken || saving}
+                                onClick={() => openFolder(selectedFolderPath || SHAREPOINT_START_FOLDER, 'file')}
+                            >
+                                Browse
+                            </button>
+                        </div>
                     </label>
+                    {browser?.mode === 'file' && renderBrowser()}
                 </section>
 
                 <section>
@@ -347,6 +497,90 @@ export function AddProjectDialog({ categories, titles, projects, saving, onClose
                 }
                 .add-project-email button:hover {
                     background: #d3e3f5;
+                }
+                .add-project-email button:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
+                }
+                .add-project-browser {
+                    border: 1px solid #dde5ee;
+                    border-radius: 8px;
+                    background: #f7fafd;
+                    padding: 0.7rem 0.8rem;
+                }
+                .add-project-crumbs {
+                    font-size: 0.82rem;
+                    font-weight: 400;
+                    margin-bottom: 0.5rem;
+                    color: #1f4b7a;
+                }
+                .add-project-crumbs button {
+                    border: none;
+                    background: none;
+                    color: #1f4b7a;
+                    padding: 0;
+                    cursor: pointer;
+                    font-weight: 600;
+                }
+                .add-project-crumbs button:hover {
+                    text-decoration: underline;
+                }
+                .add-project-crumb-sep {
+                    color: #8eafd4;
+                }
+                .add-project-folder-list {
+                    list-style: none;
+                    margin: 0 0 0.6rem;
+                    padding: 0;
+                    max-height: 14rem;
+                    overflow-y: auto;
+                    border: 1px solid #dde5ee;
+                    border-radius: 6px;
+                    background: #fff;
+                }
+                .add-project-folder-list li button {
+                    width: 100%;
+                    text-align: left;
+                    border: none;
+                    border-bottom: 1px solid #eef1f5;
+                    background: #fff;
+                    color: #212529;
+                    padding: 0.45rem 0.7rem;
+                    cursor: pointer;
+                    font-weight: 400;
+                }
+                .add-project-folder-list li:last-child button {
+                    border-bottom: none;
+                }
+                .add-project-folder-list li button:hover {
+                    background: #e3edf8;
+                    color: #1f4b7a;
+                }
+                .add-project-folder-list li button.add-project-file {
+                    color: #1f4b7a;
+                }
+                .add-project-empty {
+                    padding: 0.55rem 0.7rem;
+                    color: #6c757d;
+                    font-weight: 400;
+                }
+                .add-project-browser-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 0.5rem;
+                }
+                .add-project-browser-actions button {
+                    padding: 0.4rem 0.85rem;
+                    border-radius: 6px;
+                    border: 1px solid #2f6aa8;
+                    background: #e3edf8;
+                    color: #1f4b7a;
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+                .add-project-browser-actions button:disabled {
+                    opacity: 0.55;
+                    cursor: not-allowed;
                 }
                 .add-project-preview {
                     background: #eef4fb;
