@@ -308,15 +308,27 @@ async function doSearchEnyuSite(params: { [key: string]: string }, log: mainOps.
     };
   }
   try {
-    const url = `${ENYU_SITE}/search/${encodeURIComponent(query)}/feed/rss2/`;
-    const res = await fetch(url);
-    const xml = await res.text();
-    if (!res.ok) {
-      log.doLog(`enyu site search failed: ${res.status}`);
+    const urls = [
+      `${ENYU_SITE}/search/${encodeURIComponent(query)}/feed/rss2/`,
+      `${ENYU_SITE}/?s=${encodeURIComponent(query)}&feed=rss2`,
+    ];
+    let xml = '';
+    let lastStatus = 0;
+    for (const url of urls) {
+      const res = await fetch(url);
+      lastStatus = res.status;
+      const text = await res.text();
+      if (res.ok) {
+        xml = text;
+        break;
+      }
+      log.doLog(`enyu site search failed: ${res.status} ${url}`);
+    }
+    if (!xml) {
       return {
         statusCode: 502,
         headers,
-        body: JSON.stringify({ message: `Site search failed (${res.status})` }),
+        body: JSON.stringify({ message: `Site search failed (${lastStatus})` }),
       };
     }
     return {

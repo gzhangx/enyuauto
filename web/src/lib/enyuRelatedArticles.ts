@@ -61,7 +61,8 @@ function decodeTitle(html: string): string {
 }
 
 function isLocalDev(): boolean {
-    return typeof location !== 'undefined' && /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+    const hostname = (globalThis as { location?: { hostname?: string } }).location?.hostname;
+    return !!hostname && /^(localhost|127\.0\.0\.1)$/.test(hostname);
 }
 
 function rssPath(query: string): string {
@@ -166,8 +167,12 @@ export async function findRelatedEnyuArticles(
     // does not miss articles that only match one of those.
     for (const term of terms) {
         if (results.length >= limit) break;
-        const xml = await fetchRssXml(term);
-        addUnique(results, seen, parseRssItems(xml), exclude, limit, language);
+        try {
+            const xml = await fetchRssXml(term);
+            addUnique(results, seen, parseRssItems(xml), exclude, limit, language);
+        } catch {
+            // One failed search term should not block the rest.
+        }
     }
 
     return results.slice(0, limit);

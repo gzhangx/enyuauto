@@ -4,7 +4,6 @@ import type { ActionType } from './types';
 import type { ProjectTaskParams, FreedCampOps, FreedCampProcessor, ICurrentSessionData, IUserInfo, LoginResponse, IProjectTasksResult, FreedCampLoginParams } from './freedcampTypes';
 import { getCompleteDateColumnName, getTaskIdColumnName, type DueDateKeys, type IEditorInfo, type IGroupAndMainProjectLongToShortNameMapping, type IOnLeaveData, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps, type ISheetInfoCache, type ISyncFreeCampToSheetData, type OperationInfo, type OperationWithDueDates, type ProjectActionMappingConfig, type SyncUpdateItem, type Templates } from './opsTypes';
 import { copySharePointFile, findOrCreateExcelFile, joinSharePointPath, type SharePointFileRef } from '../src/lib/msGraphConfig';
-import { detectArticleLanguage, findRelatedEnyuArticles, formatRelatedArticlesHtml } from '../src/lib/enyuRelatedArticles';
 const mainSheetId = '1zSPJudO0DERn74xV2auIXeNbJxh1apO0tjzB4IrTeQk';
 
 // type DueDateKeys = `${ActionType} Due Date`;
@@ -1342,12 +1341,17 @@ export async function processOperation(
             const needsAbstract = template1.includes('{文章摘要}');
             if (needsRelated || needsAbstract) {
                 let searchTerms: string[] = [];
-                let relatedLanguage = detectArticleLanguage(infos.article, fileName);
                 const articleMeta = {
                     title: infos.article,
                     author: infos.author,
                     category: infos.category,
                 };
+                const {
+                    detectArticleLanguage,
+                    findRelatedEnyuArticles,
+                    formatRelatedArticlesHtml,
+                } = await import('../src/lib/enyuRelatedArticles');
+                let relatedLanguage = detectArticleLanguage(infos.article, fileName);
                 const {
                     readPublishArticleText,
                     extractArticleSearchTerms,

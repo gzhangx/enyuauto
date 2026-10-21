@@ -1,6 +1,5 @@
 import * as mammoth from 'mammoth';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import {
     downloadDriveItemContent,
     listFolderFiles,
@@ -8,7 +7,7 @@ import {
     type SiblingFileInfo,
 } from './msGraphConfig';
 
-GlobalWorkerOptions.workerSrc = pdfWorker;
+GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@6.4.299/build/pdf.worker.min.mjs';
 
 type ArticleMeta = {
     title?: string;
