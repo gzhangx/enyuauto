@@ -19,13 +19,15 @@ import {
   createMsExcelDataOps,
   getEditorWorkload,
   getActionFilePlan,
+  buildFilledTaskTemplate,
+  findFreedCampUserForEditor,
 } from '../../shared/main_ops';
 import type { ActionType } from '../../shared/types';
 import { ErrorDialog } from './ErrorDialog';
 import { AddProjectDialog, type NewProjectValues } from './AddProjectDialog';
 import { freedCampOps } from '../lib/util';
 import type { FreedCampLoginParams, LoginResponse } from '../../shared/freedcampTypes';
-import { type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
+import { getTaskIdColumnName, type IOperationWithLineNumberAndParentTaskId } from '../../shared/opsTypes';
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 import { fetchOneDriveChildren } from './MicrosoftOneDrivePage';
 import { listFoldersFiles, listSiblingFiles, type SiblingFileInfo } from '../lib/msGraphConfig';
@@ -170,6 +172,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     selectedEditor?: Partial<Record<ActionType, string>>;
     dueDays?: Partial<Record<ActionType, number>>;
     sourceFiles?: Partial<Record<ActionType, SourceFilePick>>;
+    focusedAction?: ActionType;
+    previewHtml?: Partial<Record<ActionType, string>>;
+    previewStatus?: Partial<Record<ActionType, 'idle' | 'loading' | 'ready' | 'error'>>;
+    previewDirty?: Partial<Record<ActionType, boolean>>;
   };
   type SourceFilePick = {
     status: 'loading' | 'ready' | 'error';
@@ -182,6 +188,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   };
   const [createTasksDialog, setCreateTasksDialog] = useState<CreateTasksDialogState | null>(null);
   const sheetOpsRef = useRef<Awaited<ReturnType<typeof getSheetOps>> | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const lastPreviewKeyRef = useRef('');
   const { logMessages, doLog, criticalError, closeCriticalError } = useLogger(60000);
   const [showLogPanel, setShowLogPanel] = useState(false);
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
@@ -192,6 +200,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [ownerInfoDialog, setOwnerInfoDialog] = useState<{ title: string; entries: OwnerInfoEntry[] } | null>(null);
   const [showAddProject, setShowAddProject] = useState(false);
   const [addingProject, setAddingProject] = useState(false);
+  const [createConfirm, setCreateConfirm] = useState<{ action: ActionType; taskTitle: string; assignee: string; email: string } | null>(null);
 
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
 
@@ -280,6 +289,86 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     }
   }, [createTasksDialog, msToken, combinedOpsAndData]);
 
+  useEffect(() => {
+    if (!createTasksDialog || !combinedOpsAndData) return;
+    const action = createTasksDialog.focusedAction;
+    if (!action || !createTasksDialog.selected[action]) return;
+    if (createTasksDialog.previewDirty?.[action]) return;
+    const pick = createTasksDialog.sourceFiles?.[action];
+    if (pick?.status === 'loading') return;
+    const editor = createTasksDialog.selectedEditor?.[action] || '';
+    const useAI = createTasksDialog.useAITemplate[action] !== false;
+    const useEnglish = createTasksDialog.useEnglishTemplate[action] === true;
+    const fileId = pick?.selectedItemId || '';
+    const previewKey = `${action}|${editor}|${fileId}|${useAI}|${useEnglish}`;
+    if (lastPreviewKeyRef.current === previewKey) return;
+    lastPreviewKeyRef.current = previewKey;
+    let cancelled = false;
+    const operation = {
+      ...createTasksDialog.operation,
+      ...(editor ? { [action]: editor } : {}),
+    } as IOperationWithLineNumberAndParentTaskId;
+    const pickedFile = pick?.files.find((file) => file.itemId === pick.selectedItemId);
+    setCreateTasksDialog((prev) => prev && prev.focusedAction === action
+      ? { ...prev, previewStatus: { ...(prev.previewStatus || {}), [action]: 'loading' } }
+      : prev);
+    const log: DebugLog = { doLog: (msg) => console.log(msg) };
+    buildFilledTaskTemplate({
+      action,
+      operation,
+      combined: combinedOpsAndData,
+      oneDriveDirInfos: createTasksDialog.oneDriveFolders,
+      useAI: createTasksDialog.actions.find((row) => row.action === action)?.hasAITemplate ? useAI : false,
+      useEnglish,
+      pickedSource: pickedFile,
+      siteLogin: { name: msAccount?.name || '', email: msAccount?.username || '' },
+      log,
+      msToken: msToken || undefined,
+    }).then((html) => {
+      if (cancelled) return;
+      setCreateTasksDialog((prev) => {
+        if (!prev || prev.focusedAction !== action || prev.previewDirty?.[action]) return prev;
+        return {
+          ...prev,
+          previewHtml: { ...(prev.previewHtml || {}), [action]: `<!--${previewKey}-->${html}` },
+          previewStatus: { ...(prev.previewStatus || {}), [action]: 'ready' },
+        };
+      });
+    }).catch((error: unknown) => {
+      if (cancelled) return;
+      setCreateTasksDialog((prev) => prev && prev.focusedAction === action
+        ? {
+            ...prev,
+            previewStatus: { ...(prev.previewStatus || {}), [action]: 'error' },
+            previewHtml: { ...(prev.previewHtml || {}), [action]: `Could not build preview: ${(error as Error)?.message || String(error)}` },
+          }
+        : prev);
+    });
+    return () => { cancelled = true; };
+  }, [
+    combinedOpsAndData,
+    createTasksDialog?.focusedAction,
+    createTasksDialog?.selectedEditor,
+    createTasksDialog?.sourceFiles,
+    createTasksDialog?.useAITemplate,
+    createTasksDialog?.useEnglishTemplate,
+    createTasksDialog?.previewDirty,
+    msToken,
+    msAccount?.name,
+    msAccount?.username,
+  ]);
+
+  useEffect(() => {
+    const action = createTasksDialog?.focusedAction;
+    if (!action || !previewRef.current) return;
+    if (createTasksDialog?.previewDirty?.[action]) return;
+    const html = createTasksDialog?.previewHtml?.[action] || '';
+    const visible = html.replace(/^<!--.*?-->/, '');
+    if (previewRef.current.innerHTML !== visible) {
+      previewRef.current.innerHTML = visible;
+    }
+  }, [createTasksDialog?.focusedAction, createTasksDialog?.previewHtml, createTasksDialog?.previewDirty]);
+
   const renderSourceFilePicker = (action: ActionType) => {
     const pick = createTasksDialog?.sourceFiles?.[action];
     if (!pick) return null;
@@ -316,9 +405,14 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           value={pick.selectedItemId ?? ''}
           onChange={(e) => {
             const itemId = e.target.value;
+            lastPreviewKeyRef.current = '';
             setCreateTasksDialog((prev) => {
               if (!prev?.sourceFiles?.[action]) return prev;
-              return { ...prev, sourceFiles: { ...prev.sourceFiles, [action]: { ...prev.sourceFiles[action]!, selectedItemId: itemId } } };
+              return {
+                ...prev,
+                sourceFiles: { ...prev.sourceFiles, [action]: { ...prev.sourceFiles[action]!, selectedItemId: itemId } },
+                previewDirty: { ...(prev.previewDirty || {}), [action]: false },
+              };
             });
           }}
         >
@@ -442,7 +536,170 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       entries: getOwnerInfoEntriesForAction(action),
     });
   };
-  
+
+  const openCreateDialog = async (p: IOperationWithLineNumberAndParentTaskId, focusAction?: ActionType) => {
+    if (opsConfig === null) {
+      setResponseData('Operation data not loaded yet.');
+      return;
+    }
+    const ops = sheetOpsRef.current;
+    if (!ops || !combinedOpsAndData) return;
+    setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Preparing…' }));
+    try {
+      let oneDriveFolders: IOneDriveDirInfo[] = [];
+      if (p.mainFolder) {
+        if (!msToken) {
+          setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
+          return;
+        }
+        oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
+      }
+      const previewLog: DebugLog = { doLog: (msg) => console.log(msg) };
+      const previewOp = { ...p } as IOperationWithLineNumberAndParentTaskId;
+      const actions = getActionsToPerform(previewOp, combinedOpsAndData, p['文件'], previewLog);
+      if (actions.length === 0) {
+        setErrorDialog({
+          show: true,
+          message: 'No new FreedCamp tasks to create for this row (all actions already have tasks or are excluded).',
+        });
+        return;
+      }
+      if (focusAction && !actions.some((row) => row.action === focusAction)) {
+        setErrorDialog({
+          show: true,
+          message: `${focusAction} already has a task or is not available for this row.`,
+        });
+        return;
+      }
+      const selected: Partial<Record<ActionType, boolean>> = {};
+      const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
+      const useAITemplate: Partial<Record<ActionType, boolean>> = {};
+      const selectedEditor: Partial<Record<ActionType, string>> = {};
+      const dueDays: Partial<Record<ActionType, number>> = {};
+      for (const a of actions) {
+        if (a.hasAITemplate) useAITemplate[a.action] = true;
+        const maybeEditor = (p as any)[a.action] as string | undefined;
+        if (maybeEditor) {
+          selectedEditor[a.action] = maybeEditor;
+        } else if (a.editorName && combinedOpsAndData?.opsConfig?.editorInfoAry) {
+          const entries = combinedOpsAndData.opsConfig.editorInfoAry;
+          for (const info of entries) {
+            const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
+            const normalizedTitle = (info.title || '').toLowerCase();
+            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
+            const display = isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
+            if (display === a.editorName) {
+              selectedEditor[a.action] = info.shortNameOnFreedCamp;
+              break;
+            }
+          }
+        }
+        if (useAITemplate[a.action] && selectedEditor[a.action]) {
+          const chosen = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === selectedEditor[a.action]);
+          if (isHumanForAction(chosen?.group, a.action)) {
+            delete selectedEditor[a.action];
+          }
+        }
+        dueDays[a.action] = 7;
+      }
+      if (focusAction) selected[focusAction] = true;
+      lastPreviewKeyRef.current = '';
+      setCreateTasksDialog({
+        operation: p,
+        oneDriveFolders,
+        actions,
+        selected,
+        useEnglishTemplate,
+        useAITemplate,
+        selectedEditor,
+        dueDays,
+        focusedAction: focusAction,
+      });
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      console.error('Error preparing project creation:', error);
+      setErrorDialog({
+        show: true,
+        message: `Failed to prepare project creation:\n${err.message || String(error)}\nPlease make sure main folder exists
+                        ${p.mainFolder}`,
+      });
+    } finally {
+      setIsLoading((prev) => ({ ...prev, projectButtonAction: '' }));
+    }
+  };
+
+  const submitCreateTask = async () => {
+    const dlg = createTasksDialog;
+    if (!dlg || !combinedOpsAndData) return;
+    const action = dlg.focusedAction;
+    if (!action) return;
+    const editor = dlg.selectedEditor?.[action];
+    if (!editor) return;
+    (dlg.operation as any)[action] = editor;
+    const days = dlg.dueDays?.[action];
+    const normalizedDays = Number.isFinite(days) && (days as number) > 0 ? days as number : 7;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + normalizedDays);
+    dlg.operation[`${action} Due Date`] = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+    const editedHtml = (previewRef.current?.innerHTML || dlg.previewHtml?.[action] || '').replace(/^<!--.*?-->/, '');
+    setCreateTasksDialog(null);
+    const ops = sheetOpsRef.current;
+    if (!ops) return;
+    setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Creating project...' }));
+    const logs: DebugLog = {
+      doLog: (msg, critical = false) => {
+        console.log('doLog', msg);
+        setProgressText(msg);
+        if (critical) {
+          setErrorDialog({ show: true, message: msg });
+        }
+      },
+    };
+    try {
+      const useAITemplateMap = new Map<ActionType, boolean>();
+      if (dlg.useAITemplate[action] !== false) useAITemplateMap.set(action, true);
+      const sourceFileOverride = new Map<ActionType, SiblingFileInfo>();
+      const pick = dlg.sourceFiles?.[action];
+      const file = pick?.files.find((item) => item.itemId === pick.selectedItemId);
+      if (pick?.status === 'ready' && file) sourceFileOverride.set(action, file);
+      const useEnglishTemplateMap = new Map<ActionType, boolean>();
+      if (dlg.useEnglishTemplate[action]) useEnglishTemplateMap.set(action, true);
+      const descriptionOverrides = new Map<ActionType, string>();
+      if (editedHtml.trim()) descriptionOverrides.set(action, editedHtml);
+      await processOperation(
+        ops,
+        freeCampOpsWithCache,
+        combinedOpsAndData,
+        dlg.operation,
+        dlg.oneDriveFolders,
+        logs,
+        '',
+        new Set<ActionType>([action]),
+        useAITemplateMap,
+        useEnglishTemplateMap,
+        msToken || undefined,
+        sourceFileOverride,
+        { name: msAccount?.name || '', email: msAccount?.username || '' },
+        descriptionOverrides,
+        true,
+      );
+      if (freedCampCredentials) {
+        setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Reloading...' }));
+        await fetchData(freedCampCredentials, true);
+      }
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      console.error('Error creating project:', error);
+      setErrorDialog({
+        show: true,
+        message: `Failed to create project:\n${err.message || String(error)}`,
+      });
+    } finally {
+      setIsLoading((prev) => ({ ...prev, projectButtonAction: '' }));
+      setProgressText('');
+    }
+  };
+
 
   const startupRunOnce = useRef(false);
   const freeCampOpsWithCache: FreeCampAndUpdateOperations = {
@@ -741,303 +998,252 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           }}
           onClick={() => setCreateTasksDialog(null)}
         >
-          <div className="ctd-dialog" onClick={(e) => e.stopPropagation()}>
+          <div className="ctd-dialog ctd-dialog-wide" onClick={(e) => e.stopPropagation()}>
             <div className="ctd-header">
               <h2>Create FreedCamp Task</h2>
               <div className="ctd-project">{createTasksDialog.operation['文件']}</div>
             </div>
-            <ul className="ctd-body">
-              {createTasksDialog.actions.map((row) => (
-                <li
-                  key={row.action}
-                  className={`ctd-card${createTasksDialog.selected[row.action] ? ' ctd-card-selected' : ''}`}
-                >
-                  <div className="ctd-card-head">
-                    <input
-                      type="checkbox"
-                      id={`create-task-${row.action}`}
-                      checked={createTasksDialog.selected[row.action] === true}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setCreateTasksDialog((prev) => {
-                          if (!prev) return prev;
-                          //const mapping =
-                          //  combinedOpsAndData.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId;
-                          const selected = { ...prev.selected };
-
-                          // const collectDescendants = (par: ActionType): ActionType[] => {
-                          //   const out: ActionType[] = [];
-                          //   for (const item of prev.actions) {
-                          //     const cfg = mapping[item.action];
-                          //     if (cfg?.subTaskOf === par) {
-                          //       out.push(item.action, ...collectDescendants(item.action));
-                          //     }
-                          //   }
-                          //   return out;
-                          // };
-
-                          if (checked) {
-                            selected[row.action] = true;
-                            // let parent = mapping[row.action]?.subTaskOf;
-                            // while (parent) {
-                            //   if (prev.actions.some((x) => x.action === parent)) {
-                            //     selected[parent] = true;
-                            //   }
-                            //   parent = mapping[parent]?.subTaskOf;
-                            // }
-                          } else {
-                            selected[row.action] = false;
-                            // for (const desc of collectDescendants(row.action)) {
-                            //   selected[desc] = false;
-                            // }
-                          }
-                          return { ...prev, selected };
-                        });
-                      }}
-                    />
-                    <label htmlFor={`create-task-${row.action}`} className="ctd-card-label">
-                      <span className="ctd-action">{row.action}</span>
-                      <span
-                        className="ctd-editor-name"
-                        title={`Due: ${createTasksDialog.operation[`${row.action} Due Date` as keyof IOperationWithLineNumberAndParentTaskId] as string || 'N/A'}`}
-                      >
-                        {row.editorName}
-                      </span>
-                    </label>
-                  </div>
-                  {createTasksDialog.selected[row.action] && (
-                    <div className="ctd-sections">
-                      {(createTasksDialog.sourceFiles?.[row.action] || getFilePlan(row.action)) && (
-                        <section className="ctd-section">
-                          <h4>1. File selection</h4>
-                          {renderSourceFilePicker(row.action) || <div className="ctd-muted">Loading files…</div>}
-                        </section>
-                      )}
-                      <section className="ctd-section">
-                        <h4>2. Editor selection</h4>
-                        <div className="ctd-controls">
-                          <select
+            <div className="ctd-body">
+              <div className="ctd-action-cells">
+                {createTasksDialog.actions.map((row) => (
+                  <button
+                    key={row.action}
+                    type="button"
+                    className={`ctd-action-cell${createTasksDialog.focusedAction === row.action ? ' ctd-action-cell-on' : ''}`}
+                    onClick={() => {
+                      lastPreviewKeyRef.current = '';
+                      setCreateTasksDialog((prev) => {
+                        if (!prev) return prev;
+                        const selected: Partial<Record<ActionType, boolean>> = {};
+                        selected[row.action] = true;
+                        return {
+                          ...prev,
+                          focusedAction: row.action,
+                          selected,
+                          previewDirty: { ...(prev.previewDirty || {}), [row.action]: false },
+                        };
+                      });
+                    }}
+                  >
+                    <span className="ctd-action">{row.action}</span>
+                  </button>
+                ))}
+              </div>
+              {(() => {
+                const row = createTasksDialog.actions.find((item) => item.action === createTasksDialog.focusedAction);
+                if (!row) {
+                  return <div className="ctd-muted ctd-pick-hint">Click an action to choose the editor and preview the FreedCamp task.</div>;
+                }
+                return (
+                  <div className="ctd-sections">
+                    <section className="ctd-section">
+                      <h4>Editor</h4>
+                      <div className="ctd-controls">
+                        <select
+                          className="ctd-input"
+                          value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            lastPreviewKeyRef.current = '';
+                            setCreateTasksDialog((prev) => {
+                              if (!prev) return prev;
+                              const selectedEditor = { ...(prev.selectedEditor || {}) };
+                              selectedEditor[row.action] = val;
+                              return { ...prev, selectedEditor, previewDirty: { ...(prev.previewDirty || {}), [row.action]: false } };
+                            });
+                          }}
+                        >
+                          <option value="">(select editor)</option>
+                          {getEligibleEditors(row).map((info) => {
+                            const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
+                            const normalizedTitle = (info.title || '').toLowerCase();
+                            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
+                            const pretty = isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
+                            return <option key={info.shortNameOnFreedCamp} value={info.shortNameOnFreedCamp}>{info.fullNamePN || pretty}</option>;
+                          })}
+                        </select>
+                        <label className="ctd-due">
+                          Due in
+                          <input
                             className="ctd-input"
-                            value={createTasksDialog.selectedEditor?.[row.action] ?? ''}
+                            type="number"
+                            min="1"
+                            step="1"
+                            value={createTasksDialog.dueDays?.[row.action] ?? 7}
                             onChange={(e) => {
-                              const val = e.target.value;
+                              const rawValue = e.target.value;
+                              const parsedValue = Number(rawValue);
+                              const normalizedValue = rawValue === '' || !Number.isFinite(parsedValue) || parsedValue <= 0 ? 7 : parsedValue;
                               setCreateTasksDialog((prev) => {
                                 if (!prev) return prev;
-                                const selectedEditor = { ...(prev.selectedEditor || {}) };
-                                selectedEditor[row.action] = val;
-                                return { ...prev, selectedEditor };
+                                const dueDays = { ...(prev.dueDays || {}) };
+                                dueDays[row.action] = normalizedValue;
+                                return { ...prev, dueDays };
                               });
                             }}
-                          >
-                            <option value="">(select editor)</option>
-                            {getEligibleEditors(row).map((info) => {
-                              const pretty = (() => {
-                                const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
-                                const normalizedTitle = (info.title || '').toLowerCase();
-                                const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
-                                return isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
-                              })();
-                              return <option key={info.shortNameOnFreedCamp} value={info.shortNameOnFreedCamp}>{info.fullNamePN || pretty}</option>;
-                            })}
-                          </select>
-                          <label className="ctd-due">
-                            Due in
-                            <input
-                              className="ctd-input"
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={createTasksDialog.dueDays?.[row.action] ?? 7}
-                              onChange={(e) => {
-                                const rawValue = e.target.value;
-                                const parsedValue = Number(rawValue);
-                                const normalizedValue = rawValue === '' || !Number.isFinite(parsedValue) || parsedValue <= 0 ? 7 : parsedValue;
-                                setCreateTasksDialog((prev) => {
-                                  if (!prev) return prev;
-                                  const dueDays = { ...(prev.dueDays || {}) };
-                                  dueDays[row.action] = normalizedValue;
-                                  return { ...prev, dueDays };
-                                });
-                              }}
-                              style={{ width: '58px' }}
-                            />
-                            day(s)
-                          </label>
-                          {(() => {
-                            const warning = getOnLeaveWarning({
-                              selectedEditor: createTasksDialog.selectedEditor?.[row.action],
-                              dueDays: createTasksDialog.dueDays?.[row.action],
-                              editorInfoAry: combinedOpsAndData?.opsConfig?.editorInfoAry ?? opsConfig?.editorInfoAry ?? [],
-                              onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
-                            });
-                            return warning ? (
-                              <div className="ctd-warning">
-                                {warning}
-                              </div>
-                            ) : null;
-                          })()}
-                          {renderWorkloadTable(row)}
-                        </div>
-                      </section>
-                      {row.hasEnglishTemplate && (
-                        <section className="ctd-section">
-                          <h4>3. Use English template</h4>
-                          <div className="ctd-option">
+                            style={{ width: '58px' }}
+                          />
+                          day(s)
+                        </label>
+                        {row.hasEnglishTemplate && (
+                          <label className="ctd-option">
                             <input
                               type="checkbox"
-                              id={`use-english-${row.action}`}
                               checked={createTasksDialog.useEnglishTemplate[row.action] === true}
                               onChange={(e) => {
-                                const checked = e.target.checked;
-                                setCreateTasksDialog((prev) => {
-                                  if (!prev) return prev;
-                                  const useEnglishTemplate = { ...prev.useEnglishTemplate };
-                                  useEnglishTemplate[row.action] = checked;
-                                  return { ...prev, useEnglishTemplate };
+                                lastPreviewKeyRef.current = '';
+                                setCreateTasksDialog((prev) => prev && {
+                                  ...prev,
+                                  useEnglishTemplate: { ...prev.useEnglishTemplate, [row.action]: e.target.checked },
+                                  previewDirty: { ...(prev.previewDirty || {}), [row.action]: false },
                                 });
                               }}
                             />
-                            <label htmlFor={`use-english-${row.action}`}>
-                              Use English template
-                            </label>
-                          </div>
-                        </section>
-                      )}
-                      {row.hasAITemplate && (
-                        <section className="ctd-section">
-                          <h4>{row.hasEnglishTemplate ? '4. Use AI template' : '3. Use AI template'}</h4>
-                          <div className="ctd-option">
+                            English template
+                          </label>
+                        )}
+                        {row.hasAITemplate && (
+                          <label className="ctd-option">
                             <input
                               type="checkbox"
-                              id={`use-ai-${row.action}`}
                               checked={createTasksDialog.useAITemplate[row.action] !== false}
                               onChange={(e) => {
                                 const checked = e.target.checked;
+                                lastPreviewKeyRef.current = '';
                                 setCreateTasksDialog((prev) => {
                                   if (!prev) return prev;
-                                  const useAITemplate = { ...prev.useAITemplate };
-                                  useAITemplate[row.action] = checked;
+                                  const useAITemplate = { ...prev.useAITemplate, [row.action]: checked };
                                   const selectedEditor = { ...(prev.selectedEditor || {}) };
                                   const current = selectedEditor[row.action];
                                   const currentInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === current);
                                   if (checked && current && isHumanForAction(currentInfo?.group, row.action)) {
                                     selectedEditor[row.action] = '';
                                   }
-                                  return { ...prev, useAITemplate, selectedEditor };
+                                  return { ...prev, useAITemplate, selectedEditor, previewDirty: { ...(prev.previewDirty || {}), [row.action]: false } };
                                 });
                               }}
                             />
-                            <label htmlFor={`use-ai-${row.action}`}>
-                              Use AI template
-                            </label>
-                          </div>
-                        </section>
+                            AI template
+                          </label>
+                        )}
+                      </div>
+                      {(() => {
+                        const warning = getOnLeaveWarning({
+                          selectedEditor: createTasksDialog.selectedEditor?.[row.action],
+                          dueDays: createTasksDialog.dueDays?.[row.action],
+                          editorInfoAry: combinedOpsAndData?.opsConfig?.editorInfoAry ?? opsConfig?.editorInfoAry ?? [],
+                          onLeaveData: combinedOpsAndData?.opsConfig?.onLeaveData ?? opsConfig?.onLeaveData ?? [],
+                        });
+                        return warning ? <div className="ctd-warning">{warning}</div> : null;
+                      })()}
+                      {renderWorkloadTable(row)}
+                    </section>
+                    {(createTasksDialog.sourceFiles?.[row.action] || getFilePlan(row.action)) && (
+                      <section className="ctd-section">
+                        <h4>File</h4>
+                        {renderSourceFilePicker(row.action) || <div className="ctd-muted">Loading files…</div>}
+                      </section>
+                    )}
+                    <section className="ctd-section">
+                      <h4>FreedCamp preview</h4>
+                      {createTasksDialog.previewStatus?.[row.action] === 'loading' && (
+                        <div className="ctd-muted">Building preview…</div>
                       )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
+                      <div
+                        ref={previewRef}
+                        className="ctd-preview"
+                        contentEditable
+                        suppressContentEditableWarning
+                        onInput={() => {
+                          const html = previewRef.current?.innerHTML || '';
+                          setCreateTasksDialog((prev) => prev && {
+                            ...prev,
+                            previewHtml: { ...(prev.previewHtml || {}), [row.action]: html },
+                            previewDirty: { ...(prev.previewDirty || {}), [row.action]: true },
+                          });
+                        }}
+                      />
+                    </section>
+                  </div>
+                );
+              })()}
+            </div>
             <div className="ctd-footer">
               <button
                 type="button"
                 className="ctd-cancel"
-                onClick={() => setCreateTasksDialog(null)}
+                onClick={() => { setCreateConfirm(null); setCreateTasksDialog(null); }}
               >
                 Cancel
               </button>
               <button
                 type="button"
                 className="btn btn-create"
-                onClick={async () => {
+                onClick={() => {
                   const dlg = createTasksDialog;
                   if (!dlg || !combinedOpsAndData) return;
-                  const selectedSet = new Set<ActionType>(
-                    dlg.actions.filter((a) => dlg.selected[a.action]).map((a) => a.action),
-                  );
-                  if (selectedSet.size === 0) {
+                  const action = dlg.focusedAction;
+                  if (!action) {
                     setErrorDialog({
                       show: true,
-                      message: 'Select at least one action to create, or press Cancel.',
+                      message: 'Click an action first, then press Create Task.',
                     });
                     return;
                   }
-                  // apply selected editor choices (shortName) into the operation before creating tasks
-                  if (dlg.selectedEditor) {
-                    for (const k of Object.keys(dlg.selectedEditor) as ActionType[]) {
-                      const v = dlg.selectedEditor[k];
-                      if (v) (dlg.operation as any)[k] = v;
-                    }
-                  }
-                  for (const action of selectedSet) {
-                    const days = dlg.dueDays?.[action];
-                    const normalizedDays = Number.isFinite(days) && (days as number) > 0 ? days as number : 7;
-                    const dueDate = new Date();
-                    dueDate.setDate(dueDate.getDate() + normalizedDays);
-                    const dueDateValue = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
-                    dlg.operation[`${action} Due Date`] = dueDateValue;
-                  }
-                  setCreateTasksDialog(null);
-                  const ops = sheetOpsRef.current;
-                  if (!ops) return;
-                  setIsLoading((prev) => ({ ...prev, projectButtonAction: 'Creating project...' }));
-                  const logs: DebugLog = {
-                    doLog: (msg, critical = false) => {
-                      console.log('doLog',msg);
-                      setProgressText(msg);
-                      if (critical) {
-                        setErrorDialog({ show: true, message: msg });
-                      }
-                    },
-                  };
-                  try {
-                    const useAITemplateMap = new Map<ActionType, boolean>();
-                    for (const action of Object.keys(dlg.useAITemplate) as ActionType[]) {
-                      if (dlg.useAITemplate[action] !== false) {
-                        useAITemplateMap.set(action, true);
-                      }
-                    }
-                    const sourceFileOverride = new Map<ActionType, SiblingFileInfo>();
-                    for (const [action, pick] of Object.entries(dlg.sourceFiles || {}) as [ActionType, SourceFilePick][]) {
-                      const file = pick.files.find((item) => item.itemId === pick.selectedItemId);
-                      if (pick.status === 'ready' && file && selectedSet.has(action)) {
-                        sourceFileOverride.set(action, file);
-                      }
-                    }
-                    const useEnglishTemplateMap = new Map<ActionType, boolean>();
-                    for (const action of Object.keys(dlg.useEnglishTemplate) as ActionType[]) {
-                      if (dlg.useEnglishTemplate[action]) {
-                        useEnglishTemplateMap.set(action, true);
-                      }
-                    }
-                    await processOperation(
-                      ops,
-                      freeCampOpsWithCache,
-                      combinedOpsAndData,
-                      dlg.operation,
-                      dlg.oneDriveFolders,
-                      logs,
-                      '',
-                      selectedSet,
-                      useAITemplateMap,
-                      useEnglishTemplateMap,
-                      msToken || undefined,
-                      sourceFileOverride,
-                    );
-                  } catch (error: unknown) {
-                    const err = error as { message?: string };
-                    console.error('Error creating project:', error);
+                  const editor = dlg.selectedEditor?.[action];
+                  if (!editor) {
                     setErrorDialog({
                       show: true,
-                      message: `Failed to create project:\n${err.message || String(error)}`,
+                      message: 'Select an editor so the FreedCamp task can be assigned.',
                     });
-                  } finally {
-                    setIsLoading((prev) => ({ ...prev, projectButtonAction: '' }));
-                    setProgressText('');
+                    return;
                   }
+                  const editorInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === editor);
+                  const fcUser = findFreedCampUserForEditor(editor, combinedOpsAndData);
+                  const assignee = editorInfo?.fullNamePN || fcUser?.full_name || editor;
+                  const email = fcUser?.email || 'the assignee';
+                  const taskTitle = `${action} — ${dlg.operation['文件']}`;
+                  setCreateConfirm({ action, taskTitle, assignee, email });
                 }}
               >
-                Create selected
+                Create Task
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {createConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2300,
+          }}
+          onClick={() => setCreateConfirm(null)}
+        >
+          <div className="ctd-confirm" onClick={(e) => e.stopPropagation()}>
+            <p>
+              Are you sure to create this task <strong>{createConfirm.taskTitle}</strong>. assigned to <strong>{createConfirm.assignee}</strong>. An email will be sent to <strong>{createConfirm.email}</strong> once it is created.
+            </p>
+            <div className="ctd-footer">
+              <button type="button" className="ctd-cancel" onClick={() => setCreateConfirm(null)}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-create"
+                onClick={() => {
+                  setCreateConfirm(null);
+                  void submitCreateTask();
+                }}
+              >
+                Create Task
               </button>
             </div>
           </div>
@@ -1204,6 +1410,74 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           max-height: 86vh;
           overflow: hidden;
           box-shadow: 0 12px 40px rgba(15, 40, 70, 0.35);
+        }
+        .ctd-dialog-wide {
+          max-width: 980px;
+        }
+        .ctd-action-cells {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .ctd-action-cell {
+          border: 1px solid #dde5ee;
+          background: #fff;
+          border-radius: 8px;
+          padding: 8px 4px;
+          cursor: pointer;
+        }
+        .ctd-action-cell-on {
+          border-color: #2f6aa8;
+          box-shadow: 0 2px 8px rgba(31, 75, 122, 0.12);
+        }
+        .ctd-action-cell-on .ctd-action {
+          background: #1f4b7a;
+          color: #fff;
+        }
+        .ctd-pick-hint {
+          padding: 24px 8px;
+          text-align: center;
+        }
+        .ctd-preview {
+          min-height: 220px;
+          max-height: 360px;
+          overflow-y: auto;
+          padding: 12px 14px;
+          border: 1px solid #c5d0dc;
+          border-radius: 8px;
+          background: #fff;
+          font-size: 14px;
+          line-height: 1.5;
+          color: #212529;
+          text-align: left;
+        }
+        .ctd-preview, .ctd-preview * {
+          text-align: left !important;
+        }
+        .ctd-preview:focus {
+          outline: none;
+          border-color: #2f6aa8;
+          box-shadow: 0 0 0 2px rgba(47, 106, 168, 0.2);
+        }
+        .ctd-table-create-cell {
+          cursor: pointer;
+        }
+        .ctd-table-create-cell:hover {
+          background: #eef4fb;
+        }
+        .ctd-confirm {
+          background: #fff;
+          color: #212529;
+          border-radius: 12px;
+          width: 92%;
+          max-width: 520px;
+          padding: 1.25rem 1.4rem 0.75rem;
+          box-shadow: 0 12px 40px rgba(15, 40, 70, 0.35);
+        }
+        .ctd-confirm p {
+          margin: 0 0 8px;
+          line-height: 1.55;
+          font-size: 15px;
         }
         .ctd-header {
           background: linear-gradient(135deg, #1f4b7a, #2f6aa8);
@@ -1574,87 +1848,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           {
             projectList.map((p,idx) => {
               return <tr key={`${p.itemPositionOnSheet}-${idx}`}>
-                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={
-                  async () => {
-                    if (opsConfig === null) {
-                      setResponseData('Operation data not loaded yet.');
-                      return;
-                    }
-                    const ops = sheetOpsRef.current;
-                    if (!ops || !combinedOpsAndData) return;
-                    setIsLoading(prev => ({ ...prev, projectButtonAction: 'Preparing…' }));
-                    try {
-                      let oneDriveFolders: IOneDriveDirInfo[] = [];
-                      if (p.mainFolder) {
-                        if (!msToken) {
-                          setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
-                          return;
-                        }
-                        oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
-                      }
-                      const previewLog: DebugLog = { doLog: (msg) => console.log(msg) };
-                      const previewOp = { ...p } as IOperationWithLineNumberAndParentTaskId;
-                      const actions = getActionsToPerform(previewOp, combinedOpsAndData, p['文件'], previewLog);
-                      if (actions.length === 0) {
-                        setErrorDialog({
-                          show: true,
-                          message:
-                            'No new FreedCamp tasks to create for this row (all actions already have tasks or are excluded).',
-                        });
-                        return;
-                      }
-                      const selected: Partial<Record<ActionType, boolean>> = {};
-                      const useEnglishTemplate: Partial<Record<ActionType, boolean>> = {};
-                      const useAITemplate: Partial<Record<ActionType, boolean>> = {};
-                      const selectedEditor: Partial<Record<ActionType, string>> = {};
-                      const dueDays: Partial<Record<ActionType, number>> = {};
-                      for (const a of actions) {
-                        if (a.hasAITemplate) {
-                          useAITemplate[a.action] = true;
-                        }
-                        // default selected editor to the value in the sheet row if present
-                        // `p` is the operation row; it may contain the short editor key
-                        // otherwise leave undefined
-                        const maybeEditor = (p as any)[a.action] as string | undefined;
-                        if (maybeEditor) {
-                          selectedEditor[a.action] = maybeEditor;
-                        } else if (a.editorName && combinedOpsAndData?.opsConfig?.editorInfoAry) {
-                          // try to find a matching shortName by comparing pretty display name
-                          const entries = combinedOpsAndData.opsConfig.editorInfoAry;
-                          for (const info of entries) {
-                            const prettyName = info.fullNamePN || info.shortNameOnFreedCamp || '';
-                            const normalizedTitle = (info.title || '').toLowerCase();
-                            const isEng = normalizedTitle === 'brother' || normalizedTitle === 'sister';
-                            const display = isEng ? `${info.title} ${prettyName}` : `${prettyName}${info.title || ''}`;
-                            if (display === a.editorName) {
-                              selectedEditor[a.action] = info.shortNameOnFreedCamp;
-                              break;
-                            }
-                          }
-                        }
-                        if (useAITemplate[a.action] && selectedEditor[a.action]) {
-                          const chosen = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === selectedEditor[a.action]);
-                          if (isHumanForAction(chosen?.group, a.action)) {
-                            delete selectedEditor[a.action];
-                          }
-                        }
-                        dueDays[a.action] = 7;
-                      }
-                      //for (const a of actions) selected[a.action] = true;
-                      setCreateTasksDialog({ operation: p, oneDriveFolders, actions, selected, useEnglishTemplate, useAITemplate, selectedEditor, dueDays });
-                    } catch (error: unknown) {
-                      const err = error as { message?: string };
-                      console.error('Error preparing project creation:', error);
-                      setErrorDialog({
-                        show: true,
-                        message: `Failed to prepare project creation:\n${err.message || String(error)}\nPlease make sure main folder exists
-                        ${p.mainFolder}`,
-                      });
-                    } finally {
-                      setIsLoading(prev => ({ ...prev, projectButtonAction: '' }));
-                    }
-                  }
-                }>Create</button>}</td>
+                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={() => openCreateDialog(p)}>Create</button>}</td>
                 <td className="file-col">
                   <div>
                     {p.mainFolder
@@ -1682,11 +1876,20 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     </a>
                   )}
                 </td>
-                {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
-                  <td key={action}>
-                    {renderActionCell(p, action, actionCellDeps)}
-                  </td>
-                ))}
+                {opsConfig?.groupAndMainProjectMapping.actions.map((action) => {
+                  const taskId = String(p[getTaskIdColumnName(action)] || '').trim();
+                  const canCreate = p.noNeedToCreate === false && !taskId;
+                  return (
+                    <td
+                      key={action}
+                      className={canCreate ? 'ctd-table-create-cell' : undefined}
+                      title={canCreate ? `Create ${action} task` : undefined}
+                      onClick={() => { if (canCreate) openCreateDialog(p, action); }}
+                    >
+                      {renderActionCell(p, action, actionCellDeps)}
+                    </td>
+                  );
+                })}
                 <td style={{ textAlign: 'center' }}>
                   <input
                     type="checkbox"

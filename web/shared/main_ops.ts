@@ -1032,7 +1032,53 @@ function personKey(value: string): string {
     return value.normalize('NFKC').replace(/[.\s]/g, '').toLowerCase();
 }
 
-function findFreedCampUserForEditor(editor: string, combined: ICombinedOpsAndFreeCampData): IUserInfo | undefined {
+export type SiteLoginPerson = {
+    name?: string;
+    email?: string;
+};
+
+function findEditorForSiteLogin(login: SiteLoginPerson | undefined, combined: ICombinedOpsAndFreeCampData): IEditorInfo | undefined {
+    const name = (login?.name || '').trim();
+    const emailLocal = (login?.email || '').split('@')[0].trim();
+    const keys = [...new Set(
+        [name, emailLocal, ...name.split(/\s+/)]
+            .map(personKey)
+            .filter((key) => key.length >= 2),
+    )];
+    if (keys.length === 0) return undefined;
+    return combined.opsConfig.editorInfoAry.find((editor) => {
+        const editorKeys = [editor.fullNamePN, editor.shortNameOnFreedCamp].map(personKey).filter(Boolean);
+        return editorKeys.some((editorKey) => keys.some((key) => key === editorKey || key.includes(editorKey) || editorKey.includes(key)));
+    });
+}
+
+function englishNameFromLogin(
+    login: SiteLoginPerson | undefined,
+    matched?: IEditorInfo,
+): string {
+    return (matched?.shortNameOnFreedCamp || login?.name || '').replace(/\.$/, '').trim() || 'EnYu';
+}
+
+function chineseNameFromLogin(
+    login: SiteLoginPerson | undefined,
+    matched?: IEditorInfo,
+): string {
+    return (matched?.fullNamePN || '').trim()
+        || (login?.name || '').split(/\s+/)[0].trim()
+        || 'EnYu';
+}
+
+function applySenderToTemplate(
+    template: string,
+    chineseName: string,
+    englishName: string,
+): string {
+    return template
+        .replaceAll('{签名}', chineseName)
+        .replaceAll('{sender}', englishName);
+}
+
+export function findFreedCampUserForEditor(editor: string, combined: ICombinedOpsAndFreeCampData): IUserInfo | undefined {
     const direct = combined.userNameToInfoMap[editor];
     if (direct) {
         return direct;
@@ -1182,6 +1228,150 @@ export function getActionsToPerform(
     return actionsToPerform;
 }
 
+export type BuildTaskTemplateInput = {
+    action: ActionType;
+    operation: IOperationWithLineNumberAndParentTaskId;
+    combined: ICombinedOpsAndFreeCampData;
+    oneDriveDirInfos: IOneDriveDirInfo[];
+    useAI?: boolean;
+    useEnglish?: boolean;
+    pickedSource?: SharePointFileRef;
+    copyLink?: string;
+    siteLogin?: SiteLoginPerson;
+    log: DebugLog;
+    msToken?: string;
+};
+
+/** Fill a FreedCamp description from the template. Does not copy SharePoint files. */
+export async function buildFilledTaskTemplate(input: BuildTaskTemplateInput): Promise<string> {
+    const {
+        action,
+        operation,
+        combined,
+        oneDriveDirInfos,
+        useAI,
+        useEnglish,
+        pickedSource,
+        siteLogin,
+        log,
+        msToken,
+    } = input;
+    const fileName = operation['文件'];
+    const infos: OperationInfo = getOperationInfo(operation);
+    const editorShort = (operation[action] || '').trim();
+    infos.editor = getEditorNameForAction(editorShort, combined) || editorShort || 'EDITOR NOTSET';
+
+    const regularAction = combined.opsConfig.templates[action];
+    const AIActionName = `${action} AI` as ActionType;
+    const aiAction = combined.opsConfig.templates[AIActionName];
+    const curTemplateActionInfo = useAI && aiAction ? aiAction : regularAction;
+    if (useAI && !aiAction) {
+        log.doLog(`buildFilledTaskTemplate: AI template requested for ${action}, falling back to regular template.`, true);
+    }
+    let template1 = (useEnglish && curTemplateActionInfo.templateEnglish)
+        ? curTemplateActionInfo.templateEnglish
+        : curTemplateActionInfo.template;
+
+    if (oneDriveDirInfos.length > 0) {
+        template1 = template1.replace(/\{media_link:([^}]+)\}/g, (match, name) => {
+            const found = oneDriveDirInfos.find((info) => info.name === name);
+            return found ? found.webUrl : match;
+        });
+    }
+
+    const mappingConfig = combined.opsConfig.groupAndMainProjectMapping.shortProjectNameToProjectId[action]?.mappingConfig;
+    const filePlan = getActionFilePlan(action, operation, combined.opsConfig);
+    let copyLink = input.copyLink
+        || (filePlan?.sourceColumn ? ((operation as any)[filePlan.sourceColumn] as string | undefined)?.trim() : '')
+        || (mappingConfig?.replaceInTemplateCopiedFile ? operation['文章链接'] : '');
+    if (pickedSource?.webUrl && !filePlan?.destFolder && filePlan?.usePickedAsArticle !== false) {
+        copyLink = pickedSource.webUrl;
+    }
+
+    const titleOfAddress = (operation['称呼'] || '').trim();
+    if (titleOfAddress) {
+        template1 = isChineseTitle(titleOfAddress)
+            ? template1.replaceAll(`{author}${titleOfAddress}`, '{author}')
+            : template1.replaceAll(`${titleOfAddress} {author}`, '{author}');
+    }
+    for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug'] as const) {
+        if (replaceItem === 'article') {
+            template1 = copyLink
+                ? template1.replaceAll('{article}', `<a href="${copyLink}">${infos.article}</a>`)
+                : template1.replaceAll('{article}', `${infos.article}`);
+            continue;
+        }
+        template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem]);
+    }
+    template1 = template1.replaceAll('{voice}', voiceForTitleOfAddress(operation['称呼']));
+    const matchedLogin = findEditorForSiteLogin(siteLogin, combined);
+    const chineseSender = chineseNameFromLogin(siteLogin, matchedLogin);
+    const englishSender = englishNameFromLogin(siteLogin, matchedLogin);
+    template1 = applySenderToTemplate(template1, chineseSender, englishSender);
+
+    const needsRelated = template1.includes('{相关文章}');
+    const needsAbstract = template1.includes('{文章摘要}');
+    if (needsRelated || needsAbstract) {
+        let searchTerms: string[] = [];
+        const articleMeta = {
+            title: infos.article,
+            author: infos.author,
+            category: infos.category,
+        };
+        const {
+            detectArticleLanguage,
+            findRelatedEnyuArticles,
+            formatRelatedArticlesHtml,
+        } = await import('../src/lib/enyuRelatedArticles');
+        let relatedLanguage = detectArticleLanguage(infos.article, fileName);
+        const {
+            readPublishArticleText,
+            extractArticleSearchTerms,
+            extractArticleAbstract,
+            formatArticleAbstractHtml,
+        } = await import('../src/lib/readPublishArticle');
+        if (msToken && operation.mainFolder) {
+            try {
+                const article = await readPublishArticleText(msToken, operation.mainFolder, log);
+                relatedLanguage = detectArticleLanguage(article.text);
+                searchTerms = extractArticleSearchTerms(article.text, articleMeta);
+                if (needsAbstract) {
+                    const { abstract, foundParagraph } = extractArticleAbstract(article.text, articleMeta);
+                    template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml(abstract));
+                    log.doLog(`buildFilledTaskTemplate: {文章摘要} ${foundParagraph ? 'picked' : 'written'} (${abstract.length} chars)`);
+                }
+            } catch (error) {
+                const reason = (error as Error)?.message || String(error);
+                log.doLog(`buildFilledTaskTemplate: could not read publish 文章: ${reason}`, true);
+                if (needsAbstract) {
+                    template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
+                }
+            }
+        } else if (needsAbstract) {
+            template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
+        }
+        if (needsRelated) {
+            try {
+                const related = searchTerms.length
+                    ? await findRelatedEnyuArticles(searchTerms, infos.slug, 5, relatedLanguage)
+                    : [];
+                template1 = template1.replaceAll('{相关文章}', formatRelatedArticlesHtml(related));
+            } catch (error) {
+                log.doLog(`buildFilledTaskTemplate: could not look up 相关文章: ${(error as Error)?.message || String(error)}`, true);
+                template1 = template1.replaceAll('{相关文章}', '（未能查找相关文章）');
+            }
+        }
+    }
+    if (pickedSource?.webUrl && filePlan?.linkPlaceholder) {
+        const voiceLink = `<a href="${pickedSource.webUrl}">${pickedSource.name}</a>`;
+        template1 = template1.replaceAll(`{${filePlan.linkPlaceholder}}`, voiceLink);
+        if (pickedSource.folderName) {
+            template1 = template1.replace(new RegExp(`\\{media_link:${pickedSource.folderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}`, 'g'), pickedSource.webUrl);
+        }
+    }
+    return template1;
+}
+
 export async function processOperation(
     ops: ISheetDataOps,
     freedCampOps: FreeCampAndUpdateOperations,
@@ -1198,6 +1388,12 @@ export async function processOperation(
     msToken?: string,
     /** File picked in the Create dialog to copy for an action, in place of the copy-from column's link. */
     sourceFileOverride?: Map<ActionType, SharePointFileRef>,
+    /** Microsoft account currently signed in on the site; used as the template sender / 签名. */
+    siteLogin?: SiteLoginPerson,
+    /** Edited FreedCamp description from the create dialog. */
+    descriptionOverrides?: Map<ActionType, string>,
+    /** Assign the selected editor even if the action is not on the autoAssign config row. */
+    forceAssign?: boolean,
 ): Promise<string[]> {
     const { groupAndMainProjectMapping } = combined.opsConfig;    
     log.doLog('processOperation: got processor with login');
@@ -1207,7 +1403,6 @@ export async function processOperation(
     const pr = freedCampOps.getFreedCampProcessor(combined.loginToken);
     {
         const fileName = operation['文件'];
-        const infos: OperationInfo = getOperationInfo(operation);
 
         // Check if article is English-only (no Chinese characters)
         
@@ -1220,8 +1415,7 @@ export async function processOperation(
         //for (const action of combined.opsConfig.groupAndMainProjectMapping.actions) {
         for (const actionP of actionsToRun) {
             const action = actionP.action;
-            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];           
-            infos.editor = actionP.editorName;
+            const actionConfig = groupAndMainProjectMapping.shortProjectNameToProjectId[action];
             // ========== BEFORE ENGLISH REFACTOR: old code that auto-selected template based on editor type ==========
             //const editor = operation[action];
             //const editorLookup = combined.opsConfig.editorInfoMap[editor];
@@ -1248,32 +1442,7 @@ export async function processOperation(
             //}
             //let template1 = curTemplateActionInfo.template;
             // ========== END BEFORE ENGLISH REFACTOR ==========
-            let template1 = actionP.template;
-            const regularAction = combined.opsConfig.templates[action];
-            const AIActionName = `${action} AI` as ActionType;
-            const aiAction = combined.opsConfig.templates[AIActionName];
-            const useAIAction = !!useAITemplateMap?.get(action);
-            const curTemplateActionInfo = useAIAction && aiAction ? aiAction : regularAction;
-            if (useAIAction && !aiAction) {
-                log.doLog(`processOperation: AI template requested for action ${action}, but ${AIActionName} was not found. Falling back to regular template.`, true);
-            }
-            if (useEnglishTemplateMap?.get(action) && curTemplateActionInfo.templateEnglish) {
-                template1 = curTemplateActionInfo.templateEnglish;
-            } else {
-                template1 = curTemplateActionInfo.template;
-            }
             const editor = operation[action];
-            //const link = action === '校对' ? infos.link : undefined;            
-            
-            // if oneDriveDirInfos exists, find all matches in template that matches  {media_link:XXXX}, and if XXXX matches any of the oneDriveDirInfos.name, replace {media_link:XXXX} 
-            // with the corresponding oneDriveDirInfos.webUrl
-            if (oneDriveDirInfos && oneDriveDirInfos.length > 0) {
-                template1 = template1.replace(/\{media_link:([^}]+)\}/g, (match, name) => {
-                    const found = oneDriveDirInfos.find(info => info.name === name);
-                    return found ? found.webUrl : match;
-                });
-            }            
-
             const mappingConfig = actionConfig.mappingConfig;
             const filePlan = getActionFilePlan(action, operation, combined.opsConfig, selectedActions?.has('教审' as ActionType));
             const pickedSource = sourceFileOverride?.get(action);
@@ -1316,89 +1485,21 @@ export async function processOperation(
                 }
             }
 
-            const titleOfAddress = (operation['称呼'] || '').trim();
-            if (titleOfAddress) {
-                template1 = isChineseTitle(titleOfAddress)
-                    ? template1.replaceAll(`{author}${titleOfAddress}`, '{author}')
-                    : template1.replaceAll(`${titleOfAddress} {author}`, '{author}');
-            }
-            //the above do action mapping article replacements, 
-            for (const replaceItem of ['editor', 'author', 'email', 'article', 'category', 'slug']) {
-                //!link because if it is link it is done below with link
-                if (replaceItem === 'article') {
-                    if (copyLink) {
-                        template1 = template1.replaceAll('{article}', `<a href="${copyLink}">${infos['article']}</a>`);
-                    } else {
-                        template1 = template1.replaceAll('{article}', `${infos.article}`);
-                    }
-                    continue;
-                }
-                //console.log('debugreplace!!!!!!!!!!!', replaceItem, infos[replaceItem as keyof OperationInfo]);
-                template1 = template1.replaceAll(`{${replaceItem}}`, infos[replaceItem as keyof OperationInfo]);
-            }
-            template1 = template1.replaceAll('{voice}', voiceForTitleOfAddress(operation['称呼']));
-            const needsRelated = template1.includes('{相关文章}');
-            const needsAbstract = template1.includes('{文章摘要}');
-            if (needsRelated || needsAbstract) {
-                let searchTerms: string[] = [];
-                const articleMeta = {
-                    title: infos.article,
-                    author: infos.author,
-                    category: infos.category,
-                };
-                const {
-                    detectArticleLanguage,
-                    findRelatedEnyuArticles,
-                    formatRelatedArticlesHtml,
-                } = await import('../src/lib/enyuRelatedArticles');
-                let relatedLanguage = detectArticleLanguage(infos.article, fileName);
-                const {
-                    readPublishArticleText,
-                    extractArticleSearchTerms,
-                    extractArticleAbstract,
-                    formatArticleAbstractHtml,
-                } = await import('../src/lib/readPublishArticle');
-                if (msToken && operation.mainFolder) {
-                    try {
-                        const article = await readPublishArticleText(msToken, operation.mainFolder, log);
-                        relatedLanguage = detectArticleLanguage(article.text);
-                        searchTerms = extractArticleSearchTerms(article.text, articleMeta);
-                        log.doLog(`processOperation: related-article search from ${article.source} (${article.text.length} chars, ${relatedLanguage}): ${searchTerms.join(' | ')}`);
-                        if (needsAbstract) {
-                            const { abstract, foundParagraph } = extractArticleAbstract(article.text, articleMeta);
-                            template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml(abstract));
-                            log.doLog(`processOperation: {文章摘要} ${foundParagraph ? 'picked from article' : 'written'} (${abstract.length} chars)`);
-                        }
-                    } catch (error) {
-                        const reason = (error as Error)?.message || String(error);
-                        log.doLog(`processOperation: could not read publish 文章: ${reason}`, true);
-                        if (needsAbstract) {
-                            template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
-                        }
-                    }
-                } else if (needsAbstract) {
-                    template1 = template1.replaceAll('{文章摘要}', formatArticleAbstractHtml('没有找到授权的文章'));
-                }
-                if (needsRelated) {
-                    try {
-                        const related = searchTerms.length
-                            ? await findRelatedEnyuArticles(searchTerms, infos.slug, 5, relatedLanguage)
-                            : [];
-                        log.doLog(`processOperation: related-article language ${relatedLanguage}`);
-                        template1 = template1.replaceAll('{相关文章}', formatRelatedArticlesHtml(related));
-                        log.doLog(`processOperation: {相关文章} filled with ${related.length} post(s) for ${action}`);
-                    } catch (error) {
-                        log.doLog(`processOperation: could not look up 相关文章: ${(error as Error)?.message || String(error)}`, true);
-                        template1 = template1.replaceAll('{相关文章}', '（未能查找相关文章）');
-                    }
-                }
-            }
-            if (pickedSource?.webUrl && filePlan?.linkPlaceholder) {
-                const voiceLink = `<a href="${pickedSource.webUrl}">${pickedSource.name}</a>`;
-                template1 = template1.replaceAll(`{${filePlan.linkPlaceholder}}`, voiceLink);
-                if (pickedSource.folderName) {
-                    template1 = template1.replace(new RegExp(`\\{media_link:${pickedSource.folderName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\}`, 'g'), pickedSource.webUrl);
-                }
+            let template1 = descriptionOverrides?.get(action);
+            if (!template1) {
+                template1 = await buildFilledTaskTemplate({
+                    action,
+                    operation,
+                    combined,
+                    oneDriveDirInfos,
+                    useAI: !!useAITemplateMap?.get(action),
+                    useEnglish: !!useEnglishTemplateMap?.get(action),
+                    pickedSource,
+                    copyLink,
+                    siteLogin,
+                    log,
+                    msToken,
+                });
             }
             //if (link) {
             //    template1 = template1.replaceAll('{article}', `<a href="${infos['link']}">${infos['article']}</a>`);
@@ -1452,16 +1553,16 @@ export async function processOperation(
                 time_to: '00:00'
             };
             
-            if (groupAndMainProjectMapping.autoAssign.includes(action)) {
+            if (forceAssign || groupAndMainProjectMapping.autoAssign.includes(action)) {
                 if (!editor) {
-                    log.doLog(`processOperation: autoAssign ${action} has no editor on the row. Task left unassigned.`, true);
+                    log.doLog(`processOperation: assign ${action} has no editor. Task left unassigned.`, true);
                 } else {
                     const userInfo = findFreedCampUserForEditor(editor, combined);
                     if (userInfo) {
                         postParams.assigned_to_id = userInfo.user_id;
-                        log.doLog(`processOperation: autoAssign ${action} to ${userInfo.full_name}`);
+                        log.doLog(`processOperation: assign ${action} to ${userInfo.full_name}`);
                     } else {
-                        log.doLog(`processOperation: autoAssign ${action} could not match a FreedCamp user for '${editor}'. Task left unassigned.`, true);
+                        log.doLog(`processOperation: assign ${action} could not match a FreedCamp user for '${editor}'. Task left unassigned.`, true);
                     }
                 }
             }            
