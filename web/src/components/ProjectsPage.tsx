@@ -31,6 +31,7 @@ import { getTaskIdColumnName, type IOperationWithLineNumberAndParentTaskId } fro
 import { renderActionCell, renderSyncActionCell, type RenderActionCellDeps } from './projectsPageUtil/render_action_cell';
 import { fetchOneDriveChildren } from './MicrosoftOneDrivePage';
 import { listFoldersFiles, listSiblingFiles, type SiblingFileInfo } from '../lib/msGraphConfig';
+import { CATEGORY_ALIASES } from '../lib/newProjectForm';
 
 
 type LogMessage = {
@@ -60,6 +61,63 @@ const formatDateLabel = (value: Date): string => {
 /** Group cell `语音制作 Human` marks someone who records with a human voice for that action. */
 const isHumanForAction = (group: string | undefined, action: string): boolean =>
   (group || '').split('/').some((part) => part.trim() === `${action} Human`);
+
+function dateSearchTerms(fileName: string): string[] {
+  const match = fileName.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (!match) return [];
+  const [, year, month, day] = match;
+  const monthPad = month.padStart(2, '0');
+  const dayPad = day.padStart(2, '0');
+  return [
+    `${year}-${month}-${day}`,
+    `${year}-${monthPad}-${dayPad}`,
+    `${year}/${month}/${day}`,
+    `${year}/${monthPad}/${dayPad}`,
+  ];
+}
+
+function categorySearchTerms(project: IOperationWithLineNumberAndParentTaskId): string[] {
+  const blob = `${project.文章类别 || ''} ${project.文件 || ''}`;
+  const terms: string[] = [];
+  for (const alias of CATEGORY_ALIASES) {
+    if (blob.includes(alias.chinese) || blob.toLowerCase().includes(alias.english.toLowerCase())) {
+      terms.push(alias.chinese, alias.english);
+    }
+  }
+  return terms;
+}
+
+function projectMatchesSearch(project: IOperationWithLineNumberAndParentTaskId, query: string): boolean {
+  const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const haystack = [
+    project.文件,
+    project.作者,
+    project.文章名,
+    project.文章类别,
+    ...categorySearchTerms(project),
+    ...dateSearchTerms(project.文件 || ''),
+  ].join('\n').toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
+}
+
+/** `1 Text Editor & First Proofread` → `folder 1`. */
+const folderShortLabel = (folderName?: string): string => {
+  if (!folderName) return 'the folder';
+  const match = folderName.match(/^(\d+)/);
+  return match ? `folder ${match[1]}` : folderName;
+};
+
+const emptySourceFileHint = (action: ActionType, plan: ReturnType<typeof getActionFilePlan>): string => {
+  if (action === '二校') return 'Create 校对 first, or put the first-proof file in folder 1';
+  if (action === '校对') return 'Put the original manuscript in folder 0';
+  if (action === '美编') return 'Create 二校 first, or put the second-proof file in folder 2';
+  if (plan?.fileExtensions?.length) {
+    return `No ${plan.fileExtensions.join(', ')} file in ${plan.sourceFolders?.join(' or ') || 'the folder'}.`;
+  }
+  const folders = [...(plan?.sourceFolders || []), ...(plan?.fallbackFolders || [])];
+  return `No files in ${folders.join(' or ') || 'the folder'}.`;
+};
 
 const findLeaveOverlap = ({
   editor,
@@ -151,7 +209,7 @@ const useLogger = (displayDuration = 60000): UseLoggerResult => {
 
 
 export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?: () => void }) => {
-  const { token, msToken, msAccount, msLoginRedirect, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, authLoadingStatus } = useAuth();  
+  const { token, msToken, msAccount, msLoginRedirect, ensureMsToken, msLogout, sheetInfoCache, opsConfig, setOpsConfig, combinedOpsAndData, setCombinedOpsAndData, freedCampCredentials, useMsOps, authLoadingStatus } = useAuth();  
   const [fullProjectList, setFullProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [projectList, setProjectList] = useState<IOperationWithLineNumberAndParentTaskId[]>([]);
   const [responseData, setResponseData] = useState<string>('');
@@ -195,12 +253,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [cachedToken, setCachedToken] = useState<{ token: LoginResponse; timestamp: number } | null>(null);
   type OwnerInfoEntry = { article: string; name: string; assignedOn: string; status: string; taskId?: string; timestamp: number; };
   const [showAllProjects, setShowAllProjects] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
   const [daysShowAlertAfterComplete, setDaysShowAlertAfterComplete] = useState(3);
   const [doneColumnSavingLine, setDoneColumnSavingLine] = useState<number | null>(null);
   const [ownerInfoDialog, setOwnerInfoDialog] = useState<{ title: string; entries: OwnerInfoEntry[] } | null>(null);
   const [showAddProject, setShowAddProject] = useState(false);
   const [addingProject, setAddingProject] = useState(false);
-  const [createConfirm, setCreateConfirm] = useState<{ action: ActionType; taskTitle: string; assignee: string; email: string } | null>(null);
+  const [createConfirm, setCreateConfirm] = useState<{ action: ActionType; taskTitle: string; assignee: string } | null>(null);
 
   const originalFreedCampOps = getFreeCampAndUpdateOperations(freedCampOps);
 
@@ -256,12 +315,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             const destFile = destFolder ? listed.find((file) => file.folderName === destFolder) : undefined;
             setPick(action, listed.length > 0
               ? { status: 'ready', sourceColumn, destFolder, files: listed, selectedItemId: (destFile ?? listed[0]).itemId }
-              : { status: 'error', sourceColumn, destFolder, files: [], error: plan.fileExtensions?.length
-                ? `No ${plan.fileExtensions.join(', ')} file in ${plan.sourceFolders?.join(' or ')}.`
-                : `No files in ${[...(plan.sourceFolders || []), ...(plan.fallbackFolders || [])].join(' or ')}.` });
+              : { status: 'error', sourceColumn, destFolder, files: [], error: emptySourceFileHint(action, plan) });
           })
           .catch((error: unknown) => {
-            setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: (error as Error)?.message || String(error) });
+            setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: `Could not list the files: ${(error as Error)?.message || String(error)}` });
           });
         continue;
       }
@@ -284,7 +341,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           });
         })
         .catch((error: unknown) => {
-          setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: (error as Error)?.message || String(error) });
+          setPick(action, { status: 'error', sourceColumn, destFolder, files: [], error: `Could not list the files: ${(error as Error)?.message || String(error)}` });
         });
     }
   }, [createTasksDialog, msToken, combinedOpsAndData]);
@@ -373,22 +430,50 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     const pick = createTasksDialog?.sourceFiles?.[action];
     if (!pick) return null;
     const plan = getFilePlan(action);
-    const label = plan?.linkPlaceholder === 'voice_file'
-      ? 'Select 语音 file'
-      : (plan?.sourceFolders?.length || 0) > 1
-      ? 'Select file'
-      : (pick.destFolder || plan?.destFolder)
-        ? `Copy to ${pick.destFolder || plan?.destFolder}`
-        : `File from ${plan?.sourceFolders?.[0] || pick.sourceColumn || 'folder'}`;
+    const destFolder = pick.destFolder || plan?.destFolder;
+    const selected = pick.files.find((file) => file.itemId === pick.selectedItemId);
+    const sourceFolder = selected?.folderName || plan?.sourceFolders?.[0];
+    const alreadyInDest = !!(destFolder && selected?.folderName === destFolder);
+    const fileSelect = pick.status === 'ready' ? (
+      <select
+        className="ctd-input ctd-source-select"
+        value={pick.selectedItemId ?? ''}
+        onChange={(e) => {
+          const itemId = e.target.value;
+          lastPreviewKeyRef.current = '';
+          setCreateTasksDialog((prev) => {
+            if (!prev?.sourceFiles?.[action]) return prev;
+            return {
+              ...prev,
+              sourceFiles: { ...prev.sourceFiles, [action]: { ...prev.sourceFiles[action]!, selectedItemId: itemId } },
+              previewDirty: { ...(prev.previewDirty || {}), [action]: false },
+            };
+          });
+        }}
+      >
+        {pick.files.map((file) => (
+          <option key={file.itemId} value={file.itemId}>
+            {file.folderName ? `/${file.folderName}/${file.name}` : file.name}
+          </option>
+        ))}
+      </select>
+    ) : null;
+    const openLink = selected ? <a href={selected.webUrl} target="_blank" rel="noreferrer">open</a> : null;
+
     if (pick.status === 'loading') {
-      return <div className="ctd-source"><span className="ctd-source-label">{label}</span><span className="ctd-muted">Loading files…</span></div>;
+      return (
+        <div className="ctd-source">
+          <span className="ctd-source-label">
+            {destFolder ? `Loading files to copy into ${destFolder}…` : 'Loading files…'}
+          </span>
+        </div>
+      );
     }
     if (pick.status === 'error') {
       return (
         <div className="ctd-source">
-          <span className="ctd-source-label">{label}</span>
           <span className="ctd-warning">
-            Could not list the files: {pick.error}
+            {pick.error}
             {plan?.linkPlaceholder
               ? ` {${plan.linkPlaceholder}} will be left empty in the task description.`
               : ''}
@@ -396,33 +481,42 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         </div>
       );
     }
-    const selected = pick.files.find((file) => file.itemId === pick.selectedItemId);
+    if (plan?.linkPlaceholder === 'voice_file') {
+      return (
+        <div className="ctd-source">
+          <span className="ctd-source-label">Select 语音 file</span>
+          {fileSelect}
+          {openLink}
+        </div>
+      );
+    }
+    if (destFolder && selected && !alreadyInDest) {
+      return (
+        <div className="ctd-source">
+          <span className="ctd-source-label">Will copy</span>
+          {fileSelect}
+          <span className="ctd-source-label">
+            from {folderShortLabel(sourceFolder)} into {destFolder}.
+          </span>
+          {openLink}
+        </div>
+      );
+    }
+    if (destFolder && selected && alreadyInDest) {
+      return (
+        <div className="ctd-source">
+          <span className="ctd-source-label">Using</span>
+          {fileSelect}
+          <span className="ctd-source-label">already in {destFolder}.</span>
+          {openLink}
+        </div>
+      );
+    }
     return (
       <div className="ctd-source">
-        <span className="ctd-source-label">{label}</span>
-        <select
-          className="ctd-input ctd-source-select"
-          value={pick.selectedItemId ?? ''}
-          onChange={(e) => {
-            const itemId = e.target.value;
-            lastPreviewKeyRef.current = '';
-            setCreateTasksDialog((prev) => {
-              if (!prev?.sourceFiles?.[action]) return prev;
-              return {
-                ...prev,
-                sourceFiles: { ...prev.sourceFiles, [action]: { ...prev.sourceFiles[action]!, selectedItemId: itemId } },
-                previewDirty: { ...(prev.previewDirty || {}), [action]: false },
-              };
-            });
-          }}
-        >
-          {pick.files.map((file) => (
-            <option key={file.itemId} value={file.itemId}>
-              {file.folderName ? `/${file.folderName}/${file.name}` : file.name}
-            </option>
-          ))}
-        </select>
-        {selected && <a href={selected.webUrl} target="_blank" rel="noreferrer">open</a>}
+        <span className="ctd-source-label">File from {folderShortLabel(sourceFolder)}</span>
+        {fileSelect}
+        {openLink}
       </div>
     );
   };
@@ -548,11 +642,15 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     try {
       let oneDriveFolders: IOneDriveDirInfo[] = [];
       if (p.mainFolder) {
-        if (!msToken) {
-          setErrorDialog({ show: true, message: 'Microsoft token not available. Please sign in to Microsoft to access OneDrive folders.' });
+        const graphToken = await ensureMsToken();
+        if (!graphToken) {
+          setErrorDialog({
+            show: true,
+            message: 'Your Microsoft sign-in expired. Sign in with Microsoft again, then click the cell.',
+          });
           return;
         }
-        oneDriveFolders = await fetchOneDriveChildren(msToken, p.mainFolder);
+        oneDriveFolders = await fetchOneDriveChildren(graphToken, p.mainFolder);
       }
       const previewLog: DebugLog = { doLog: (msg) => console.log(msg) };
       const previewOp = { ...p } as IOperationWithLineNumberAndParentTaskId;
@@ -618,10 +716,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     } catch (error: unknown) {
       const err = error as { message?: string };
       console.error('Error preparing project creation:', error);
+      const detail = err.message || String(error);
+      const tokenExpired = /token lifetime|expired|unauthenticated|invalid authentication/i.test(detail);
       setErrorDialog({
         show: true,
-        message: `Failed to prepare project creation:\n${err.message || String(error)}\nPlease make sure main folder exists
-                        ${p.mainFolder}`,
+        message: tokenExpired
+          ? 'Your Microsoft sign-in expired. Sign in with Microsoft again (top right), then click the cell.'
+          : `Could not open the article folder:\n${detail}\n\nFolder:\n${p.mainFolder || '(empty)'}`,
       });
     } finally {
       setIsLoading((prev) => ({ ...prev, projectButtonAction: '' }));
@@ -781,14 +882,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   }
 
   useEffect(() => {
+    const query = projectSearch.trim();
     const filtered = fullProjectList.filter((item) => {
-      if (showAllProjects) {
-        return true;
-      }
-      return !item.isFinished;
+      if (!query && !showAllProjects && item.isFinished) return false;
+      return projectMatchesSearch(item, query);
     });
     setProjectList(filtered);
-  }, [fullProjectList, showAllProjects]);
+  }, [fullProjectList, showAllProjects, projectSearch]);
 
   //useEffect(() => {
     //if (!freedCampCredentials && onNavigateToFreedCamp) {
@@ -1201,9 +1301,8 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                   const editorInfo = combinedOpsAndData.opsConfig.editorInfoAry.find((info) => info.shortNameOnFreedCamp === editor);
                   const fcUser = findFreedCampUserForEditor(editor, combinedOpsAndData);
                   const assignee = editorInfo?.fullNamePN || fcUser?.full_name || editor;
-                  const email = fcUser?.email || 'the assignee';
                   const taskTitle = `${action} — ${dlg.operation['文件']}`;
-                  setCreateConfirm({ action, taskTitle, assignee, email });
+                  setCreateConfirm({ action, taskTitle, assignee });
                 }}
               >
                 Create Task
@@ -1231,7 +1330,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         >
           <div className="ctd-confirm" onClick={(e) => e.stopPropagation()}>
             <p>
-              Are you sure to create this task <strong>{createConfirm.taskTitle}</strong>. assigned to <strong>{createConfirm.assignee}</strong>. An email will be sent to <strong>{createConfirm.email}</strong> once it is created.
+              Are you sure to create this task <strong>{createConfirm.taskTitle}</strong>. assigned to <strong>{createConfirm.assignee}</strong>.
             </p>
             <div className="ctd-footer">
               <button type="button" className="ctd-cancel" onClick={() => setCreateConfirm(null)}>Cancel</button>
@@ -1350,6 +1449,33 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .projects-toolbar label,
         .projects-toolbar input {
           color: #212529;
+        }
+        .projects-search-row {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          width: min(720px, 100%);
+        }
+        .projects-search {
+          flex: 1;
+          min-width: 0;
+          padding: 8px 12px;
+          font-size: 14px;
+          border: 1px solid #c5d4e6;
+          border-radius: 8px;
+          background: #fff;
+          color: #212529;
+        }
+        .projects-search:focus {
+          outline: none;
+          border-color: #2f6aa8;
+          box-shadow: 0 0 0 2px rgba(47, 106, 168, 0.2);
+        }
+        .projects-search-count {
+          color: #5b6b7c;
+          font-size: 13px;
+          white-space: nowrap;
         }
         .projects-table {
           width: 100%;
@@ -1608,13 +1734,13 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .ctd-source {
           width: 100%;
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
           gap: 8px;
           font-size: 13px;
         }
         .ctd-source-label {
           color: #555;
-          white-space: nowrap;
         }
         .ctd-source-select {
           flex: 1;
@@ -1760,6 +1886,19 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
 
       <div className="projects-heading">
         <h1>Enyu Project Management</h1>
+        <div className="projects-search-row">
+          <input
+            className="projects-search"
+            type="search"
+            value={projectSearch}
+            onChange={(e) => setProjectSearch(e.target.value)}
+            placeholder="Search by author, article, date, or category"
+            aria-label="Search by author, article, date, or category"
+          />
+          {projectSearch.trim() !== '' && (
+            <span className="projects-search-count">{projectList.length} match{projectList.length === 1 ? '' : 'es'}</span>
+          )}
+        </div>
         <div className="projects-toolbar">
         <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
@@ -1809,7 +1948,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       <table className="projects-table">
         <thead>
           <tr>
-            <th style={stickyHeaderCellStyle}>Action</th>
             <th className="file-col" style={stickyHeaderCellStyle}>文件</th>
             {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
               <th key={action} style={stickyHeaderCellStyle}>
@@ -1845,10 +1983,18 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           </tr>
         </thead>
         <tbody>
+          {projectList.length === 0 && (
+            <tr>
+              <td colSpan={3 + (opsConfig?.groupAndMainProjectMapping.actions.length || 0)} style={{ textAlign: 'center', color: '#5b6b7c', padding: '1.25rem' }}>
+                {projectSearch.trim()
+                  ? `No projects match “${projectSearch.trim()}”.`
+                  : 'No projects to show.'}
+              </td>
+            </tr>
+          )}
           {
             projectList.map((p,idx) => {
               return <tr key={`${p.itemPositionOnSheet}-${idx}`}>
-                <td>{p.noNeedToCreate === false && <button className="btn btn-create" onClick={() => openCreateDialog(p)}>Create</button>}</td>
                 <td className="file-col">
                   <div>
                     {p.mainFolder
@@ -1883,10 +2029,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                     <td
                       key={action}
                       className={canCreate ? 'ctd-table-create-cell' : undefined}
-                      title={canCreate ? `Create ${action} task` : undefined}
+                      title={canCreate ? `Click the Cell to Create ${action} Task` : undefined}
                       onClick={() => { if (canCreate) openCreateDialog(p, action); }}
                     >
-                      {renderActionCell(p, action, actionCellDeps)}
+                      {renderActionCell(p, action, actionCellDeps, canCreate)}
                     </td>
                   );
                 })}

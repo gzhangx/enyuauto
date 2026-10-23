@@ -18,6 +18,8 @@ interface AuthContextType {
   login: (token: string, expiresIn: number) => void;
   msLogin: (token: string, expiresAt: number) => void;
   msLoginRedirect: () => void;
+  /** Silent-refresh the Graph token. Returns null if the user must sign in again. */
+  ensureMsToken: () => Promise<string | null>;
   msLogout: () => void;
   logout: () => void;
   isAuthenticated: boolean;
@@ -164,6 +166,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       .catch(console.error);
   };
 
+  const applyMsResult = (result: { accessToken: string; expiresOn?: Date | null; account?: AccountInfo | null }) => {
+    const expiresAtTime = result.expiresOn?.getTime() ?? Date.now() + 3600 * 1000;
+    if (result.account) setMsAccount(result.account);
+    setMsToken(result.accessToken);
+    localStorage.setItem('ms_token', result.accessToken);
+    localStorage.setItem('ms_token_expires_at', expiresAtTime.toString());
+    return result.accessToken;
+  };
+
+  const ensureMsToken = async (): Promise<string | null> => {
+    await msalReady;
+    const accounts = msalInstance.getAllAccounts();
+    if (accounts.length === 0) {
+      return null;
+    }
+    try {
+      const result = await msalInstance.acquireTokenSilent({
+        scopes: GRAPH_SCOPES,
+        account: accounts[0],
+      });
+      if (result?.accessToken) {
+        return applyMsResult(result);
+      }
+    } catch {
+      try {
+        const result = await msalInstance.acquireTokenSilent({
+          scopes: GRAPH_SCOPES,
+          account: accounts[0],
+          forceRefresh: true,
+        });
+        if (result?.accessToken) {
+          return applyMsResult(result);
+        }
+      } catch {
+        setMsToken(null);
+        localStorage.removeItem('ms_token');
+        localStorage.removeItem('ms_token_expires_at');
+        return null;
+      }
+    }
+    return null;
+  };
+
   const msLogout = () => {
     setMsToken(null);
     setMsAccount(null);
@@ -201,7 +246,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AuthContext.Provider value={{
-      token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, msLogout, logout,
+      token, msToken, msAccount, expiresAt, login, msLogin, msLoginRedirect, ensureMsToken, msLogout, logout,
       isAuthenticated, isMsAuthenticated, useMsOps, authLoadingStatus, sheetInfoCache: {
         getCachedSheetInfo: () => sheetInfoCached,
         setCacheSheetInfo: (data: ISheetInfoSimple[]) => setSheetInfoCached(data),

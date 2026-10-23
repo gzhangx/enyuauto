@@ -2,22 +2,18 @@ import { useState } from 'react'
 import './App.css'
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginPage } from './components/LoginPage';
-import { GoogleSheetsPage } from './components/GoogleSheetsPage';
 import { ProjectsPage } from './components/ProjectsPage';
-import { MicrosoftOneDrivePage } from './components/MicrosoftOneDrivePage';
-import { TransfersPage } from './components/TransfersPage';
 import { FreedCampSecretsPage } from './components/FreedCampSecretsPage';
-import { DoGoogleSignIn } from './lib/util';
 
-type View = 'projects' | 'sheets' | 'onedrive' | 'transfers' | 'freedcamp';
+type View = 'projects' | 'freedcamp';
 
 const AppContent = () => {
   const { isAuthenticated, isMsAuthenticated, useMsOps, logout, msLoginRedirect, msAccount } = useAuth();
   const [currentView, setCurrentView] = useState<View>('projects');
 
   const hasActiveAuth = useMsOps ? isMsAuthenticated : isAuthenticated;
-  if (!hasActiveAuth && currentView !== 'onedrive') {
-    return <LoginPage onGoToOneDrive={isMsAuthenticated ? () => setCurrentView('onedrive') : undefined} />;
+  if (!hasActiveAuth) {
+    return <LoginPage />;
   }
 
   return (
@@ -31,19 +27,6 @@ const AppContent = () => {
         alignItems: 'center'
       }}>
         <button
-          onClick={() => setCurrentView('freedcamp')}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: currentView === 'freedcamp' ? '#e65100' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-          }}
-        >
-          FreedCamp Login
-        </button>
-        <button
           onClick={() => setCurrentView('projects')}
           style={{
             padding: '0.5rem 1rem',
@@ -56,56 +39,19 @@ const AppContent = () => {
         >
           Projects
         </button>
-        {DoGoogleSignIn && <button
-            onClick={() => setCurrentView('sheets')}
-            style={{
-              padding: '0.5rem 1rem',
-              backgroundColor: currentView === 'sheets' ? '#007bff' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer'
-            }}
-          >
-            Google Sheets
-          </button>
-        }
         <button
-          onClick={() => setCurrentView('onedrive')}
+          onClick={() => setCurrentView('freedcamp')}
           style={{
             padding: '0.5rem 1rem',
-            backgroundColor: currentView === 'onedrive' ? '#0078d4' : '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.4rem',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
-            <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
-            <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
-            <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
-          </svg>
-          OneDrive
-        </button>
-        {DoGoogleSignIn && <button
-          onClick={() => setCurrentView('transfers')}
-          style={{
-            padding: '0.5rem 1rem',
-            backgroundColor: currentView === 'transfers' ? '#107c41' : '#6c757d',
+            backgroundColor: currentView === 'freedcamp' ? '#e65100' : '#6c757d',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
             cursor: 'pointer',
           }}
         >
-          Transfers
+          FreedCamp Login
         </button>
-        }
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           {isMsAuthenticated && msAccount && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', lineHeight: '1.2', marginRight: '0.5rem' }}>
@@ -128,12 +74,6 @@ const AppContent = () => {
                 gap: '0.4rem',
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                <rect x="1" y="1" width="10" height="10" fill="#f25022"/>
-                <rect x="12" y="1" width="10" height="10" fill="#7fba00"/>
-                <rect x="1" y="12" width="10" height="10" fill="#00a4ef"/>
-                <rect x="12" y="12" width="10" height="10" fill="#ffb900"/>
-              </svg>
               Sign in with Microsoft
             </button>
           )}
@@ -154,9 +94,6 @@ const AppContent = () => {
       </nav>
       
       {currentView === 'projects' && <ProjectsPage onNavigateToFreedCamp={() => setCurrentView('freedcamp')} />}
-      {currentView === 'sheets' && <GoogleSheetsPage />}
-      {currentView === 'onedrive' && <MicrosoftOneDrivePage />}
-      {currentView === 'transfers' && <TransfersPage />}
       {currentView === 'freedcamp' && <FreedCampSecretsPage />}
     </>
   );

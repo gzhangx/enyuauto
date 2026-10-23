@@ -290,7 +290,8 @@ export type RenderActionCellDeps = {
 export function renderActionCell(
 	p: IOperationWithLineNumberAndParentTaskId,
 	action: ActionType,
-	deps: RenderActionCellDeps
+	deps: RenderActionCellDeps,
+	canCreate = false,
 ) {
 	const {
 		sheetOpsRef,
@@ -346,6 +347,7 @@ export function renderActionCell(
 
 	const freedCampTaskId = freedCampItem?.id;
 	if (!taskId && (!hasCompletedDate && !hasAssignedTo)) {
+		if (canCreate) return null;
 		return <span style={{ color: 'orange' }} title={tooltipText}>NA { freedCampTaskId}</span>;
 	}
 	let dateEditorDsp: JSX.Element | null = null;
