@@ -458,13 +458,16 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         ))}
       </select>
     ) : null;
-    const openLink = selected ? <a href={selected.webUrl} target="_blank" rel="noreferrer">open</a> : null;
+    const openLink = selected ? <a href={selected.webUrl} target="_blank" rel="noreferrer">Open File</a> : null;
+    const destFolderName = destFolder ? (
+      <strong className="ctd-dest-folder">/{destFolder}</strong>
+    ) : null;
 
     if (pick.status === 'loading') {
       return (
         <div className="ctd-source">
           <span className="ctd-source-label">
-            {destFolder ? `Loading files to copy into ${destFolder}…` : 'Loading files…'}
+            {destFolder ? <>Loading files to copy into folder <strong className="ctd-dest-folder">/{destFolder}</strong>…</> : 'Loading files…'}
           </span>
         </div>
       );
@@ -495,9 +498,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         <div className="ctd-source">
           <span className="ctd-source-label">Will copy</span>
           {fileSelect}
-          <span className="ctd-source-label">
-            from {folderShortLabel(sourceFolder)} into {destFolder}.
-          </span>
+          <span className="ctd-source-label">into folder {destFolderName}.</span>
           {openLink}
         </div>
       );
@@ -507,7 +508,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         <div className="ctd-source">
           <span className="ctd-source-label">Using</span>
           {fileSelect}
-          <span className="ctd-source-label">already in {destFolder}.</span>
+          <span className="ctd-source-label">already in folder {destFolderName}.</span>
           {openLink}
         </div>
       );
@@ -1741,6 +1742,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         }
         .ctd-source-label {
           color: #555;
+        }
+        .ctd-dest-folder {
+          color: #1f4b7a;
+          font-weight: 700;
         }
         .ctd-source-select {
           flex: 1;

@@ -106,7 +106,7 @@ If the preview is wrong, fix it before you confirm. Do not create a test task in
 
 ### Which file to pick (this is the copy step)
 
-The **File** dropdown lists files from the folders for that action. If a copy already exists in the **destination** folder, the dialog prefers that file.
+The **File** dropdown lists files from the folders for that action (`/folder/filename`). If a copy already exists in the **destination** folder, the dialog prefers that file. The line says **Will copy** `[file]` **into folder** `/1 Text Editor & First Proofread` (destination folder in bold). **Open File** opens the selected file. Do not look for a separate “from folder” note — the source folder is already in the dropdown.
 
 | You are creating | Dropdown lists | What Create Task does with the file you pick |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ The **File** dropdown lists files from the folders for that action. If a copy al
 | **美编** | Folder **2**. If that is empty, folder **1** | **Copies** it into folder **3**. |
 | **教审** | Folder **0** only | Does **not** copy. The task links to the original in folder 0. |
 | **语审** | `.mp3` files in folder **5** | Does **not** copy. The mp3 link goes into `{voice_file}` in the description, not `{article}`. |
-| **发布** | Whatever the Excel mapping says (usually `4 Publish`) | Follow the File line in the dialog (`Will copy … into …` vs `File from …`). 文章摘要 / 相关文章 need a signed file in folder 4 (`*_signed.pdf` or the matching Word file). |
+| **发布** | Whatever the Excel mapping says (usually `4 Publish`) | Follow the File line in the dialog (`Will copy … into folder /…` vs `File from …`). 文章摘要 / 相关文章 need a signed file in folder 4 (`*_signed.pdf` or the matching Word file). |
 
 **校对 vs 二校, in practice**
 
@@ -128,7 +128,7 @@ The **File** dropdown lists files from the folders for that action. If a copy al
 
 If folder 1 is empty when you create **二校**, the File line says **Create 校对 first, or put the first-proof file in folder 1** — not a generic list error.
 
-Other action names on the sheet follow the Excel config `mapping` rows (copy from a folder name, or from a sheet column such as 文章链接). If the File line says `Will copy foo.docx from folder 1 into 2 Second Proofread.`, creating the task will copy. If it only says `File from …`, it only inserts a link.
+Other action names on the sheet follow the Excel config `mapping` rows (copy from a folder name, or from a sheet column such as 文章链接). If the File line says `Will copy … into folder /2 Second Proofread.`, creating the task will copy. If it only says `File from …`, it only inserts a link.
 
 ---
 
