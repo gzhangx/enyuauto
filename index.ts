@@ -192,6 +192,20 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
       case 'getTasksForProjects':
         result = await processor.getTasksForProjects(params['projectId'], parseInt(params['pageNumber'] || '1'));
         break;
+      case 'getTask':
+        if (!params['taskId']) {
+          return {
+            statusCode: 400,
+            headers: headers,
+            body: JSON.stringify({
+              message: 'Missing required parameters',
+              error: 'taskId is required for getTask',
+            }),
+          };
+        }
+        result = await processor.getTask(params['taskId']);
+        log.doLog(`Retrieved task ${params['taskId']}`);
+        break;
         
       case 'createTask':
         const projectId = params['projectId'];
@@ -272,7 +286,7 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
           headers: headers,
           body: JSON.stringify({
             message: 'Invalid subAction',
-            error: `Unknown subAction: ${subAction}. Valid actions: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment`,
+            error: `Unknown subAction: ${subAction}. Valid actions: login, getSessionCurrentData, createTask, deleteTask, doPostAttachment, getTasksForProjects, getTask`,
           }),
         };
     }

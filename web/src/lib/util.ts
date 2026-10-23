@@ -76,12 +76,26 @@ function getProcessor(loginToken: LoginResponse): FreedCampProcessor {
         return res.data as IProjectTasksResult;
     }
 
+    async function getTask(taskId: string | number) {
+        const res = await freedcampApi({
+            subAction: 'getTask',
+            cookies: loginToken.Cookie,
+            taskId: String(taskId),
+        });
+        const payload = (res as { data?: { tasks?: ProjectTaskParams[]; task?: ProjectTaskParams } })?.data ?? res;
+        const task = Array.isArray((payload as { tasks?: ProjectTaskParams[] })?.tasks)
+            ? (payload as { tasks: ProjectTaskParams[] }).tasks[0]
+            : ((payload as { task?: ProjectTaskParams }).task || payload);
+        return (task || {}) as ProjectTaskParams;
+    }
+
     return {
         doPostAttachment,
         createTask,
         deleteTask,
         getSessionCurrentData,
         getTasksForProjects,
+        getTask,
     };
 }
 

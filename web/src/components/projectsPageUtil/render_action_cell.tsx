@@ -1,10 +1,10 @@
 
-import type { FreedCampLoginParams } from '../../../shared/freedcampTypes';
-import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
+import type { FreedCampComment, FreedCampLoginParams, ProjectTaskParams } from '../../../shared/freedcampTypes';
+import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type FreeCampAndUpdateOperations, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import { wordpressApi } from '../../lib/api';
-import React, { useState, type JSX } from 'react';
+import React, { useEffect, useRef, useState, type JSX } from 'react';
 import { fetchOneDriveChildren } from '../MicrosoftOneDrivePage';
 import { convertDocxToHtml, buildWpOutputPage } from '../../lib/docToWp';
 
@@ -178,6 +178,164 @@ const PublishButton: React.FC<{
   );
 };
 
+function formatTaskWhen(ts?: number): string {
+	if (!ts) return '—';
+	return new Date(ts * 1000).toLocaleString();
+}
+
+function isPastDueOrSoon(dueMillis: number | undefined, days: number): boolean {
+	if (typeof dueMillis !== 'number' || Number.isNaN(dueMillis)) return false;
+	return dueMillis <= Date.now() + Math.max(0, days) * 24 * 60 * 60 * 1000;
+}
+
+function commentBody(comment: FreedCampComment): string {
+	return (comment.description || comment.text || comment.comment || '').trim();
+}
+
+function commentAuthor(comment: FreedCampComment): string {
+	return comment.created_by_fullname || comment.user_full_name || 'Unknown';
+}
+
+function asCommentList(value: unknown): FreedCampComment[] {
+	if (Array.isArray(value)) return value as FreedCampComment[];
+	if (value && typeof value === 'object') return Object.values(value as Record<string, FreedCampComment>);
+	return [];
+}
+
+const TaskDetailButton: React.FC<{
+	item: ProjectTaskParams;
+	action: ActionType;
+	daysShowAlertAfterComplete: number;
+	freeCampOpsWithCache: FreeCampAndUpdateOperations;
+	freedCampLoginParams: FreedCampLoginParams;
+	children: JSX.Element;
+}> = ({ item, action, daysShowAlertAfterComplete, freeCampOpsWithCache, freedCampLoginParams, children }) => {
+	const [open, setOpen] = useState(false);
+	const [detail, setDetail] = useState<ProjectTaskParams>(item);
+	const [commentsStatus, setCommentsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+	const [commentsError, setCommentsError] = useState('');
+	const itemRef = useRef(item);
+	const opsRef = useRef(freeCampOpsWithCache);
+	const loginRef = useRef(freedCampLoginParams);
+	itemRef.current = item;
+	opsRef.current = freeCampOpsWithCache;
+	loginRef.current = freedCampLoginParams;
+	useEffect(() => {
+		if (!open) return;
+		const current = itemRef.current;
+		setDetail(current);
+		if (!current.id) {
+			setCommentsStatus('ready');
+			return;
+		}
+		let cancelled = false;
+		setCommentsStatus('loading');
+		setCommentsError('');
+		const timeout = window.setTimeout(() => {
+			if (cancelled) return;
+			setCommentsStatus('error');
+			setCommentsError('Timed out loading comments.');
+		}, 8000);
+		(async () => {
+			try {
+				const token = await opsRef.current.getFreedCampToken(loginRef.current, false);
+				const processor = opsRef.current.getFreedCampProcessor(token);
+				const full = await processor.getTask(current.id!);
+				if (cancelled) return;
+				window.clearTimeout(timeout);
+				const comments = asCommentList(full.comments);
+				setDetail({ ...current, ...full, comments });
+				setCommentsStatus('ready');
+			} catch (error: unknown) {
+				if (cancelled) return;
+				window.clearTimeout(timeout);
+				setCommentsStatus('error');
+				setCommentsError((error as Error)?.message || String(error));
+			}
+		})();
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timeout);
+		};
+	}, [open, item.id]);
+	const assigned = detail.assigned_to_id && detail.assigned_to_id !== '0'
+		? (detail.assigned_to_fullname || detail.assigned_to_id)
+		: 'Unassigned';
+	const dueSoon = isPastDueOrSoon(detail.due_ts ? detail.due_ts * 1000 : undefined, daysShowAlertAfterComplete);
+	const dueText = detail.due_ts ? formatTaskWhen(detail.due_ts) : (detail.due_date || '—');
+	const comments = detail.comments || item.comments || [];
+	return (
+		<>
+			<button
+				type="button"
+				className="fc-task-link"
+				title="Show task details"
+				onClick={(event) => {
+					event.stopPropagation();
+					setOpen(true);
+				}}
+			>
+				{children}
+			</button>
+			{open && (
+				<div
+					className="fc-task-overlay"
+					onClick={(event) => {
+						if (event.target === event.currentTarget) setOpen(false);
+					}}
+				>
+					<div className="fc-task-dialog" onClick={(event) => event.stopPropagation()}>
+						<div className="fc-task-dialog-head">
+							<h2>{action} task</h2>
+							<button type="button" className="fc-task-close" onClick={() => setOpen(false)}>Close</button>
+						</div>
+						<dl className="fc-task-meta">
+							<div><dt>Title</dt><dd>{detail.title || '—'}</dd></div>
+							<div><dt>Task ID</dt><dd>{detail.id || '—'}</dd></div>
+							<div><dt>Status</dt><dd>{detail.status_title || '—'}</dd></div>
+							<div><dt>Assigned</dt><dd>{assigned}</dd></div>
+							<div><dt>Created</dt><dd>{formatTaskWhen(detail.created_ts)}</dd></div>
+							<div>
+								<dt>Due</dt>
+								<dd style={{ color: dueSoon ? 'red' : undefined, fontWeight: dueSoon ? 'bold' : undefined }}>{dueText}</dd>
+							</div>
+							<div><dt>Completed</dt><dd>{formatTaskWhen(detail.completed_ts)}</dd></div>
+							<div><dt>Priority</dt><dd>{detail.priority_title || '—'}</dd></div>
+						</dl>
+						<div className="fc-task-desc-label">Description</div>
+						<div
+							className="fc-task-desc"
+							dangerouslySetInnerHTML={{ __html: (detail.description_processed || detail.description || '').trim() || 'No description on this task.' }}
+						/>
+						<div className="fc-task-desc-label">Comments</div>
+						{commentsStatus === 'loading' && <div className="fc-task-comments-status">Loading comments…</div>}
+						{commentsStatus === 'error' && <div className="fc-task-comments-status">{commentsError || 'Could not load comments.'}</div>}
+						{commentsStatus === 'ready' && comments.length === 0 && (
+							<div className="fc-task-comments-status">No comments on this task.</div>
+						)}
+						{comments.length > 0 && (
+							<div className="fc-task-comments">
+								{comments.map((comment, index) => (
+									<div key={comment.id || index} className="fc-task-comment">
+										<div className="fc-task-comment-meta">
+											<strong>{commentAuthor(comment)}</strong>
+											<span>{formatTaskWhen(comment.created_ts)}</span>
+										</div>
+										<div
+											className="fc-task-comment-body"
+											dangerouslySetInnerHTML={{ __html: commentBody(comment) || '—' }}
+										/>
+									</div>
+								))}
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+		</>
+	);
+};
+
 const HoverTooltip: React.FC<{ content: JSX.Element | string; children: JSX.Element | string }> = ({ content, children }) => {
 	const [show, setShow] = useState(false);
 	return (
@@ -274,7 +432,7 @@ export type RenderActionCellDeps = {
 	sheetOpsRef: React.RefObject<any>;
 	//opsConfig: IOpsConfig | null;
 	combined: ICombinedOpsAndFreeCampData | null;
-	freeCampOpsWithCache: any;
+	freeCampOpsWithCache: FreeCampAndUpdateOperations;
 	freedCampLoginParams: FreedCampLoginParams;
 	deleteItemActionTask: typeof deleteItemActionTask;
 	completeDateUpdater: (ops: ISheetDataOps, opsConfig: IOpsConfig, key: ActionType, item: IOperationWithLineNumber, val: string, log: DebugLog) => Promise<void>;
@@ -346,6 +504,21 @@ export function renderActionCell(
 	const hasAssignedTo = freedCampItem?.assigned_to_id && freedCampItem?.assigned_to_id !== '0';
 
 	const freedCampTaskId = freedCampItem?.id;
+	const openTask = (node: JSX.Element) => (
+		freedCampItem
+			? (
+				<TaskDetailButton
+					item={freedCampItem}
+					action={action}
+					daysShowAlertAfterComplete={daysShowAlertAfterComplete}
+					freeCampOpsWithCache={freeCampOpsWithCache}
+					freedCampLoginParams={freedCampLoginParams}
+				>
+					{node}
+				</TaskDetailButton>
+			)
+			: node
+	);
 	if (!taskId && (!hasCompletedDate && !hasAssignedTo)) {
 		if (canCreate) return null;
 		return <span style={{ color: 'orange' }} title={tooltipText}>NA { freedCampTaskId}</span>;
@@ -355,7 +528,7 @@ export function renderActionCell(
 		const isRecent = daysShowAlertAfterComplete > 0 &&
 			hasCompletedDate * 1000 >= Date.now() - daysShowAlertAfterComplete * 24 * 60 * 60 * 1000;
 		const color = isRecent ? 'red' : 'green';
-		dateEditorDsp = (
+		dateEditorDsp = openTask(
 			<span
 				style={{ color, fontWeight: 'bold' }}
 				title={freedCampItem?.assigned_to_fullname || undefined}
@@ -374,22 +547,27 @@ export function renderActionCell(
 			if (!isNaN(parsed)) sheetDueMillis = parsed;
 		}
 		const dueMillis = rawDueDateValue ?? sheetDueMillis;
-		const now = Date.now();
-		const threshold = daysShowAlertAfterComplete * 24 * 60 * 60 * 1000;
-		const isDueSoon = typeof dueMillis === 'number' && dueMillis <= (now + threshold);
-		const dueDisplay = rawDueDateValue ? formatLocalDateYyyyMmDd(rawDueDateValue / 1000) : (sheetDueRaw || 'N/A');
+		const isDueSoon = isPastDueOrSoon(dueMillis, daysShowAlertAfterComplete);
+		const dueDisplay = rawDueDateValue ? formatLocalDateYyyyMmDd(rawDueDateValue / 1000) : (sheetDueRaw || '');
 		assignedEditorDsp = (
 			<HoverTooltip
 				content={
 					<>
 						<div>Assigned to: {freedCampItem?.assigned_to_fullname}</div>
-						<div>Due: <span style={{ color: isDueSoon ? 'red' : undefined, fontWeight: isDueSoon ? 'bold' : 'normal' }}>{dueDisplay}</span></div>
+						<div>Due: <span style={{ color: isDueSoon ? 'red' : undefined, fontWeight: isDueSoon ? 'bold' : 'normal' }}>{dueDisplay || 'N/A'}</span></div>
 					</>
 				}
 			>
-				<span style={{ fontWeight: 'normal' }}>
-					<span>{freedCampItem?.assigned_to_fullname}</span>
-				</span>
+				{openTask(
+					<span
+						style={{
+							fontWeight: isDueSoon ? 'bold' : 'normal',
+							color: isDueSoon ? 'red' : undefined,
+						}}
+					>
+						{freedCampItem?.assigned_to_fullname}
+					</span>
+				)}
 			</HoverTooltip>
 		);
 	}

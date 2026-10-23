@@ -165,8 +165,8 @@ Click the person icon on an action column header for assignment history.
 | --- | --- |
 | Empty cell | No task yet. Hover shows **Click the Cell to Create 校对 Task** (or 二校, …). Click the cell to create it |
 | **Delete** plus a task ID | A FreedCamp task exists but is not assigned. You can delete it here |
-| Editor name | Task is assigned. Hover for due date. Delete is hidden |
-| A date in green or red | Completed in FreedCamp. Recent dates use the **days** highlight |
+| Editor name | Task is assigned. The name turns **red** if the task is past due or due within the **days** window (default 3). Hover for the due date. Click the name to see title, assigned, created, due, description, and comments. Delete is hidden |
+| A date in green or red | Completed in FreedCamp. Recent dates use the **days** highlight. Click the date to see the same task details, including comments |
 | **Done** | Sheet task ID is marked done |
 | **No English** | This action is skipped for English-only articles |
 

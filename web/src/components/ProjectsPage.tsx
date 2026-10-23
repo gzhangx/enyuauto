@@ -1504,6 +1504,136 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .projects-table a {
           color: #1a56a0;
         }
+        .projects-table .fc-task-link {
+          color: inherit;
+          background: none;
+          border: none;
+          padding: 0;
+          font: inherit;
+          text-decoration: none;
+          cursor: pointer;
+        }
+        .projects-table .fc-task-link:hover {
+          opacity: 0.85;
+        }
+        .fc-task-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.5);
+          z-index: 2300;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 1.5rem;
+        }
+        .fc-task-dialog {
+          background: #fff;
+          color: #212529;
+          border-radius: 12px;
+          width: 92%;
+          max-width: 720px;
+          max-height: 86vh;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 12px 40px rgba(15, 40, 70, 0.35);
+          text-align: left;
+        }
+        .fc-task-dialog-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          padding: 1rem 1.25rem 0.75rem;
+          border-bottom: 1px solid #dde5ee;
+        }
+        .fc-task-dialog-head h2 {
+          margin: 0;
+          font-size: 1.15rem;
+          color: #1f4b7a;
+        }
+        .fc-task-close {
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: 1px solid #c5d0dc;
+          background: #fff;
+          cursor: pointer;
+        }
+        .fc-task-meta {
+          margin: 0;
+          padding: 0.85rem 1.25rem;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px 16px;
+          font-size: 13px;
+        }
+        .fc-task-meta div {
+          display: grid;
+          gap: 2px;
+        }
+        .fc-task-meta dt {
+          color: #6b7785;
+          font-weight: 600;
+        }
+        .fc-task-meta dd {
+          margin: 0;
+          color: #212529;
+        }
+        .fc-task-desc-label {
+          padding: 0 1.25rem;
+          color: #6b7785;
+          font-weight: 600;
+          font-size: 13px;
+        }
+        .fc-task-desc {
+          margin: 6px 1.25rem 1.15rem;
+          padding: 10px 12px;
+          border: 1px solid #dde5ee;
+          border-radius: 8px;
+          overflow: auto;
+          max-height: 42vh;
+          font-size: 13px;
+          line-height: 1.5;
+          text-align: left;
+        }
+        .fc-task-desc * {
+          text-align: left !important;
+        }
+        .fc-task-comments-status {
+          padding: 0 1.25rem 1.15rem;
+          color: #6b7785;
+          font-size: 13px;
+        }
+        .fc-task-comments {
+          margin: 6px 1.25rem 1.15rem;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+          overflow: auto;
+          max-height: 28vh;
+        }
+        .fc-task-comment {
+          border: 1px solid #dde5ee;
+          border-radius: 8px;
+          padding: 8px 10px;
+          background: #fafcfe;
+        }
+        .fc-task-comment-meta {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          font-size: 12px;
+          color: #6b7785;
+          margin-bottom: 4px;
+        }
+        .fc-task-comment-body {
+          font-size: 13px;
+          line-height: 1.5;
+          text-align: left;
+        }
+        .fc-task-comment-body * {
+          text-align: left !important;
+        }
         .projects-table .file-col {
           min-width: 28rem;
           width: 28rem;

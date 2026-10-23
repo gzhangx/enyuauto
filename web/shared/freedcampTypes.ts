@@ -27,9 +27,24 @@ export interface ProjectTaskParams {
     created_ts?: number;
     start_ts?: number;
     assigned_to_fullname?: string;
+    /** FreedCamp task detail page, when the API includes it. */
+    url?: string;
     app_id?: string; //2
     "priority": 2;
     priority_title?: string; //'Medium'
+    description_processed?: string;
+    comments?: FreedCampComment[];
+}
+
+export interface FreedCampComment {
+    id?: string;
+    description?: string;
+    text?: string;
+    comment?: string;
+    created_ts?: number;
+    created_by_fullname?: string;
+    user_full_name?: string;
+    created_by_id?: string;
 }
 
 export interface CreateTaskResponse {
@@ -42,7 +57,8 @@ export interface FreedCampProcessor {
     createTask: (projectAndGroup: ProjectTaskParams, title: string, start_date: string, due_date: string) => Promise<CreateTaskResponse>;
     deleteTask: (taskId: string | number) => Promise<any>;
     getSessionCurrentData(): Promise<ICurrentSessionData>;
-    getTasksForProjects(projectId: string, pageNumber: number): Promise<IProjectTasksResult>
+    getTasksForProjects(projectId: string, pageNumber: number): Promise<IProjectTasksResult>;
+    getTask(taskId: string | number): Promise<ProjectTaskParams>;
 }
 
 export interface IUserInfo {

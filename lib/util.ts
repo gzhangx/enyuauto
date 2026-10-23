@@ -134,12 +134,20 @@ ${json}${
         return res as IProjectTasksResult;
     }
 
+    async function getTask(taskId: string | number): Promise<ProjectTaskParams> {
+        const res = await doGetAction(`/iapi/tasks/${taskId}?f_react_app=1`);
+        const payload = res?.data ?? res;
+        const task = Array.isArray(payload?.tasks) ? payload.tasks[0] : (payload?.task || payload);
+        return (task || {}) as ProjectTaskParams;
+    }
+
     return {
         doPostAttachment,
         createTask,
         deleteTask,
         getSessionCurrentData,
         getTasksForProjects,
+        getTask,
     };
 }
 
