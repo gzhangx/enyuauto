@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { listSharePointFolder } from '../lib/msGraphConfig';
+import { createSharePointFolderSharingUrl, listSharePointFolder } from '../lib/msGraphConfig';
 import {
     categoryHasNoArticleTitle,
     categoryLetter,
@@ -55,6 +55,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
     const [browser, setBrowser] = useState<{
         mode: 'folder' | 'file';
         path: string;
+        id: string;
         name: string;
         webUrl: string;
         folders: { name: string; webUrl: string }[];
@@ -117,6 +118,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
         setBrowser((prev) => ({
             mode,
             path,
+            id: prev?.id || '',
             name: prev?.name || path.split('/').pop() || path,
             webUrl: prev?.webUrl || '',
             folders: prev?.folders || [],
@@ -129,6 +131,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
             setBrowser({
                 mode,
                 path,
+                id: listing.id,
                 name: listing.name,
                 webUrl: listing.webUrl,
                 folders: listing.folders,
@@ -140,6 +143,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
             setBrowser({
                 mode,
                 path,
+                id: '',
                 name: path.split('/').pop() || path,
                 webUrl: '',
                 folders: [],
@@ -150,12 +154,24 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
         }
     };
 
-    const useCurrentFolder = () => {
-        if (!browser?.name) return;
-        setSelectedFolderPath(browser.path);
-        setForm(prev => ({ ...prev, mainFolder: browser.webUrl }));
-        onFileInput(browser.name);
-        setBrowser(null);
+    const useCurrentFolder = async () => {
+        if (!browser?.name || !msToken) return;
+        const current = browser;
+        setSelectedFolderPath(current.path);
+        setBrowser((prev) => prev ? { ...prev, loading: true, error: '' } : prev);
+        try {
+            const sharingUrl = current.id
+                ? await createSharePointFolderSharingUrl(msToken, current.id)
+                : current.webUrl;
+            setForm(prev => ({ ...prev, mainFolder: sharingUrl || current.webUrl }));
+            onFileInput(current.name);
+            setBrowser(null);
+        } catch (error) {
+            setForm(prev => ({ ...prev, mainFolder: current.webUrl }));
+            onFileInput(current.name);
+            setParseNote(`Using the folder path; could not create a sharing link: ${(error as Error)?.message || String(error)}`);
+            setBrowser(null);
+        }
     };
 
     const useFile = (file: { name: string; webUrl: string }) => {

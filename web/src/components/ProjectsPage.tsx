@@ -1852,7 +1852,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                 <td className="file-col">
                   <div>
                     {p.mainFolder
-                      ? <a href={`${p.mainFolder.replace(/\/$/, '')}/${p.文件}`} target="_blank">{p.文件}</a>
+                      ? <a href={p.mainFolder} target="_blank" rel="noreferrer">{p.文件}</a>
                       : p.文件}
                   </div>
                   {p.slug?.trim() && (p.done || '').toUpperCase() === 'Y' && (

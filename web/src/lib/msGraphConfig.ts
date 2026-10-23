@@ -56,13 +56,13 @@ export type SharePointFolderChild = {
 export async function listSharePointFolder(
   msToken: string,
   folderPath: string,
-): Promise<{ name: string; webUrl: string; folders: SharePointFolderChild[]; files: SharePointFolderChild[] }> {
+): Promise<{ id: string; name: string; webUrl: string; folders: SharePointFolderChild[]; files: SharePointFolderChild[] }> {
   const driveRoot = await resolveSiteGraphDriveRoot(msToken);
   const path = folderPath.replace(/^\/+|\/+$/g, '');
   const base = `${driveRoot}/root:/${encodeURI(path)}`;
   const headers = { Authorization: `Bearer ${msToken}` };
   const [folderRes, kidsRes] = await Promise.all([
-    fetch(`${base}?$select=name,webUrl`, { headers }),
+    fetch(`${base}?$select=id,name,webUrl`, { headers }),
     fetch(`${base}:/children?$select=name,webUrl,folder,file&$top=200`, { headers }),
   ]);
   if (!folderRes.ok) {
@@ -73,7 +73,7 @@ export async function listSharePointFolder(
     const body = await kidsRes.json().catch(() => ({}));
     throw new Error((body as any)?.error?.message || kidsRes.statusText);
   }
-  const folder = await folderRes.json() as { name: string; webUrl: string };
+  const folder = await folderRes.json() as { id: string; name: string; webUrl: string };
   const kids = await kidsRes.json() as { value: Array<{ name: string; webUrl: string; folder?: unknown; file?: unknown }> };
   const byName = (a: SharePointFolderChild, b: SharePointFolderChild) =>
     a.name.localeCompare(b.name, undefined, { numeric: true });
@@ -85,7 +85,36 @@ export async function listSharePointFolder(
     .filter((item) => item.file && !item.name.startsWith('~$'))
     .map((item) => ({ name: item.name, webUrl: item.webUrl }))
     .sort(byName);
-  return { name: folder.name, webUrl: folder.webUrl, folders, files };
+  return { id: folder.id, name: folder.name, webUrl: folder.webUrl, folders, files };
+}
+
+/** Organization sharing URL (`:f:/s/...`), matching SharePoint "Copy link". */
+export async function createSharePointFolderSharingUrl(msToken: string, itemId: string): Promise<string> {
+  const driveRoot = await resolveSiteGraphDriveRoot(msToken);
+  const attempts = [
+    { type: 'edit', scope: 'organization' },
+    { type: 'view', scope: 'organization' },
+  ] as const;
+  let lastError = 'Could not create a SharePoint sharing link';
+  for (const body of attempts) {
+    const res = await fetch(`${driveRoot}/items/${encodeURIComponent(itemId)}/createLink`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${msToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const data = await res.json() as { link?: { webUrl?: string } };
+      if (data.link?.webUrl) return data.link.webUrl;
+      lastError = 'SharePoint createLink returned no webUrl';
+      continue;
+    }
+    const payload = await res.json().catch(() => ({})) as { error?: { message?: string } };
+    lastError = payload.error?.message || res.statusText;
+  }
+  throw new Error(lastError);
 }
 
 /**
