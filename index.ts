@@ -133,7 +133,7 @@ export const handler = async (event: LambdaEvent): Promise<LambdaResponse> => {
 // login: username, password
 // createTask: projectId, title, description?, assignedToId?, dueDate?, parentId?
 // deleteTask: taskId
-// doPostAttachment: taskId, description?, assignedToId?, dueDate?
+// doPostAttachment: taskId, description?, assignedToId?, due_date?, title?, status?
 async function doFreedcampAction(params: { [key: string]: string; }, log: mainOps.DebugLog): Promise<LambdaResponse> {
   try {
     if (!params) throw new Error('Missing parameters for freedcamp action');
@@ -268,14 +268,28 @@ async function doFreedcampAction(params: { [key: string]: string; }, log: mainOp
         }
         const attachParams: ProjectTaskParams = {
           priority: 2,
-          //...params,
         };
-        //don't expand params, way too many garbage
-        if (params['description']) attachParams.description = params['description'];
-        if (params['assignedToId']) attachParams.assigned_to_id = params['assignedToId'];
-        //if (params['dueDate']) attachParams.due_ts = params['dueDate'] as unknown as number;     
+        if (params['description'] !== undefined) attachParams.description = params['description'];
+        if (params['assignedToId'] !== undefined && params['assignedToId'] !== '') {
+          attachParams.assigned_to_id = String(params['assignedToId']);
+        }
+        if (params['due_date']) attachParams.due_date = params['due_date'];
+        const dueTs = params['dueDate'] || params['due_ts'];
+        if (dueTs) attachParams.due_ts = Number(dueTs);
+        if (params['start_date']) attachParams.start_date = params['start_date'];
+        if (params['title']) attachParams.title = params['title'];
+        const statusRaw = params['status'] ?? params['status_id'];
+        if (statusRaw !== undefined && statusRaw !== '') {
+          attachParams.status = Number(statusRaw);
+          attachParams.status_id = Number(statusRaw);
+        }
         console.log('attach parammmmmmmmmmmmmmmmmmmmmm', attachParams);
         const attachRes = await processor.doPostAttachment(attachTaskId, attachParams);
+        const attachPayload = (attachRes as { data?: { http_code?: number; msg?: string } })?.data ?? attachRes;
+        const attachCode = Number((attachPayload as { http_code?: number })?.http_code);
+        if (attachCode && attachCode >= 400) {
+          throw new Error((attachPayload as { msg?: string })?.msg || 'FreedCamp did not accept the task update');
+        }
         result = attachRes;
         log.doLog(`Updated task ${attachTaskId} with attachment/params`);
         break;

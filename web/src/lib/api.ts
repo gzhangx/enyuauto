@@ -50,7 +50,8 @@ type FreedcampParams = {
     taskId?: string;
     start_date?: string;
     due_date?: string;
-    
+    status?: string | number;
+    status_id?: string | number;
 };
 
 export async function freedcampApi<T = any>(request: FreedcampParams): Promise<T> {    

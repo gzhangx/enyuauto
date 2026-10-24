@@ -20,6 +20,7 @@ export type NewProjectValues = {
     文章名: string;
     文章链接: string;
     slug: string;
+    comment?: string;
 };
 
 const SHAREPOINT_START_FOLDER = 'General';
@@ -30,6 +31,9 @@ type AddProjectDialogProps = {
     projects: SlugSourceRow[];
     saving: boolean;
     msToken?: string;
+    heading?: string;
+    subheading?: string;
+    initial?: Partial<NewProjectValues>;
     onClose: () => void;
     onSave: (values: NewProjectValues) => void;
 };
@@ -45,10 +49,41 @@ const emptyForm = {
     link: '',
     slug: '',
     date: '',
+    comment: '',
 };
 
-export function AddProjectDialog({ categories, titles, projects, saving, msToken, onClose, onSave }: AddProjectDialogProps) {
-    const [form, setForm] = useState(emptyForm);
+function formFromInitial(initial?: Partial<NewProjectValues>) {
+    if (!initial) return emptyForm;
+    const parsed = parseFileInput(initial.文件 || '');
+    return {
+        fileInput: initial.文件 || '',
+        mainFolder: initial.mainFolder || '',
+        author: initial.作者 || parsed?.author || '',
+        titleOfAddress: initial.称呼 || '',
+        email: initial.作者电邮 || '',
+        category: initial.文章类别 || parsed?.category || '',
+        title: initial.文章名 || parsed?.title || '',
+        link: initial.文章链接 || '',
+        slug: initial.slug || '',
+        date: parsed?.date || '',
+        comment: initial.comment || '',
+    };
+}
+
+export function AddProjectDialog({
+    categories,
+    titles,
+    projects,
+    saving,
+    msToken,
+    heading = 'Add New Project',
+    subheading,
+    initial,
+    onClose,
+    onSave,
+}: AddProjectDialogProps) {
+    const keepSlug = Boolean(initial);
+    const [form, setForm] = useState(() => formFromInitial(initial));
     const [parseNote, setParseNote] = useState('');
     const [emailNote, setEmailNote] = useState('');
     const [selectedFolderPath, setSelectedFolderPath] = useState('');
@@ -91,7 +126,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
             author: parsed.author,
             title: parsed.title,
             date: parsed.date,
-            slug: nextSlug(parsed.date, category, projects),
+            slug: keepSlug ? prev.slug : nextSlug(parsed.date, category, projects),
         }));
     };
 
@@ -184,7 +219,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
         setForm(prev => ({
             ...prev,
             category,
-            slug: nextSlug(prev.date, category, projects),
+            slug: keepSlug ? prev.slug : nextSlug(prev.date, category, projects),
         }));
     };
 
@@ -240,14 +275,15 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                         </div>
     );
 
-    const canSave = Boolean(sheetFileName && form.slug.trim() && !saving);
+    const savedFileName = sheetFileName || (keepSlug ? form.fileInput.trim() : '');
+    const canSave = Boolean(savedFileName && form.slug.trim() && !saving);
 
     const save = () => {
         if (!canSave) {
             return;
         }
         onSave({
-            文件: sheetFileName,
+            文件: savedFileName,
             mainFolder: form.mainFolder.trim(),
             作者: form.author.trim(),
             称呼: form.titleOfAddress.trim(),
@@ -256,6 +292,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
             文章名: form.title.trim(),
             文章链接: form.link.trim(),
             slug: form.slug.trim(),
+            comment: form.comment.trim(),
         });
     };
 
@@ -264,8 +301,10 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
             <div className="add-project-dialog" onClick={(event) => event.stopPropagation()}>
                 <div className="add-project-header">
                     <div>
-                        <h2>Add New Project</h2>
-                        <p>Leave 文件 to fill the article, author, and slug.</p>
+                        <h2>{heading}</h2>
+                        {subheading
+                            ? <p className="add-project-header-comment">{subheading}</p>
+                            : <p>{keepSlug ? 'Update this article row, including the 备注.' : 'Leave 文件 to fill the article, author, and slug.'}</p>}
                     </div>
                     <button type="button" className="add-project-close" onClick={onClose} disabled={saving} aria-label="Close">×</button>
                 </div>
@@ -299,7 +338,7 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                     {parseNote && <div className="add-project-note add-project-span">{parseNote}</div>}
                     <div className="add-project-preview add-project-span">
                         <span>Saved 文件</span>
-                        <strong>{sheetFileName || '—'}</strong>
+                        <strong>{sheetFileName || form.fileInput.trim() || '—'}</strong>
                     </div>
                     <label className="add-project-field add-project-span">
                         mainFolder
@@ -374,6 +413,19 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                         {emailNote && <div className="add-project-note">{emailNote}</div>}
                     </div>
                 </section>
+
+                <section>
+                    <h3>备注</h3>
+                    <label className="add-project-field add-project-span">
+                        备注
+                        <textarea
+                            value={form.comment}
+                            rows={5}
+                            placeholder="Notes for this 文件. Saved on the Excel 备注 column."
+                            onChange={(event) => setForm(prev => ({ ...prev, comment: event.target.value }))}
+                        />
+                    </label>
+                </section>
                 </div>
 
                 <div className="add-project-actions">
@@ -421,6 +473,13 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                     margin: 6px 0 0;
                     font-size: 0.95rem;
                     opacity: 0.92;
+                }
+                .add-project-header-comment {
+                    white-space: pre-wrap;
+                    line-height: 1.4;
+                    max-height: 4.2em;
+                    overflow: auto;
+                    font-weight: 400;
                 }
                 .add-project-close {
                     position: absolute;
@@ -479,7 +538,8 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                 }
                 .add-project-span { grid-column: 1 / -1; }
                 .add-project-dialog input,
-                .add-project-dialog select {
+                .add-project-dialog select,
+                .add-project-dialog textarea {
                     width: 100%;
                     box-sizing: border-box;
                     padding: 0.55rem 0.65rem;
@@ -491,8 +551,14 @@ export function AddProjectDialog({ categories, titles, projects, saving, msToken
                     color: #212529;
                     color-scheme: light;
                 }
+                .add-project-dialog textarea {
+                    min-height: 96px;
+                    resize: vertical;
+                    line-height: 1.45;
+                }
                 .add-project-dialog input:focus,
-                .add-project-dialog select:focus {
+                .add-project-dialog select:focus,
+                .add-project-dialog textarea:focus {
                     outline: none;
                     border-color: #2f6aa8;
                     box-shadow: 0 0 0 2px rgba(47, 106, 168, 0.2);

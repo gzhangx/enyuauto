@@ -195,8 +195,8 @@ export async function anyKeyUpdater(ops: ISheetDataOps, opsConfig: IOpsConfig, k
     const newValue: string = item[key as keyof typeof item] as string;
     const lineNumber: number = item.itemPositionOnSheet;    
     const index = opsConfig.headers.indexOf(key);
-    if (index <= 0) {
-        log.doLog(`update column ${key}: ${newValue } at line ${lineNumber} failed due to badk pos ${index}  `);
+    if (index < 0) {
+        log.doLog(`update column ${key}: ${newValue } at line ${lineNumber} failed due to bad pos ${index}  `);
         return;
     }
     log.doLog(`update column: ${newValue } at line ${lineNumber} for action ${key}  `);
@@ -254,6 +254,31 @@ export async function updateDoneColumn(
 
 
 const NEW_PROJECT_COLUMNS = ['文件', 'mainFolder', '作者', '称呼', '作者电邮', '文章类别', '文章名', '文章链接', 'slug'] as const;
+const PROJECT_COMMENT_HEADERS = ['备注', 'comment'] as const;
+
+export function normalizeSheetHeader(value: unknown): string {
+    const text = String(value ?? '').replace(/\u00a0/g, ' ').trim();
+    return text.toLowerCase() === 'done' ? 'done' : text;
+}
+
+export function projectCommentHeader(headers: string[]): string | undefined {
+    return headers.find((name) => {
+        const header = normalizeSheetHeader(name).toLowerCase();
+        return PROJECT_COMMENT_HEADERS.some((item) => item.toLowerCase() === header);
+    });
+}
+
+export function projectCommentText(row: { comment?: string; 备注?: string }): string {
+    return (row.备注 || row.comment || '').trim();
+}
+
+export async function loadMainSheetHeaders(ops: ISheetDataOps): Promise<string[]> {
+    const full = await ops.readData('main');
+    return (full.values[0] || []).map(normalizeSheetHeader).filter((header, index, all) => {
+        if (header) return true;
+        return all.slice(index + 1).some(Boolean);
+    });
+}
 
 /** Appends one main-sheet row after the last row that already has a 文件 or 文章名. Returns the 1-based data row written. */
 export async function appendMainSheetRow(
@@ -300,9 +325,31 @@ export async function updateAnyColumn(
     });
 }
 
+/** Writes named main-sheet cells for an existing row. Skips missing headers and unchanged values. */
+export async function updateMainSheetColumns(
+    ops: ISheetDataOps,
+    headers: string[],
+    item: IOperationWithLineNumber,
+    values: Record<string, string>,
+    log: DebugLog,
+): Promise<void> {
+    const lineNumber = item.itemPositionOnSheet;
+    const current = item as unknown as Record<string, string>;
+    for (const [columnName, value] of Object.entries(values)) {
+        const index = headers.indexOf(columnName);
+        if (index < 0) continue;
+        if ((current[columnName] || '') === (value || '')) continue;
+        log.doLog(`update column ${columnName} at line ${lineNumber}`);
+        await ops.autoUpdateValues('main', [[value]], {
+            row: lineNumber,
+            col: index,
+        });
+    }
+}
+
 export async function loadMainData(ops: ISheetDataOps) {
     const rawMainData = await ops.readData('main');
-    const headers = rawMainData.values[0].map(h => h.toLowerCase() === 'done' ? 'done' : h);
+    const headers = rawMainData.values[0].map(normalizeSheetHeader);
     //const operationListData = await ops.readDataByColumnName('main');
     //const operationList = (operationListData.data || []) as unknown as OperationWithDueDates[];
     const operationList: IOperationWithLineNumberAndParentTaskId[] = rawMainData.values.slice(1).map((row, index) => {
@@ -320,7 +367,10 @@ export async function loadMainData(ops: ISheetDataOps) {
                     val = `${yyyy}-${mm}-${dd}`;
                 }
             }
-            obj[header as keyof OperationWithDueDates] = val.trim();            
+            obj[header as keyof OperationWithDueDates] = val.trim();
+            if (header === '备注' && !obj.comment) {
+                obj.comment = val.trim();
+            }
         });
         obj.itemPositionOnSheet = index + 1;
         obj.isFinished = false;
@@ -939,27 +989,32 @@ export function updateDoneParentIds(combinedOpsAndData: ICombinedOpsAndFreeCampD
         if (actionInfo) {
           //setIsLoading(prev => ({ ...prev, freeCampLoading: `Loading FreeCamp tasks for ${action}...` }));
           const prjs = combinedOpsAndData.freedCampTasksByAction[action];
+          if (!prjs?.tasks) continue;
           for (const itm of projectList) {
-            let freedCampTsk = prjs.tasks.find(tsk => tsk.title === itm.文件);
+            const taskId = String(itm[getTaskIdColumnName(action)] || '').trim();
+            let freedCampTsk = taskId && taskId !== 'done'
+              ? prjs.tasks.find((tsk) => String(tsk.id) === taskId)
+              : undefined;
+            if (!freedCampTsk && itm.文件) {
+              freedCampTsk = prjs.tasks.find((tsk) => tsk.title === itm.文件);
+            }
+            if (!freedCampTsk && itm.文件) {
+              const freedCampTsks = prjs.tasks.filter((tsk) => tsk.title?.includes(itm.文件));
+              if (taskId) {
+                freedCampTsk = freedCampTsks.find((tsk) => String(tsk.id) === taskId);
+              }
+              if (!freedCampTsk && freedCampTsks.length === 1) {
+                freedCampTsk = freedCampTsks[0];
+              } else if (!freedCampTsk && freedCampTsks.length > 1) {
+                const knownQuietDuplicate = (itm.文件 || '').includes('行走在圣经的字里行间');
+                if (!knownQuietDuplicate) {
+                  log.doLog(`Warning: multiple FreedCamp tasks found for '${itm.文件 || 'itm.文件 is empty'}' in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map((t) => t.id).join(', ')}`, true);
+                }
+                freedCampTsk = freedCampTsks[0];
+              }
+            }
             if (freedCampTsk) {
               itm[`${action} FreeCamp Item`] = freedCampTsk;
-            } else {
-                const freedCampTsks = prjs.tasks.filter(tsk => tsk.title?.includes(itm.文件));
-                if (freedCampTsks.length !== 0) {
-                    if (freedCampTsks.length > 1) {
-                        let warnSTr = itm.文件;
-                        if (!warnSTr) {
-                            warnSTr = 'itm.文件 is empty';
-                        }
-                        // Known leftover: 发布 titles (二) and (三) both contain this 文件, and the tasks are no longer findable in FreedCamp.
-                        const knownQuietDuplicate = (itm.文件 || '').includes('行走在圣经的字里行间');
-                        if (!knownQuietDuplicate) {
-                            log.doLog(`Warning: multiple FreedCamp tasks found for '${warnSTr}' in action ${action}, assigning the first one. Task IDs: ${freedCampTsks.map(t => t.id).join(', ')}`, true);
-                        }
-                    } else {
-                        itm[`${action} FreeCamp Item`] = freedCampTsks[0];
-                    }
-                }
             }
           }
         }

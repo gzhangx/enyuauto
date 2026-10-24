@@ -15,6 +15,10 @@ import {
   updateDoneParentIds,
   updateDoneColumn,
   appendMainSheetRow,
+  updateMainSheetColumns,
+  projectCommentHeader,
+  projectCommentText,
+  loadMainSheetHeaders,
   type IOneDriveDirInfo,
   createMsExcelDataOps,
   getEditorWorkload,
@@ -95,6 +99,7 @@ function projectMatchesSearch(project: IOperationWithLineNumberAndParentTaskId, 
     project.作者,
     project.文章名,
     project.文章类别,
+    projectCommentText(project),
     ...categorySearchTerms(project),
     ...dateSearchTerms(project.文件 || ''),
   ].join('\n').toLowerCase();
@@ -220,6 +225,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   });
   const [progressText, setProgressText] = useState('');
   const [errorDialog, setErrorDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
+  const [successDialog, setSuccessDialog] = useState<{ show: boolean; message: string }>({ show: false, message: '' });
   type CreateTasksDialogState = {
     operation: IOperationWithLineNumberAndParentTaskId;
     oneDriveFolders: IOneDriveDirInfo[];
@@ -258,6 +264,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
   const [doneColumnSavingLine, setDoneColumnSavingLine] = useState<number | null>(null);
   const [ownerInfoDialog, setOwnerInfoDialog] = useState<{ title: string; entries: OwnerInfoEntry[] } | null>(null);
   const [showAddProject, setShowAddProject] = useState(false);
+  const [editingProject, setEditingProject] = useState<IOperationWithLineNumberAndParentTaskId | null>(null);
   const [addingProject, setAddingProject] = useState(false);
   const [createConfirm, setCreateConfirm] = useState<{ action: ActionType; taskTitle: string; assignee: string } | null>(null);
 
@@ -838,6 +845,11 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       if (opsConfig &&combinedOpsAndData && !fullReload) {
         setIsLoading(prev => ({ ...prev, listLoading: 'Loading projects only...' }));
         const res = await loadMainData(ops);
+        setOpsConfig({ ...opsConfig, headers: res.headers, operationList: res.operationList });
+        setCombinedOpsAndData({
+          ...combinedOpsAndData,
+          opsConfig: { ...combinedOpsAndData.opsConfig, headers: res.headers, operationList: res.operationList },
+        });
         updateDoneParentIds(combinedOpsAndData, res.operationList, logParam);
         prepareData(res);
         setIsLoading(prev=>({ ...prev, listLoading: '' }));
@@ -1000,6 +1012,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     doLog,
     fetchData,
     setErrorDialog,
+    onTaskUpdated: () => setFullProjectList((prev) => prev.slice()),
     daysShowAlertAfterComplete,
     msToken,
     wpToken: freedCampCredentials?.enyu_wp_token,
@@ -1034,6 +1047,42 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     );
   }
 
+  const sheetValuesFromForm = (values: NewProjectValues, headers: string[]): Record<string, string> => {
+    const savedValues = { ...(values as unknown as Record<string, string>) };
+    const commentHeader = projectCommentHeader(headers);
+    if (commentHeader) {
+      savedValues[commentHeader] = values.comment || '';
+    }
+    savedValues.comment = values.comment || '';
+    return savedValues;
+  };
+
+  const requireCommentColumn = (values: NewProjectValues, headers: string[]) => {
+    if ((values.comment || '').trim() && !projectCommentHeader(headers)) {
+      throw new Error('Add a column named 备注 on the main Excel sheet header row, save the workbook, then try Save again.');
+    }
+  };
+
+  const liveMainHeaders = async (): Promise<string[]> => {
+    const ops = sheetOpsRef.current;
+    const previous = opsConfig?.headers ?? [];
+    if (!ops) return previous;
+    try {
+      const headers = await loadMainSheetHeaders(ops);
+      const named = headers.filter(Boolean);
+      const previousNamed = previous.filter(Boolean);
+      const looksComplete = named.includes('文件') && named.length >= Math.min(previousNamed.length, 8);
+      if (looksComplete) {
+        setOpsConfig((prev) => prev ? { ...prev, headers } : prev);
+        return headers;
+      }
+      doLog(`Kept previous main headers; refreshed list looked incomplete (${named.length} named columns).`);
+    } catch (error: unknown) {
+      doLog(`Could not refresh main headers: ${(error as Error)?.message || String(error)}`);
+    }
+    return previous;
+  };
+
   const handleAddProject = async (values: NewProjectValues) => {
     const ops = sheetOpsRef.current;
     if (!ops || !opsConfig) {
@@ -1047,12 +1096,16 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
     }
     setAddingProject(true);
     try {
-      const lineNumber = await appendMainSheetRow(ops, opsConfig.headers, fullProjectList, values, { doLog });
+      const headers = await liveMainHeaders();
+      requireCommentColumn(values, headers);
+      const savedValues = sheetValuesFromForm(values, headers);
+      const lineNumber = await appendMainSheetRow(ops, headers, fullProjectList, savedValues, { doLog });
       const newRow = { isFinished: false, noNeedToCreate: false, publishCompleted: false, itemPositionOnSheet: lineNumber } as IOperationWithLineNumberAndParentTaskId;
-      const savedValues = values as unknown as Record<string, string>;
-      for (const header of opsConfig.headers) {
+      for (const header of headers) {
         (newRow as unknown as Record<string, string>)[header] = savedValues[header] ?? '';
       }
+      newRow.comment = savedValues.comment || '';
+      newRow.备注 = savedValues.comment || '';
       if (combinedOpsAndData) {
         updateDoneParentIds(combinedOpsAndData, [newRow], { doLog });
       }
@@ -1061,9 +1114,55 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         return [...rest, newRow].sort((a, b) => a.itemPositionOnSheet - b.itemPositionOnSheet);
       });
       setShowAddProject(false);
+      setSuccessDialog({ show: true, message: `${values.文件} 文件 saved successfully` });
     } catch (error: unknown) {
       const err = error as { message?: string };
       setErrorDialog({ show: true, message: `Failed to add project:\n${err.message || String(error)}` });
+    } finally {
+      setAddingProject(false);
+    }
+  };
+
+  const handleEditProject = async (values: NewProjectValues) => {
+    const ops = sheetOpsRef.current;
+    const row = editingProject;
+    if (!ops || !opsConfig || !row) {
+      setErrorDialog({ show: true, message: 'Sheet is not loaded yet.' });
+      return;
+    }
+    const duplicate = fullProjectList.some(item =>
+      item.itemPositionOnSheet !== row.itemPositionOnSheet && (item.文件 || '').trim() === values.文件
+    );
+    if (duplicate) {
+      setErrorDialog({ show: true, message: `A row already uses 文件:\n${values.文件}` });
+      return;
+    }
+    setAddingProject(true);
+    try {
+      const headers = await liveMainHeaders();
+      requireCommentColumn(values, headers);
+      const savedValues = sheetValuesFromForm(values, headers);
+      const writable: Record<string, string> = {};
+      for (const header of ['文件', 'mainFolder', '作者', '称呼', '作者电邮', '文章类别', '文章名', '文章链接', 'slug']) {
+        if (headers.includes(header)) writable[header] = savedValues[header] ?? '';
+      }
+      const commentHeader = projectCommentHeader(headers);
+      if (commentHeader) writable[commentHeader] = savedValues[commentHeader] ?? '';
+      await updateMainSheetColumns(ops, headers, row, writable, { doLog });
+      setFullProjectList(prev => prev.map(item => {
+        if (item.itemPositionOnSheet !== row.itemPositionOnSheet) return item;
+        return {
+          ...item,
+          ...writable,
+          comment: savedValues.comment || '',
+          备注: savedValues.comment || '',
+        };
+      }));
+      setEditingProject(null);
+      setSuccessDialog({ show: true, message: `${values.文件} 文件 saved successfully` });
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      setErrorDialog({ show: true, message: `Failed to update project:\n${err.message || String(error)}` });
     } finally {
       setAddingProject(false);
     }
@@ -1075,6 +1174,12 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         show={errorDialog.show}
         message={errorDialog.message}
         onClose={() => setErrorDialog({ show: false, message: '' })}
+      />
+      <ErrorDialog
+        show={successDialog.show}
+        message={successDialog.message}
+        variant="success"
+        onClose={() => setSuccessDialog({ show: false, message: '' })}
       />
 
       <ErrorDialog 
@@ -1516,6 +1621,10 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .projects-table .fc-task-link:hover {
           opacity: 0.85;
         }
+        .projects-table .fc-unassigned {
+          color: #e65100;
+          margin-right: 6px;
+        }
         .fc-task-overlay {
           position: fixed;
           inset: 0;
@@ -1552,12 +1661,21 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           font-size: 1.15rem;
           color: #1f4b7a;
         }
+        .fc-task-dialog-body {
+          overflow: auto;
+          flex: 1;
+        }
         .fc-task-close {
           padding: 6px 12px;
           border-radius: 6px;
           border: 1px solid #c5d0dc;
           background: #fff;
           cursor: pointer;
+        }
+        .fc-task-close:disabled,
+        .fc-task-save:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
         .fc-task-meta {
           margin: 0;
@@ -1571,6 +1689,9 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           display: grid;
           gap: 2px;
         }
+        .fc-task-meta .fc-task-wide {
+          grid-column: 1 / -1;
+        }
         .fc-task-meta dt {
           color: #6b7785;
           font-weight: 600;
@@ -1578,6 +1699,21 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .fc-task-meta dd {
           margin: 0;
           color: #212529;
+        }
+        .fc-task-input {
+          width: 100%;
+          box-sizing: border-box;
+          padding: 5px 8px;
+          border: 1px solid #c5d0dc;
+          border-radius: 6px;
+          font: inherit;
+          color: inherit;
+          background: #fff;
+        }
+        .fc-task-input:focus,
+        .fc-task-desc:focus {
+          outline: 2px solid #8eafd4;
+          border-color: #2f6aa8;
         }
         .fc-task-desc-label {
           padding: 0 1.25rem;
@@ -1591,10 +1727,39 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           border: 1px solid #dde5ee;
           border-radius: 8px;
           overflow: auto;
-          max-height: 42vh;
+          min-height: 88px;
+          max-height: 24vh;
           font-size: 13px;
           line-height: 1.5;
           text-align: left;
+          cursor: text;
+        }
+        .fc-task-footer {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 8px;
+          padding: 0.75rem 1.25rem 1rem;
+          border-top: 1px solid #dde5ee;
+        }
+        .fc-task-save {
+          padding: 6px 14px;
+          border-radius: 6px;
+          border: none;
+          background: #1f4b7a;
+          color: #fff;
+          cursor: pointer;
+        }
+        .fc-task-save-msg,
+        .fc-task-save-err {
+          margin-right: auto;
+          font-size: 13px;
+        }
+        .fc-task-save-msg {
+          color: #2e7d32;
+        }
+        .fc-task-save-err {
+          color: #c62828;
         }
         .fc-task-desc * {
           text-align: left !important;
@@ -1634,9 +1799,37 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         .fc-task-comment-body * {
           text-align: left !important;
         }
+        .projects-table .line-col {
+          width: 4.5rem;
+          white-space: nowrap;
+          vertical-align: top;
+        }
         .projects-table .file-col {
           min-width: 28rem;
           width: 28rem;
+        }
+        .projects-table .file-comment {
+          margin-top: 4px;
+          font-size: 0.82rem;
+          color: #5b6b7c;
+          white-space: pre-wrap;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+        .projects-table .line-edit-btn {
+          color: inherit;
+          background: none;
+          border: none;
+          padding: 0;
+          font: inherit;
+          cursor: pointer;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+        }
+        .projects-table .line-edit-btn:hover {
+          color: #1a56a0;
         }
         .projects-table a.file-preview {
           display: block;
@@ -2007,15 +2200,34 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
         }
       `}</style>
 
-      {showAddProject && (
+      {(showAddProject || editingProject) && (
         <AddProjectDialog
+          key={editingProject ? `edit-${editingProject.itemPositionOnSheet}` : 'new'}
+          heading={editingProject ? (editingProject.文件 || 'Edit Project') : 'Add New Project'}
+          subheading={editingProject ? projectCommentText(editingProject) : undefined}
+          initial={editingProject ? {
+            文件: editingProject.文件 || '',
+            mainFolder: editingProject.mainFolder || '',
+            作者: editingProject.作者 || '',
+            称呼: editingProject.称呼 || '',
+            作者电邮: editingProject.作者电邮 || '',
+            文章类别: editingProject.文章类别 || '',
+            文章名: editingProject.文章名 || '',
+            文章链接: editingProject.文章链接 || '',
+            slug: editingProject.slug || '',
+            comment: projectCommentText(editingProject),
+          } : undefined}
           categories={opsConfig?.categories ?? combinedOpsAndData?.opsConfig.categories ?? []}
           titles={opsConfig?.titles ?? combinedOpsAndData?.opsConfig.titles ?? []}
           projects={fullProjectList}
           saving={addingProject}
           msToken={msToken || undefined}
-          onClose={() => { if (!addingProject) setShowAddProject(false); }}
-          onSave={handleAddProject}
+          onClose={() => {
+            if (addingProject) return;
+            setShowAddProject(false);
+            setEditingProject(null);
+          }}
+          onSave={editingProject ? handleEditProject : handleAddProject}
         />
       )}
 
@@ -2027,15 +2239,15 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             type="search"
             value={projectSearch}
             onChange={(e) => setProjectSearch(e.target.value)}
-            placeholder="Search by author, article, date, or category"
-            aria-label="Search by author, article, date, or category"
+            placeholder="Search by author, article, date, category, or 备注"
+            aria-label="Search by author, article, date, category, or 备注"
           />
           {projectSearch.trim() !== '' && (
             <span className="projects-search-count">{projectList.length} match{projectList.length === 1 ? '' : 'es'}</span>
           )}
         </div>
         <div className="projects-toolbar">
-        <button className="btn btn-create" onClick={() => setShowAddProject(true)} disabled={addingProject || !opsConfig}>Add New Project</button>
+        <button className="btn btn-create" onClick={() => { setEditingProject(null); setShowAddProject(true); }} disabled={addingProject || !opsConfig}>Add New Project</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials,false)}>Reload</button>
         <button className="btn btn-create" onClick={() => fetchData(freedCampCredentials, true)}>Reload All</button>
         {hasAnySyncable && (
@@ -2083,6 +2295,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       <table className="projects-table">
         <thead>
           <tr>
+            <th className="line-col" style={stickyHeaderCellStyle} title="Click the number to edit this project">Line</th>
             <th className="file-col" style={stickyHeaderCellStyle}>文件</th>
             {opsConfig?.groupAndMainProjectMapping.actions.map((action) => (
               <th key={action} style={stickyHeaderCellStyle}>
@@ -2114,7 +2327,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
             >
               Done
             </th>
-            <th style={stickyHeaderCellStyle}>Line</th>
           </tr>
         </thead>
         <tbody>
@@ -2130,12 +2342,26 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
           {
             projectList.map((p,idx) => {
               return <tr key={`${p.itemPositionOnSheet}-${idx}`}>
+                <td className="line-col">
+                  <button
+                    type="button"
+                    className="line-edit-btn"
+                    title="Edit this project"
+                    onClick={() => { setShowAddProject(false); setEditingProject(p); }}
+                  >
+                    {p.itemPositionOnSheet}
+                  </button>
+                  { renderSyncActionCell(p, freedCampCredentials, actionCellDeps) }
+                </td>
                 <td className="file-col">
                   <div>
                     {p.mainFolder
                       ? <a href={p.mainFolder} target="_blank" rel="noreferrer">{p.文件}</a>
                       : p.文件}
                   </div>
+                  {projectCommentText(p) && (
+                    <div className="file-comment" title={projectCommentText(p)}>{projectCommentText(p)}</div>
+                  )}
                   {p.slug?.trim() && (p.done || '').toUpperCase() === 'Y' && (
                     <a
                       className="file-live"
@@ -2206,9 +2432,6 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
                       }
                     }}
                   />
-                </td>
-                <td>{p.itemPositionOnSheet}
-                  { renderSyncActionCell(p, freedCampCredentials, actionCellDeps, 'Sync from FreedCamp') }
                 </td>
               </tr>
             })

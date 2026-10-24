@@ -79,7 +79,8 @@ Do this only after the SharePoint article folder exists and, if you already have
 4. Check **文章类别**, **slug**, **作者**, **称呼**, and **作者电邮**.
    - **Search** on email uses that author’s last known address from earlier rows.
 5. **文章链接** is optional. Use **Browse** if you want to store a source-file URL on the sheet. This does **not** replace putting the file in folder 0.
-6. Click **Save**.
+6. **备注** is optional notes for this 文件. It is stored on the Excel **备注** column.
+7. Click **Save**.
 
 **mainFolder** must be the article folder’s sharing link, not a long `/Shared Documents/...` path with the 文件 name stuck on the end.
 
@@ -138,7 +139,7 @@ Each row is one article on the main Excel sheet.
 
 | Control | What it does |
 | --- | --- |
-| **Search** | Filters by **author**, **article**, **date**, or **category**. A search also finds Done rows. |
+| **Search** | Filters by **author**, **article**, **date**, **category**, or **备注**. A search also finds Done rows. |
 | **Add New Project** | Appends a new article row |
 | **Reload** | Reloads the Excel list only |
 | **Reload All** | Reloads Excel and FreedCamp (use after creating a task, or when cells look stale) |
@@ -150,12 +151,12 @@ The number in the top-right corner opens a log of recent actions.
 
 ### Reading a row
 
+- **Line** — first column, Excel row number. Click the number to **edit this project** (author, folder, slug, 备注, …). Orange **Sync** copies matching FreedCamp values into the sheet. Hover for the field list.
 - **文件** — article name. Click it to open the SharePoint folder (`mainFolder`).
   - **preview** appears after 发布 is completed and the row is not Done.
   - **view on website** appears after **Done** is checked.
 - **校对 / 二校 / 美工 / 语审 / 教审 / 发布** (and any other actions on the sheet) — that FreedCamp task. Click an **empty** cell to create it.
 - **Done** — writes `Y` on the sheet and hides the row unless **Show all** is on.
-- **Line** — Excel row number. **Sync from FreedCamp** copies matching FreedCamp fields into the sheet.
 
 Click the person icon on an action column header for assignment history.
 
@@ -165,12 +166,26 @@ Click the person icon on an action column header for assignment history.
 | --- | --- |
 | Empty cell | No task yet. Hover shows **Click the Cell to Create 校对 Task** (or 二校, …). Click the cell to create it |
 | **Delete** plus a task ID | A FreedCamp task exists but is not assigned. You can delete it here |
-| Editor name | Task is assigned. The name turns **red** if the task is past due or due within the **days** window (default 3). Hover for the due date. Click the name to see title, assigned, created, due, description, and comments. Delete is hidden |
-| A date in green or red | Completed in FreedCamp. Recent dates use the **days** highlight. Click the date to see the same task details, including comments |
+| Editor name | Task is assigned. The name turns **red** if the task is past due or due within the **days** window (default 3). Hover for the due date. Click the name to open the task. Delete is hidden |
+| A date in green or red | Completed in FreedCamp. Recent dates use the **days** highlight. Click the date to open the same task |
 | **Done** | Sheet task ID is marked done |
 | **No English** | This action is skipped for English-only articles |
 
 Once a task is assigned, do not delete it from this grid. To undo a mistake: delete the task in FreedCamp, clear that action’s `TaskId` cell in Excel (empty, not `done`), then **Reload All**.
+
+### Edit a project / 备注
+
+Add a column named **备注** on the **main** Excel sheet header row — **at the end (rightmost)**, not inserted on the left. Save the workbook, then **Reload**. Inserting on the left shifts 校对 / 美编 / 教审 and the Sync tooltip will say those columns were not found.
+
+Click the **Line** number. The popup title is the **文件** name, with the **备注** under it. Change author, folder, slug, article fields, or the **备注**, then **Save**. A message confirms `{文件} 文件 saved successfully`. The 备注 also shows under **文件** on the grid (two lines). This does not change FreedCamp tasks.
+
+### Edit a FreedCamp task from this site
+
+Click the editor name or the completed date. The popup is an editor, not a copy of the FreedCamp website.
+
+You can change **title**, **status** (No Progress / In Progress / Completed), **assignee**, **due date**, and **description**. Assigned lists editors for that action from the editor sheet, not everyone in FreedCamp. Comments stay read-only.
+
+Click **Save to FreedCamp**. The grid updates that cell without a full reload. Use **Reload All** if another tab or FreedCamp itself changed the task.
 
 ---
 

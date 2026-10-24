@@ -2,10 +2,12 @@ interface ErrorDialogProps {
   show: boolean;
   message: string;
   onClose: () => void;
+  variant?: 'error' | 'success';
 }
 
-export const ErrorDialog = ({ show, message, onClose }: ErrorDialogProps) => {
+export const ErrorDialog = ({ show, message, onClose, variant = 'error' }: ErrorDialogProps) => {
   if (!show) return null;
+  const isSuccess = variant === 'success';
 
   return (
     <div style={{
@@ -18,7 +20,7 @@ export const ErrorDialog = ({ show, message, onClose }: ErrorDialogProps) => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 2000
+      zIndex: 2400
     }} onClick={onClose}>
       <div style={{
         backgroundColor: 'white',
@@ -32,19 +34,19 @@ export const ErrorDialog = ({ show, message, onClose }: ErrorDialogProps) => {
       }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ 
           margin: '0 0 1rem 0', 
-          color: '#d32f2f',
+          color: isSuccess ? '#2e7d32' : '#d32f2f',
           display: 'flex',
           alignItems: 'center',
           gap: '10px'
         }}>
-          <span style={{ fontSize: '2rem' }}>⚠️</span>
-          Error
+          <span style={{ fontSize: '2rem' }}>{isSuccess ? '✓' : '⚠️'}</span>
+          {isSuccess ? 'Saved' : 'Error'}
         </h2>
         <pre style={{
-          backgroundColor: '#ffebee',
+          backgroundColor: isSuccess ? '#e8f5e9' : '#ffebee',
           padding: '1rem',
           borderRadius: '4px',
-          color: '#c62828',
+          color: isSuccess ? '#1b5e20' : '#c62828',
           whiteSpace: 'pre-wrap',
           wordBreak: 'break-word',
           fontSize: '14px',
@@ -56,7 +58,7 @@ export const ErrorDialog = ({ show, message, onClose }: ErrorDialogProps) => {
         <button 
           onClick={onClose}
           style={{
-            backgroundColor: '#d32f2f',
+            backgroundColor: isSuccess ? '#2e7d32' : '#d32f2f',
             color: 'white',
             border: 'none',
             padding: '10px 24px',

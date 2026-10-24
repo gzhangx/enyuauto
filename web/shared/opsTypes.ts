@@ -45,6 +45,8 @@ export interface Operation {
     mainFolder: string;
     slug: string;
     done: string | 'Y' | 'N' | '';
+    comment?: string;
+    备注?: string;
 }
 
 export function getTaskIdColumnName(action: ActionType): TaskIdKeys {

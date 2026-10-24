@@ -1,6 +1,6 @@
 
-import type { FreedCampComment, FreedCampLoginParams, ProjectTaskParams } from '../../../shared/freedcampTypes';
-import { anyKeyUpdater, formatLocalDateYyyyMmDd, type DebugLog, type FreeCampAndUpdateOperations, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
+import type { FreedCampComment, FreedCampLoginParams, IUserInfo, ProjectTaskParams } from '../../../shared/freedcampTypes';
+import { anyKeyUpdater, findFreedCampUserForEditor, formatLocalDateYyyyMmDd, type DebugLog, type FreeCampAndUpdateOperations, type ICombinedOpsAndFreeCampData, deleteItemActionTask } from '../../../shared/main_ops';
 import { getTaskIdColumnName, type IOperationWithLineNumber, type IOperationWithLineNumberAndParentTaskId, type IOpsConfig, type ISheetDataOps } from '../../../shared/opsTypes';
 import type { ActionType } from '../../lib/api';
 import { wordpressApi } from '../../lib/api';
@@ -202,28 +202,107 @@ function asCommentList(value: unknown): FreedCampComment[] {
 	return [];
 }
 
+const TASK_STATUSES = [
+	{ value: 0, label: 'No Progress' },
+	{ value: 2, label: 'In Progress' },
+	{ value: 1, label: 'Completed' },
+] as const;
+
+function statusLabel(status: number): string {
+	return TASK_STATUSES.find((row) => row.value === status)?.label || String(status);
+}
+
+function tsToDateInput(ts?: number, dueDate?: string): string {
+	if (dueDate && /^\d{4}-\d{2}-\d{2}/.test(dueDate)) return dueDate.slice(0, 10);
+	if (!ts) return '';
+	const date = new Date(ts * 1000);
+	if (Number.isNaN(date.getTime())) return '';
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function dateInputToTs(value: string): number | undefined {
+	if (!value) return undefined;
+	const parsed = Date.parse(`${value}T00:00:00`);
+	return Number.isNaN(parsed) ? undefined : Math.floor(parsed / 1000);
+}
+
+function editorsForAction(combined: ICombinedOpsAndFreeCampData | null, action: ActionType): IUserInfo[] {
+	if (!combined) return [];
+	const seen = new Set<string>();
+	const users: IUserInfo[] = [];
+	for (const info of combined.opsConfig.editorInfoAry) {
+		const inGroup = !info.group || info.group.indexOf(action) >= 0;
+		if (!inGroup) continue;
+		const user = findFreedCampUserForEditor(info.shortNameOnFreedCamp, combined);
+		if (!user) continue;
+		const id = String(user.user_id);
+		if (seen.has(id)) continue;
+		seen.add(id);
+		users.push({
+			...user,
+			full_name: info.shortNameOnFreedCamp || user.full_name,
+		});
+	}
+	return users;
+}
+
 const TaskDetailButton: React.FC<{
 	item: ProjectTaskParams;
 	action: ActionType;
 	daysShowAlertAfterComplete: number;
 	freeCampOpsWithCache: FreeCampAndUpdateOperations;
 	freedCampLoginParams: FreedCampLoginParams;
+	users: IUserInfo[];
+	onTaskUpdated: () => void;
 	children: JSX.Element;
-}> = ({ item, action, daysShowAlertAfterComplete, freeCampOpsWithCache, freedCampLoginParams, children }) => {
+}> = ({
+	item,
+	action,
+	daysShowAlertAfterComplete,
+	freeCampOpsWithCache,
+	freedCampLoginParams,
+	users,
+	onTaskUpdated,
+	children,
+}) => {
 	const [open, setOpen] = useState(false);
 	const [detail, setDetail] = useState<ProjectTaskParams>(item);
 	const [commentsStatus, setCommentsStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 	const [commentsError, setCommentsError] = useState('');
+	const [title, setTitle] = useState(item.title || '');
+	const [status, setStatus] = useState(String(item.status ?? item.status_id ?? 0));
+	const [assignedToId, setAssignedToId] = useState(String(item.assigned_to_id || '0'));
+	const [dueDate, setDueDate] = useState(tsToDateInput(item.due_ts, item.due_date));
+	const [saving, setSaving] = useState(false);
+	const [saveMessage, setSaveMessage] = useState('');
+	const [saveError, setSaveError] = useState('');
+	const dirtyRef = useRef(false);
+	const descRef = useRef<HTMLDivElement | null>(null);
 	const itemRef = useRef(item);
 	const opsRef = useRef(freeCampOpsWithCache);
 	const loginRef = useRef(freedCampLoginParams);
 	itemRef.current = item;
 	opsRef.current = freeCampOpsWithCache;
 	loginRef.current = freedCampLoginParams;
+
+	const applyTaskToForm = (task: ProjectTaskParams) => {
+		setTitle(task.title || '');
+		setStatus(String(task.status ?? task.status_id ?? 0));
+		setAssignedToId(String(task.assigned_to_id || '0'));
+		setDueDate(tsToDateInput(task.due_ts, task.due_date));
+		if (descRef.current) {
+			descRef.current.innerHTML = (task.description_processed || task.description || '').trim();
+		}
+	};
+
 	useEffect(() => {
 		if (!open) return;
+		dirtyRef.current = false;
+		setSaveMessage('');
+		setSaveError('');
 		const current = itemRef.current;
 		setDetail(current);
+		applyTaskToForm(current);
 		if (!current.id) {
 			setCommentsStatus('ready');
 			return;
@@ -244,7 +323,13 @@ const TaskDetailButton: React.FC<{
 				if (cancelled) return;
 				window.clearTimeout(timeout);
 				const comments = asCommentList(full.comments);
-				setDetail({ ...current, ...full, comments });
+				const merged = { ...current, ...full, comments };
+				if ((!merged.assigned_to_id || merged.assigned_to_id === '0') && current.assigned_to_id && current.assigned_to_id !== '0') {
+					merged.assigned_to_id = current.assigned_to_id;
+					merged.assigned_to_fullname = current.assigned_to_fullname || merged.assigned_to_fullname;
+				}
+				setDetail(merged);
+				if (!dirtyRef.current) applyTaskToForm(merged);
 				setCommentsStatus('ready');
 			} catch (error: unknown) {
 				if (cancelled) return;
@@ -258,12 +343,111 @@ const TaskDetailButton: React.FC<{
 			window.clearTimeout(timeout);
 		};
 	}, [open, item.id]);
-	const assigned = detail.assigned_to_id && detail.assigned_to_id !== '0'
-		? (detail.assigned_to_fullname || detail.assigned_to_id)
-		: 'Unassigned';
-	const dueSoon = isPastDueOrSoon(detail.due_ts ? detail.due_ts * 1000 : undefined, daysShowAlertAfterComplete);
-	const dueText = detail.due_ts ? formatTaskWhen(detail.due_ts) : (detail.due_date || '—');
+
+	const markDirty = () => {
+		dirtyRef.current = true;
+		setSaveMessage('');
+		setSaveError('');
+	};
+
+	const saveTask = async () => {
+		if (!detail.id) {
+			setSaveError('This task has no FreedCamp id.');
+			return;
+		}
+		setSaving(true);
+		setSaveError('');
+		setSaveMessage('');
+		try {
+			const token = await opsRef.current.getFreedCampToken(loginRef.current, false);
+			const processor = opsRef.current.getFreedCampProcessor(token);
+			const nextStatus = Number(status);
+			const description = descRef.current?.innerHTML || '';
+			const dueTs = dateInputToTs(dueDate);
+			await processor.doPostAttachment(String(detail.id), {
+				priority: 2,
+				title: title.trim(),
+				description,
+				assigned_to_id: assignedToId,
+				due_date: dueDate || undefined,
+				due_ts: dueTs,
+				start_date: tsToDateInput(detail.start_ts, detail.start_date) || undefined,
+				status: nextStatus,
+				status_id: nextStatus,
+			});
+			const assignee = users.find((user) => String(user.user_id) === assignedToId);
+			let updated: ProjectTaskParams = {
+				...detail,
+				title: title.trim(),
+				description,
+				assigned_to_id: assignedToId,
+				assigned_to_fullname: assignedToId === '0' ? '' : (assignee?.full_name || detail.assigned_to_fullname),
+				due_date: dueDate || undefined,
+				due_ts: dueTs,
+				status: nextStatus,
+				status_id: nextStatus,
+				status_title: statusLabel(nextStatus),
+				completed_ts: nextStatus === 1 ? (detail.completed_ts || Math.floor(Date.now() / 1000)) : undefined,
+			};
+			try {
+				const full = await processor.getTask(String(detail.id));
+				updated = {
+					...updated,
+					...full,
+					comments: asCommentList(full.comments).length ? asCommentList(full.comments) : updated.comments,
+				};
+			} catch {
+				// Keep the local copy if FreedCamp does not return the saved task.
+			}
+			const keptTitle = (updated.title || '').trim();
+			const keptAssigned = String(updated.assigned_to_id || '0');
+			const keptStatus = Number(updated.status ?? updated.status_id ?? nextStatus);
+			const keptDue = tsToDateInput(updated.due_ts, updated.due_date);
+			const missed: string[] = [];
+			if (title.trim() && keptTitle && keptTitle !== title.trim()) missed.push('title');
+			if (keptAssigned !== String(assignedToId)) missed.push('assigned');
+			if (keptStatus !== nextStatus) missed.push('status');
+			if (dueDate && keptDue && keptDue !== dueDate) missed.push('due date');
+			updated = {
+				...updated,
+				title: title.trim(),
+				description,
+				assigned_to_id: assignedToId,
+				assigned_to_fullname: assignedToId === '0' ? '' : (assignee?.full_name || updated.assigned_to_fullname),
+				due_date: dueDate || undefined,
+				due_ts: dueTs,
+				status: nextStatus,
+				status_id: nextStatus,
+				status_title: statusLabel(nextStatus),
+			};
+			Object.assign(item, updated);
+			setDetail(updated);
+			applyTaskToForm(updated);
+			if (missed.length) {
+				setSaveError(`FreedCamp did not keep: ${missed.join(', ')}. The server may still need an update.`);
+			} else {
+				dirtyRef.current = false;
+				setSaveMessage('Saved to FreedCamp.');
+			}
+			onTaskUpdated();
+		} catch (error: unknown) {
+			setSaveError((error as Error)?.message || String(error));
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const dueSoon = isPastDueOrSoon(dateInputToTs(dueDate) ? dateInputToTs(dueDate)! * 1000 : undefined, daysShowAlertAfterComplete);
 	const comments = detail.comments || item.comments || [];
+	const assigneeOptions = [...users].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
+	if (assignedToId && assignedToId !== '0' && !assigneeOptions.some((user) => String(user.user_id) === assignedToId)) {
+		assigneeOptions.unshift({
+			user_id: assignedToId,
+			full_name: detail.assigned_to_fullname || assignedToId,
+			email: '',
+		});
+	}
+
 	return (
 		<>
 			<button
@@ -281,54 +465,110 @@ const TaskDetailButton: React.FC<{
 				<div
 					className="fc-task-overlay"
 					onClick={(event) => {
-						if (event.target === event.currentTarget) setOpen(false);
+						if (!saving && event.target === event.currentTarget) setOpen(false);
 					}}
 				>
 					<div className="fc-task-dialog" onClick={(event) => event.stopPropagation()}>
 						<div className="fc-task-dialog-head">
 							<h2>{action} task</h2>
-							<button type="button" className="fc-task-close" onClick={() => setOpen(false)}>Close</button>
+							<button type="button" className="fc-task-close" onClick={() => { if (!saving) setOpen(false); }}>Close</button>
 						</div>
-						<dl className="fc-task-meta">
-							<div><dt>Title</dt><dd>{detail.title || '—'}</dd></div>
-							<div><dt>Task ID</dt><dd>{detail.id || '—'}</dd></div>
-							<div><dt>Status</dt><dd>{detail.status_title || '—'}</dd></div>
-							<div><dt>Assigned</dt><dd>{assigned}</dd></div>
-							<div><dt>Created</dt><dd>{formatTaskWhen(detail.created_ts)}</dd></div>
-							<div>
-								<dt>Due</dt>
-								<dd style={{ color: dueSoon ? 'red' : undefined, fontWeight: dueSoon ? 'bold' : undefined }}>{dueText}</dd>
-							</div>
-							<div><dt>Completed</dt><dd>{formatTaskWhen(detail.completed_ts)}</dd></div>
-							<div><dt>Priority</dt><dd>{detail.priority_title || '—'}</dd></div>
-						</dl>
-						<div className="fc-task-desc-label">Description</div>
-						<div
-							className="fc-task-desc"
-							dangerouslySetInnerHTML={{ __html: (detail.description_processed || detail.description || '').trim() || 'No description on this task.' }}
-						/>
-						<div className="fc-task-desc-label">Comments</div>
-						{commentsStatus === 'loading' && <div className="fc-task-comments-status">Loading comments…</div>}
-						{commentsStatus === 'error' && <div className="fc-task-comments-status">{commentsError || 'Could not load comments.'}</div>}
-						{commentsStatus === 'ready' && comments.length === 0 && (
-							<div className="fc-task-comments-status">No comments on this task.</div>
-						)}
-						{comments.length > 0 && (
-							<div className="fc-task-comments">
-								{comments.map((comment, index) => (
-									<div key={comment.id || index} className="fc-task-comment">
-										<div className="fc-task-comment-meta">
-											<strong>{commentAuthor(comment)}</strong>
-											<span>{formatTaskWhen(comment.created_ts)}</span>
-										</div>
-										<div
-											className="fc-task-comment-body"
-											dangerouslySetInnerHTML={{ __html: commentBody(comment) || '—' }}
+						<div className="fc-task-dialog-body">
+							<dl className="fc-task-meta">
+								<div className="fc-task-wide">
+									<dt>Title</dt>
+									<dd>
+										<input
+											className="fc-task-input"
+											value={title}
+											onChange={(event) => { markDirty(); setTitle(event.target.value); }}
 										/>
-									</div>
-								))}
-							</div>
-						)}
+									</dd>
+								</div>
+								<div><dt>Task ID</dt><dd>{detail.id || '—'}</dd></div>
+								<div>
+									<dt>Status</dt>
+									<dd>
+										<select
+											className="fc-task-input"
+											value={status}
+											onChange={(event) => { markDirty(); setStatus(event.target.value); }}
+										>
+											{TASK_STATUSES.map((row) => (
+												<option key={row.value} value={row.value}>{row.label}</option>
+											))}
+										</select>
+									</dd>
+								</div>
+								<div>
+									<dt>Assigned</dt>
+									<dd>
+										<select
+											className="fc-task-input"
+											value={assignedToId}
+											onChange={(event) => { markDirty(); setAssignedToId(event.target.value); }}
+										>
+											<option value="0">Unassigned</option>
+											{assigneeOptions.map((user) => (
+												<option key={String(user.user_id)} value={String(user.user_id)}>{user.full_name}</option>
+											))}
+										</select>
+									</dd>
+								</div>
+								<div><dt>Created</dt><dd>{formatTaskWhen(detail.created_ts)}</dd></div>
+								<div>
+									<dt>Due</dt>
+									<dd>
+										<input
+											className="fc-task-input"
+											type="date"
+											value={dueDate}
+											style={{ color: dueSoon ? 'red' : undefined, fontWeight: dueSoon ? 'bold' : undefined }}
+											onChange={(event) => { markDirty(); setDueDate(event.target.value); }}
+										/>
+									</dd>
+								</div>
+								<div><dt>Priority</dt><dd>{detail.priority_title || '—'}</dd></div>
+							</dl>
+							<div className="fc-task-desc-label">Description</div>
+							<div
+								ref={descRef}
+								className="fc-task-desc"
+								contentEditable
+								suppressContentEditableWarning
+								onInput={markDirty}
+							/>
+							<div className="fc-task-desc-label">Comments</div>
+							{commentsStatus === 'loading' && <div className="fc-task-comments-status">Loading comments…</div>}
+							{commentsStatus === 'error' && <div className="fc-task-comments-status">{commentsError || 'Could not load comments.'}</div>}
+							{commentsStatus === 'ready' && comments.length === 0 && (
+								<div className="fc-task-comments-status">No comments on this task.</div>
+							)}
+							{comments.length > 0 && (
+								<div className="fc-task-comments">
+									{comments.map((comment, index) => (
+										<div key={comment.id || index} className="fc-task-comment">
+											<div className="fc-task-comment-meta">
+												<strong>{commentAuthor(comment)}</strong>
+												<span>{formatTaskWhen(comment.created_ts)}</span>
+											</div>
+											<div
+												className="fc-task-comment-body"
+												dangerouslySetInnerHTML={{ __html: commentBody(comment) || '—' }}
+											/>
+										</div>
+									))}
+								</div>
+							)}
+						</div>
+						<div className="fc-task-footer">
+							{saveMessage && <span className="fc-task-save-msg">{saveMessage}</span>}
+							{saveError && <span className="fc-task-save-err">{saveError}</span>}
+							<button type="button" className="fc-task-close" disabled={saving} onClick={() => setOpen(false)}>Close</button>
+							<button type="button" className="fc-task-save" disabled={saving} onClick={saveTask}>
+								{saving ? 'Saving…' : 'Save to FreedCamp'}
+							</button>
+						</div>
 					</div>
 				</div>
 			)}
@@ -358,7 +598,6 @@ export function renderSyncActionCell(
 	p: IOperationWithLineNumberAndParentTaskId,
 	freedCampLoginParams: FreedCampLoginParams,
     deps: RenderActionCellDeps,
-    desc: string,
 ) {
 	const {
 		sheetOpsRef,
@@ -395,7 +634,15 @@ export function renderSyncActionCell(
 	return (
 		<button
 			className="btn btn-create"
-			style={{ marginLeft: '5px', background: updates.length === 0 ? '#9e9e9e' : '#ff9800', color: 'white' }}
+			style={{
+				display: 'block',
+				marginTop: 4,
+				padding: '2px 8px',
+				fontSize: 12,
+				lineHeight: 1.3,
+				background: updates.length === 0 ? '#9e9e9e' : '#ff9800',
+				color: 'white',
+			}}
 			title={tooltipText}
 			disabled={updates.length === 0}
 			onClick={async () => {
@@ -422,7 +669,7 @@ export function renderSyncActionCell(
 				}
 			}}
 		>
-			{desc} { updates.length}
+			Sync
 		</button>
 	);
 }
@@ -439,6 +686,7 @@ export type RenderActionCellDeps = {
 	doLog: (msg: string) => void;
 	fetchData: (freedCampCredentials: FreedCampLoginParams) => Promise<void>;
 	setErrorDialog: (v: { show: boolean; message: string }) => void;
+	onTaskUpdated: () => void;
 	//logParam: { doLog: (msg: string) => void };
 	daysShowAlertAfterComplete: number;
 	msToken?: string | null;
@@ -461,6 +709,7 @@ export function renderActionCell(
 		doLog,
 		//fetchData,
 		//setErrorDialog,
+		onTaskUpdated,
 		daysShowAlertAfterComplete,
 		msToken,
 		wpToken,
@@ -513,6 +762,8 @@ export function renderActionCell(
 					daysShowAlertAfterComplete={daysShowAlertAfterComplete}
 					freeCampOpsWithCache={freeCampOpsWithCache}
 					freedCampLoginParams={freedCampLoginParams}
+					users={editorsForAction(combined, action)}
+					onTaskUpdated={onTaskUpdated}
 				>
 					{node}
 				</TaskDetailButton>
@@ -573,18 +824,22 @@ export function renderActionCell(
 	}
 	return (
 		<>
-			{ !hasAssignedTo && !hasCompletedDate && <button
-				className="btn btn-delete"
-				title={tooltipText}
-				onClick={async () => {
-					if (sheetOpsRef.current && combined) {
-							await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, freedCampLoginParams, combined.opsConfig, p, action, { doLog });
-					}
-				}}
-			>
-				Delete {p[getTaskIdColumnName(action)]}
-			</button>
-			}
+			{ !hasAssignedTo && !hasCompletedDate && (
+				<>
+					{openTask(<span className="fc-unassigned">Unassigned</span>)}
+					<button
+						className="btn btn-delete"
+						title={tooltipText}
+						onClick={async () => {
+							if (sheetOpsRef.current && combined) {
+								await deleteItemActionTask(sheetOpsRef.current, freeCampOpsWithCache, freedCampLoginParams, combined.opsConfig, p, action, { doLog });
+							}
+						}}
+					>
+						Delete
+					</button>
+				</>
+			)}
 			{
 				assignedEditorDsp
 			}
