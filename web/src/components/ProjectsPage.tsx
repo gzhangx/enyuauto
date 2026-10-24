@@ -1071,7 +1071,7 @@ export const ProjectsPage = ({ onNavigateToFreedCamp }: { onNavigateToFreedCamp?
       const previousNamed = previous.filter(Boolean);
       const looksComplete = named.includes('文件') && named.length >= Math.min(previousNamed.length, 8);
       if (looksComplete) {
-        setOpsConfig((prev) => prev ? { ...prev, headers } : prev);
+        if (opsConfig) setOpsConfig({ ...opsConfig, headers });
         return headers;
       }
       doLog(`Kept previous main headers; refreshed list looked incomplete (${named.length} named columns).`);
