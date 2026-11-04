@@ -51,9 +51,7 @@ Do not skip the copy. 二校 should not start from the file still sitting only i
 
 ### What 文章链接 is (and is not)
 
-**文章链接** is a field on the Excel row. When you **Add New Project**, you may Browse and save a file URL there (often the original article). That is a bookmark on the sheet.
-
-It is **not** what 校对 / 二校 / 美编 / 教审 / 语审 browse when you create a task.
+**文章链接** is a field on the Excel row. When you **Add New Project**, you may Browse and save a file URL there (often the original article). That is an optional bookmark on the sheet. Create Task does **not** read or update it.
 
 Those actions always look in the numbered folders above:
 
@@ -61,7 +59,7 @@ Those actions always look in the numbered folders above:
 - Folder **1** and folder **2** are for **二校**.
 - **文章链接** does not fill folder 0 or folder 1 by itself. You still put the original file into folder 0 in SharePoint.
 
-If the FreedCamp template has `{article}`, the link in the task is usually the **copied** file in the destination folder (folder 1 after 校对, folder 2 after 二校), not the 文章链接 cell.
+If the FreedCamp template has `{article}`, the link in the task is the **copied** file in the destination folder (folder 1 after 校对, folder 2 after 二校), not the 文章链接 cell.
 
 ---
 
@@ -111,9 +109,9 @@ The **File** dropdown lists files from the folders for that action (`/folder/fil
 
 | You are creating | Dropdown lists | What Create Task does with the file you pick |
 | --- | --- | --- |
-| **校对** (一校) | `0. Original Materials` **and** `1 Text Editor & First Proofread` | **Copies** it into folder **1**. First time: pick the original in folder 0. Later: you can pick the copy already in folder 1. |
-| **二校** | Folder **1** **and** folder **2** | **Copies** it into folder **2**. Normal case: pick the finished first-proof file in folder 1. |
-| **美编** | Folder **2**. If that is empty, folder **1** | **Copies** it into folder **3**. |
+| **校对** (一校) | `0. Original Materials` **and** `1 Text Editor & First Proofread` | **Copies** it into folder **1**. The `{article}` link in the task is the file **in folder 1**, not folder 0. First time: pick the original in folder 0. Later: you can pick the copy already in folder 1. |
+| **二校** | Folder **1** **and** folder **2** | **Copies** it into folder **2**. The `{article}` link is the file **in folder 2**. Normal case: pick the finished first-proof file in folder 1. |
+| **美编** | Folder **2**. If that is empty, folder **1** | **Copies** it into folder **3**. The `{article}` link is the file **in folder 3**. |
 | **教审** | Folder **0** only | Does **not** copy. The task links to the original in folder 0. |
 | **语审** | `.mp3` files in folder **5** | Does **not** copy. The mp3 link goes into `{voice_file}` in the description, not `{article}`. |
 | **发布** | Whatever the Excel mapping says (usually `4 Publish`) | Follow the File line in the dialog (`Will copy … into folder /…` vs `File from …`). 文章摘要 / 相关文章 need a signed file in folder 4 (`*_signed.pdf` or the matching Word file). |
@@ -121,15 +119,17 @@ The **File** dropdown lists files from the folders for that action (`/folder/fil
 **校对 vs 二校, in practice**
 
 1. Manuscript is in folder 0. Folder 1 may still be empty.
-2. Create **校对**, pick the folder 0 file. The site copies it to folder 1. The first editor works in folder 1.
+2. Create **校对**, pick the folder 0 file. The site copies it to folder 1 and puts the folder-1 file in `{article}`. The first editor works in folder 1.
 3. When first proof is done, the updated file is in folder 1 (the editor saves there).
-4. Create **二校**, pick that folder 1 file. The site copies it to folder 2. The second editor works in folder 2.
+4. Create **二校**, pick that folder 1 file. The site copies it to folder 2 and puts the folder-2 file in `{article}`. The second editor works in folder 2.
+
+Any action that copies a file into another folder does the copy first, then puts the **new** file’s link in the task. If the File line only says `File from …` (教审, 语审), there is no copy; the task keeps the file you picked.
 
 **文章链接 is not used in these dropdowns.** If folder 0 is empty, 校对 cannot pick a file even if 文章链接 is filled. Put the file in folder 0 first.
 
 If folder 1 is empty when you create **二校**, the File line says **Create 校对 first, or put the first-proof file in folder 1** — not a generic list error.
 
-Other action names on the sheet follow the Excel config `mapping` rows (copy from a folder name, or from a sheet column such as 文章链接). If the File line says `Will copy … into folder /2 Second Proofread.`, creating the task will copy. If it only says `File from …`, it only inserts a link.
+Other action names on the sheet follow the Excel config `mapping` rows (copy from a folder name, or from a sheet column such as 文章链接). If the File line says `Will copy … into folder /2 Second Proofread.`, creating the task copies first and the `{article}` link is the new file. If it only says `File from …`, it only inserts a link.
 
 ---
 
@@ -143,7 +143,7 @@ Each row is one article on the main Excel sheet.
 | **Add New Project** | Appends a new article row |
 | **Reload** | Reloads the Excel list only |
 | **Reload All** | Reloads Excel and FreedCamp (use after creating a task, or when cells look stale) |
-| **Sync All** | Writes FreedCamp values back to Excel when orange sync buttons appear |
+| **Sync All** | Writes FreedCamp values back to Excel when orange sync buttons appear. A spinner shows **正在更新** plus the article name and **1/3, 2/3, 3/3** (this article of how many need sync). It can take a while. |
 | **Show all** | Includes rows marked Done |
 | **days** | How many days a completed date stays highlighted, and how soon a due date is treated as urgent (0–10) |
 

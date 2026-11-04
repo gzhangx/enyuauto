@@ -771,7 +771,7 @@ export function getActionFilePlan(
     if ((action as string) === '教审') {
         return { sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.original] };
     }
-    if ((action as string) === '校对') {
+    if ((action as string) === '校对' || (action as string) === '一校') {
         return {
             sourceFolders: [SHAREPOINT_ARTICLE_FOLDERS.original, SHAREPOINT_ARTICLE_FOLDERS.firstProof],
             destFolder: SHAREPOINT_ARTICLE_FOLDERS.firstProof,
@@ -808,6 +808,32 @@ export function getActionFilePlan(
         return { sourceColumn: name, destFolder: mapping.copyFileTo.trim() };
     }
     return undefined;
+}
+
+/** After a SharePoint copy, point {article} in the (possibly edited) preview at the destination file. */
+export function applyCopiedArticleLink(
+    html: string,
+    destUrl: string,
+    sourceUrls: Array<string | undefined>,
+    articleTitle: string,
+): string {
+    if (!html || !destUrl) return html;
+    let out = html;
+    for (const src of sourceUrls) {
+        const url = (src || '').trim();
+        if (!url || url === destUrl) continue;
+        out = out.split(url).join(destUrl);
+        const encoded = url.replace(/&/g, '&amp;');
+        if (encoded !== url) out = out.split(encoded).join(destUrl);
+    }
+    if (out.includes(destUrl)) return out;
+    if (!articleTitle) return out;
+    const escaped = articleTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const linked = new RegExp(`<a\\s+[^>]*href=["'][^"']*["'][^>]*>\\s*${escaped}\\s*</a>`, 'i');
+    if (linked.test(out)) {
+        return out.replace(linked, `<a href="${destUrl}">${articleTitle}</a>`);
+    }
+    return out.replace(articleTitle, `<a href="${destUrl}">${articleTitle}</a>`);
 }
 
 function isChineseTitle(title: string): boolean {
@@ -1339,7 +1365,7 @@ export async function buildFilledTaskTemplate(input: BuildTaskTemplateInput): Pr
     let copyLink = input.copyLink
         || (filePlan?.sourceColumn ? ((operation as any)[filePlan.sourceColumn] as string | undefined)?.trim() : '')
         || (mappingConfig?.replaceInTemplateCopiedFile ? operation['文章链接'] : '');
-    if (pickedSource?.webUrl && !filePlan?.destFolder && filePlan?.usePickedAsArticle !== false) {
+    if (pickedSource?.webUrl && filePlan?.usePickedAsArticle !== false) {
         copyLink = pickedSource.webUrl;
     }
 
@@ -1514,33 +1540,39 @@ export async function processOperation(
             }
             let copyLink = sourceValue
                 || (mappingConfig?.replaceInTemplateCopiedFile ? operation['文章链接'] : '');
-            if (pickedSource?.webUrl && !filePlan?.destFolder && filePlan?.usePickedAsArticle !== false) {
+            if (pickedSource?.webUrl && filePlan?.usePickedAsArticle !== false) {
                 copyLink = pickedSource.webUrl;
             }
             const destFolder = filePlan?.destFolder || mappingConfig?.copyFileTo;
             if (destFolder && (pickedSource || sourceValue)) {
-                const destValue = operation.mainFolder
-                    ? await joinSharePointPath(msToken!, operation.mainFolder, destFolder)
-                    : undefined;
-                if (destValue?.path?.trim()) {
-                    if (!msToken) {
-                        throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
-                    }
-                    if (pickedSource) {
-                        log.doLog(`processOperation: ${action} copies ${pickedSource.name} to ${destFolder}`);
-                    }
-                    const copiedFileWebUrl = await copySharePointFile(msToken, pickedSource ?? sourceValue!, destValue.path.trim(), log);
-                    if (copiedFileWebUrl) {
-                        if (mappingConfig?.updateCopiedFileToColumnName) {
-                            operation[mappingConfig.updateCopiedFileToColumnName as ActionType] = copiedFileWebUrl;
-                            await updateAnyColumn(ops, combined.opsConfig, operation, mappingConfig.updateCopiedFileToColumnName, copiedFileWebUrl, log);
-                        }
-                        copyLink = copiedFileWebUrl;
-                    }
+                if (!msToken) {
+                    throw new Error('MS Graph token is required to copy SharePoint files for action ' + action);
                 }
+                if (!operation.mainFolder) {
+                    throw new Error(`mainFolder is empty; cannot copy into ${destFolder} for ${action}`);
+                }
+                const destValue = await joinSharePointPath(msToken, operation.mainFolder, destFolder);
+                if (!destValue?.path?.trim()) {
+                    throw new Error(`Could not find folder ${destFolder} under the article folder.`);
+                }
+                if (pickedSource) {
+                    log.doLog(`processOperation: ${action} copies ${pickedSource.name} to ${destFolder}`);
+                }
+                const copiedFileWebUrl = await copySharePointFile(msToken, pickedSource ?? sourceValue!, destValue.path.trim(), log);
+                if (!copiedFileWebUrl) {
+                    throw new Error(`Copy into ${destFolder} did not return a file link for ${action}`);
+                }
+                copyLink = copiedFileWebUrl;
             }
 
             let template1 = descriptionOverrides?.get(action);
+            if (template1 && copyLink && filePlan?.usePickedAsArticle !== false) {
+                template1 = applyCopiedArticleLink(template1, copyLink, [
+                    pickedSource?.webUrl,
+                    sourceValue,
+                    operation['文章链接'],
+                ], (operation['文章名'] || '').trim());
+            }
             if (!template1) {
                 template1 = await buildFilledTaskTemplate({
                     action,
