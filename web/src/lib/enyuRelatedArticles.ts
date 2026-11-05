@@ -22,7 +22,7 @@ function titleMatchesLanguage(title: string, language: ArticleLanguage): boolean
 }
 
 const LISTING_TITLES = new Set([
-    ...CATEGORY_ALIASES.flatMap((alias) => [alias.chinese, alias.english]),
+    ...CATEGORY_ALIASES.flatMap((alias) => [alias.chinese, alias.english].filter(Boolean)),
     '近期文章',
     '推荐文章',
     'Recent Articles',

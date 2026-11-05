@@ -84,8 +84,8 @@ function categorySearchTerms(project: IOperationWithLineNumberAndParentTaskId): 
   const blob = `${project.文章类别 || ''} ${project.文件 || ''}`;
   const terms: string[] = [];
   for (const alias of CATEGORY_ALIASES) {
-    if (blob.includes(alias.chinese) || blob.toLowerCase().includes(alias.english.toLowerCase())) {
-      terms.push(alias.chinese, alias.english);
+    if (blob.includes(alias.chinese) || (alias.english && blob.toLowerCase().includes(alias.english.toLowerCase()))) {
+      terms.push(alias.chinese, ...(alias.english ? [alias.english] : []));
     }
   }
   return terms;

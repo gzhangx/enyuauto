@@ -71,7 +71,6 @@ Do this only after the SharePoint article folder exists and, if you already have
 2. Fill **文件** in this order, then click outside the box:
    - `{category} {YYYY-MM-DD} {author} {article title}`
    - Example: `宣教无国界 2026-10-21 Jane Lee Who Is that in the Painting`
-   - For **佳作分享**, leave the article title off. It is a book passage, so **文章名** can stay empty.
 3. Or click **Browse SharePoint**, open `General` → year-month → the article folder, then **Use this folder**.
    - That fills **文件** from the folder name and saves a SharePoint **sharing** link in **mainFolder** (`:f:/s/...`).
 4. Check **文章类别**, **slug**, **作者**, **称呼**, and **作者电邮**.
@@ -177,7 +176,7 @@ Once a task is assigned, do not delete it from this grid. To undo a mistake: del
 
 Add a column named **备注** on the **main** Excel sheet header row — **at the end (rightmost)**, not inserted on the left. Save the workbook, then **Reload**. Inserting on the left shifts 校对 / 美编 / 教审 and the Sync tooltip will say those columns were not found.
 
-Click the **Line** number. The popup title is the **文件** name, with the **备注** under it. Change author, folder, slug, article fields, or the **备注**, then **Save**. A message confirms `{文件} 文件 saved successfully`. The 备注 also shows under **文件** on the grid (two lines). This does not change FreedCamp tasks.
+Click the **Line** number. The popup title is the **文件** name, with the **备注** under it. Change author, folder, slug, article fields, or the **备注**, then **Save**. After you change **文章类别**, click **Update slug** to fill `YYYY-MM-{letter}{nn}` (恩语艺廊 uses **e**). The date comes from **文件**, for example `2026-10-16 恩语艺廊 罗丽丹 留一个空间` → `2026-10-e01`. That writes Excel only; it does not change the live website URL. A message confirms `{文件} 文件 saved successfully`. The 备注 also shows under **文件** on the grid (two lines). This does not change FreedCamp tasks.
 
 ### Edit a FreedCamp task from this site
 

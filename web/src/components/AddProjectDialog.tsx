@@ -3,6 +3,7 @@ import { createSharePointFolderSharingUrl, listSharePointFolder } from '../lib/m
 import {
     categoryHasNoArticleTitle,
     categoryLetter,
+    dateFromText,
     findAuthorEmail,
     nextSlug,
     parseFileInput,
@@ -65,7 +66,7 @@ function formFromInitial(initial?: Partial<NewProjectValues>) {
         title: initial.文章名 || parsed?.title || '',
         link: initial.文章链接 || '',
         slug: initial.slug || '',
-        date: parsed?.date || '',
+        date: parsed?.date || dateFromText(initial.文件 || ''),
         comment: initial.comment || '',
     };
 }
@@ -86,6 +87,7 @@ export function AddProjectDialog({
     const [form, setForm] = useState(() => formFromInitial(initial));
     const [parseNote, setParseNote] = useState('');
     const [emailNote, setEmailNote] = useState('');
+    const [slugNote, setSlugNote] = useState('');
     const [selectedFolderPath, setSelectedFolderPath] = useState('');
     const [browser, setBrowser] = useState<{
         mode: 'folder' | 'file';
@@ -113,7 +115,7 @@ export function AddProjectDialog({
     const onFileInput = (fileInput: string) => {
         const parsed = parseFileInput(fileInput);
         if (!parsed) {
-            setForm(prev => ({ ...prev, fileInput, date: '' }));
+            setForm(prev => ({ ...prev, fileInput, date: dateFromText(fileInput) }));
             setParseNote(fileInput.trim() ? 'Could not read 文件. Put the category, date, author, and article name in that order, separated by spaces.' : '');
             return;
         }
@@ -221,6 +223,24 @@ export function AddProjectDialog({
             category,
             slug: keepSlug ? prev.slug : nextSlug(prev.date, category, projects),
         }));
+        setSlugNote('');
+    };
+
+    const slugDate = form.date || dateFromText(form.fileInput);
+    const canUpdateSlug = Boolean(slugDate && categoryLetter(form.category));
+
+    const updateSlugFromCategory = () => {
+        const currentFile = (initial?.文件 || form.fileInput || '').trim();
+        const rows = currentFile
+            ? projects.filter(row => (row.文件 || '').trim() !== currentFile)
+            : projects;
+        const slug = nextSlug(slugDate, form.category, rows);
+        if (!slug) {
+            setSlugNote('Need 文章类别 and a date in 文件 to fill the slug.');
+            return;
+        }
+        setForm(prev => ({ ...prev, slug }));
+        setSlugNote(slug === form.slug ? `Slug is already ${slug}.` : `Slug set to ${slug}. Save to write it to Excel. The live website URL is not changed.`);
     };
 
     const renderBrowser = () => browser && (
@@ -359,8 +379,19 @@ export function AddProjectDialog({
                     </label>
                     <label className="add-project-field">
                         slug
-                        <input value={form.slug} onChange={(event) => setForm(prev => ({ ...prev, slug: event.target.value }))} />
+                        <div className="add-project-email">
+                            <input value={form.slug} onChange={(event) => { setForm(prev => ({ ...prev, slug: event.target.value })); setSlugNote(''); }} />
+                            <button
+                                type="button"
+                                title="Fill YYYY-MM-letterNN from 文章类别 and the date in 文件. Does not change the live website."
+                                disabled={!canUpdateSlug}
+                                onClick={updateSlugFromCategory}
+                            >
+                                Update slug
+                            </button>
+                        </div>
                     </label>
+                    {slugNote && <div className="add-project-note add-project-span">{slugNote}</div>}
                     {!form.category || categoryLetter(form.category) ? null : (
                         <div className="add-project-note add-project-span">This category has no slug letter. Type the slug yourself.</div>
                     )}
@@ -368,12 +399,12 @@ export function AddProjectDialog({
                         文章名
                         <input
                             value={form.title}
-                            placeholder={categoryHasNoArticleTitle(form.category) ? 'Not needed for 佳作分享' : ''}
+                            placeholder={categoryHasNoArticleTitle(form.category) ? 'Not needed for this category' : ''}
                             onChange={(event) => setForm(prev => ({ ...prev, title: event.target.value }))}
                         />
                     </label>
                     {categoryHasNoArticleTitle(form.category) && (
-                        <div className="add-project-note add-project-span">佳作分享 is a book passage, so 文章名 can be left empty.</div>
+                        <div className="add-project-note add-project-span">This old category had no 文章名, so the title can stay empty.</div>
                     )}
                     <label className="add-project-field add-project-span">
                         文章链接

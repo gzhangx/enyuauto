@@ -10,12 +10,15 @@ export const CATEGORY_ALIASES: CategoryAlias[] = [
     { chinese: '灵修园地', english: 'Garden of Devotions', letter: 'l' },
     { chinese: '感恩见证', english: 'Thanksgiving Testimonies', letter: 'g' },
     { chinese: '牧者的话', english: 'Pastrol & Elder Messages', letter: 'm' },
+    { chinese: '恩语艺廊', english: '', letter: 'e' },
     { chinese: '宣教无国界', english: 'Missions Beyond Borders', letter: 'x' },
-    { chinese: '佳作分享', english: 'Shared Book Passages', letter: 'j' },
 ];
 
 const EXTRA_ENGLISH_ALIASES: { english: string; chinese: string }[] = [
     { english: 'Pastoral & Elder Messages', chinese: '牧者的话' },
+    { english: '佳作分享', chinese: '恩语艺廊' },
+    { english: '佳作欣赏', chinese: '恩语艺廊' },
+    { english: 'Shared Book Passages', chinese: '恩语艺廊' },
 ];
 
 export type ParsedFileInput = {
@@ -62,7 +65,7 @@ function canonicalChinese(category: string): string {
     const trimmed = category.trim();
     const lower = trimmed.toLowerCase();
     for (const alias of CATEGORY_ALIASES) {
-        if (alias.chinese === trimmed || alias.english.toLowerCase() === lower) {
+        if (alias.chinese === trimmed || (alias.english && alias.english.toLowerCase() === lower)) {
             return alias.chinese;
         }
     }
@@ -74,9 +77,10 @@ function canonicalChinese(category: string): string {
     return '';
 }
 
-/** 佳作分享 is a book passage, so it has no 文章名. */
+/** Old 佳作分享 / 佳作欣赏 rows had no 文章名. 恩语艺廊 is a normal category. */
 export function categoryHasNoArticleTitle(category: string): boolean {
-    return canonicalChinese(category) === '佳作分享';
+    const raw = category.trim();
+    return raw === '佳作分享' || raw === '佳作欣赏' || raw.toLowerCase() === 'shared book passages';
 }
 
 export function categoryLetter(category: string): string {
@@ -93,18 +97,42 @@ function isLatinNameToken(token: string): boolean {
     return /^[A-Za-z][A-Za-z.'’-]*$/.test(token);
 }
 
-/**
- * Input form: `{文章类别} {date} {作者} {文章名}`.
- * A Chinese author is one word. An English author keeps following name words, such as `Sherra Lee`, until the title starts.
- */
-export function parseFileInput(input: string): ParsedFileInput | null {
-    const text = input.trim();
-    const match = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (!match || match.index === undefined) {
+function knownCategoryNames(): string[] {
+    return CATEGORY_ALIASES
+        .flatMap(alias => [
+            alias.chinese,
+            alias.english,
+            ...EXTRA_ENGLISH_ALIASES.filter(extra => extra.chinese === alias.chinese).map(extra => extra.english),
+        ])
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+}
+
+/** `YYYY-MM-DD` from a 文件 name such as `2026-10-16 恩语艺廊 罗丽丹 留一个空间`. */
+export function dateFromText(text: string): string {
+    const match = text.trim().match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!match) {
+        return '';
+    }
+    return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+}
+
+function splitCategoryFromRest(rest: string): { category: string; remainder: string } | null {
+    const trimmed = rest.trim();
+    if (!trimmed) {
         return null;
     }
-    const category = text.slice(0, match.index).trim();
-    const tokens = text.slice(match.index + match[0].length).trim().split(/\s+/).filter(Boolean);
+    for (const name of knownCategoryNames()) {
+        if (trimmed.toLowerCase().startsWith(name.toLowerCase())) {
+            return { category: name, remainder: trimmed.slice(name.length).trim() };
+        }
+    }
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    return { category: tokens[0], remainder: tokens.slice(1).join(' ') };
+}
+
+function parseAuthorAndTitle(category: string, date: string, rest: string): ParsedFileInput | null {
+    const tokens = rest.trim().split(/\s+/).filter(Boolean);
     const noTitle = categoryHasNoArticleTitle(category);
     if (!category || tokens.length < 1 || (!noTitle && tokens.length < 2)) {
         return null;
@@ -124,8 +152,31 @@ export function parseFileInput(input: string): ParsedFileInput | null {
     if (!author || (!noTitle && !title)) {
         return null;
     }
-    const date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
     return { category, date, author, title };
+}
+
+/**
+ * Accepts add-form `{文章类别} {date} {作者} {文章名}`
+ * or sheet `{date} {文章类别} {作者} {文章名}`.
+ * A Chinese author is one word. An English author keeps following name words, such as `Sherra Lee`, until the title starts.
+ */
+export function parseFileInput(input: string): ParsedFileInput | null {
+    const text = input.trim();
+    const match = text.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!match || match.index === undefined) {
+        return null;
+    }
+    const date = `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+    const before = text.slice(0, match.index).trim();
+    const after = text.slice(match.index + match[0].length).trim();
+    if (before) {
+        return parseAuthorAndTitle(before, date, after);
+    }
+    const split = splitCategoryFromRest(after);
+    if (!split) {
+        return null;
+    }
+    return parseAuthorAndTitle(split.category, date, split.remainder);
 }
 
 /** Sheet form: `{y}-{m}-{d} {文章类别} {作者} {文章名}`, with no leading zeros on month or day. */
@@ -155,10 +206,7 @@ function yearMonthInText(text: string): { year: string; month: string } | null {
 function categoryInFileName(fileName: string): string {
     const match = fileName.match(/\d{4}-\d{1,2}-\d{1,2}\s*(.*)$/);
     const rest = match?.[1]?.trim() ?? '';
-    const names = CATEGORY_ALIASES
-        .flatMap(alias => [alias.chinese, alias.english, ...EXTRA_ENGLISH_ALIASES.filter(extra => extra.chinese === alias.chinese).map(extra => extra.english)])
-        .sort((a, b) => b.length - a.length);
-    for (const name of names) {
+    for (const name of knownCategoryNames()) {
         if (rest.toLowerCase().startsWith(name.toLowerCase())) {
             return canonicalChinese(name);
         }
